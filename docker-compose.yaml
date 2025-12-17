@@ -1,0 +1,343 @@
+# Hey! This is the docker-compose file for DeepHarbor.
+# It defines all the services that make up the DeepHarbor application,
+# including the database, main application service, dispatcher,
+# business logic services, worker services, and the gateway service.
+
+# Are you having weirdness with your containers? Try running:
+# docker-compose down -v
+# to remove all containers and volumes, then start fresh with:
+# docker-compose up --build -d
+# Also, if you _really_ want to start fresh, run:
+# docker system prune -a
+# to remove all unused images, containers, and networks.
+
+services:
+  #########################################################
+  # Database Service (Postgresql)
+  #########################################################
+  
+  db:
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_USER: dh
+      POSTGRES_PASSWORD: dh
+      POSTGRES_DB: deepharbor
+      # Our timezone setting is Chicago because that's where we are
+      TZ: "America/Chicago"
+      SERVICE_NAME: DH_DB
+    ports:
+      - "5432:5432" # Maps host port 5432 to container port 5432
+    volumes:
+      - dhpgdata:/var/lib/postgresql
+      - ./pg/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./pg/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./pg/db-init:/docker-entrypoint-initdb.d # Initialization scripts
+      - ./pg/sql/pgsql_schema.sql:/docker-entrypoint-initdb.d/01-pgsql_schema.sql # Schema initialization
+    container_name: dh_db
+    networks:
+      - dh_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d deepharbor"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  #########################################################
+  # Main Application Service - this is the core
+  # DeepHarbor public web service that is called by 
+  # front-end applications like the member portal or
+  # the admin portal
+  #########################################################
+  
+  dhservice:
+    build: ./code/DHService
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    expose:
+      - "8000" 
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TZ: "America/Chicago"
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: deepharbor
+      DATABASE_USER: dh
+      DATABASE_PASSWORD: dh
+      SERVICE_NAME: DH_SERVICE
+    container_name: dh_service
+    networks:
+      - dh_network
+
+  #########################################################
+  # Dispatcher Service
+  #########################################################
+  
+  # Note that this service does not expose any ports
+  # because it is only used for internal communication 
+  # between services 
+  dhdispatcher:
+    build: ./code/DHDispatcher
+    restart: always
+    environment:
+      TZ: "America/Chicago"
+      SERVICE_NAME: DH_DISPATCHER
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: deepharbor
+      DATABASE_USER: dh
+      DATABASE_PASSWORD: dh
+    depends_on:
+      db:
+        condition: service_healthy
+    container_name: dh_dispatcher
+    networks:
+      - dh_network
+
+  #########################################################
+  # Business Logic Services
+  #########################################################
+  
+  # Handles identity-related functions, like setting up
+  # the member identity in Active Directory and possibly
+  # other identity systems in the future
+  dhidentity:
+    build: ./code/services/DHIdentity
+    restart: always
+    environment:
+      TZ: "America/Chicago"
+      SERVICE_NAME: DH_IDENTITY
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: deepharbor
+      DATABASE_USER: dh
+      DATABASE_PASSWORD: dh
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    expose:
+      - "8000"
+    depends_on:
+      dhdispatcher:
+        condition: service_started
+    container_name: dh_identity
+    networks:
+      - dh_network
+
+  # Handles equipment authorizations that both require
+  # and do not require computer access (e.g., laser cutters)
+  dhauthorizations:
+    build: ./code/services/DHAuthorizations
+    restart: always
+    environment:
+      TZ: "America/Chicago"
+      SERVICE_NAME: DH_AUTHORIZATIONS
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: deepharbor
+      DATABASE_USER: dh
+      DATABASE_PASSWORD: dh
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    expose:
+      - "8000"
+    depends_on:
+      dhdispatcher:
+        condition: service_started
+    container_name: dh_authorizations
+    networks:
+      - dh_network
+
+    # Handles access to things like the doors
+  dhaccess:
+    build: ./code/services/DHAccess
+    restart: always
+    environment:
+      TZ: "America/Chicago"
+      SERVICE_NAME: DH_ACCESS
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: deepharbor
+      DATABASE_USER: dh
+      DATABASE_PASSWORD: dh
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    expose:
+      - "8000"
+    depends_on:
+      dhdispatcher:
+        condition: service_started
+    container_name: dh_access
+    networks:
+      - dh_network
+  
+  # Status is a "meta" service that invokes other services like
+  # access and authorizations to either enable or disable a member's
+  # access to various systems. As such it depends on those services
+  # being healthy before it can start.
+  # Note that this is called in two ways: a member's status has changed
+  # (e.g., from active to inactive) or a member's enabled flag has changed
+  # (i.e., from enabled to disabled). Both of these result in changes
+  # to the member's access and authorizations.
+  dhstatus:
+    build: ./code/services/DHStatus
+    restart: always
+    environment:
+      TZ: "America/Chicago"
+      SERVICE_NAME: DH_STATUS
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: deepharbor
+      DATABASE_USER: dh
+      DATABASE_PASSWORD: dh
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    expose:
+      - "8000"
+    depends_on:
+      dhdispatcher:
+        condition: service_started
+      dhaccess:
+        condition: service_healthy
+      dhauthorizations:
+        condition: service_healthy
+    container_name: dh_status
+    networks:
+      - dh_network
+    
+  #########################################################
+  # Worker Services
+  #########################################################
+  
+  # For working with Active Directory
+  dh2ad:
+    build: ./code/workers/DH2AD
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    expose:
+      - "8000"
+    depends_on:
+      dhdispatcher:
+        condition: service_started
+    environment:
+      TZ: "America/Chicago"
+      DH_SERVICE_HOST: dhservice
+      DH_SERVICE_PORT: 80
+      SERVICE_NAME: DH2AD
+    container_name: dh_dh2ad
+    networks:
+      - dh_network
+  
+  # For working with RFID systems
+  dh2rfid:
+    build: ./code/workers/DH2RFID
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    expose:
+      - "8000"
+    depends_on:
+      dhdispatcher:
+        condition: service_started
+    environment:
+      TZ: "America/Chicago"
+      DH_SERVICE_HOST: dhservice
+      DH_SERVICE_PORT: 8000
+      SERVICE_NAME: DH2RFID
+    container_name: dh_dh2rfid
+    networks:
+      - dh_network
+
+#########################################################
+# Gateway Service (nginx)
+##########################################################
+  gateway:
+      image: nginx:alpine
+      restart: always
+      ports:
+        - "80:80"
+      environment:
+        TZ: "America/Chicago"
+        SERVICE_NAME: DH_GATEWAY
+      volumes:
+        - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      depends_on:
+        - db
+        - dhservice
+        - dhidentity
+        - dhauthorizations
+        - dh2ad
+        - dh2rfid
+        - dhaccess
+        - dhstatus
+      container_name: dh_gateway
+      networks:
+        - dh_network
+
+##########################################################
+# Ancillary Services
+##########################################################
+  grafana:
+    image: grafana/grafana:latest
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./tools/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./tools/grafana/provisioning/dashboards/main.yaml:/etc/grafana/provisioning/dashboards/main.yaml
+      - ./tools/grafana/provisioning/dashboards:/var/lib/grafana/dashboards
+    environment:
+      TZ: "America/Chicago"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    depends_on:
+      db:
+        condition: service_healthy
+    container_name: dh_grafana
+    networks:
+      - dh_network
+
+##########################################################
+# Volumes and Networks
+##########################################################
+
+# Persistent volume for PostgreSQL data
+volumes:
+  dhpgdata:
+
+# Custom network for DeepHarbor services to communicate
+# internally. All services are attached to this network.
+networks:
+  dh_network:
+    driver: bridge

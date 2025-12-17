@@ -1,0 +1,11 @@
+[project]
+name = "dhstatus"
+version = "0.1.0"
+description = "Handles turning on and off access to services based on the member status in Deep Harbor."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]>=0.122.0",
+    "psycopg2-binary>=2.9.11",
+    "requests>=2.32.5",
+]

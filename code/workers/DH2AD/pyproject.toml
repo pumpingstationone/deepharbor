@@ -1,0 +1,11 @@
+[project]
+name = "dh2ad"
+version = "0.1.0"
+description = "Endpoint that handles working with Active Directory with data from Deep Harbor. Invoked from DHDispatcher."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]>=0.122.0",
+    "ms-active-directory>=1.14.1",
+    "psycopg2-binary>=2.9.11",
+]

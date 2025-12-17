@@ -1,0 +1,13 @@
+[project]
+name = "dh2rfid"
+version = "0.1.0"
+description = "Endpoint that handles adding and removing RFID tags for users in the DH system. Called from the DHDisatcher service."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]>=0.121.3",
+    "psycopg2-binary>=2.9.11",
+    "pydantic>=2.12.5",
+    "uhppoted>=0.8.11",
+    "uvicorn>=0.38.0",
+]

@@ -1,0 +1,10 @@
+[project]
+name = "dhdispatcher"
+version = "0.1.0"
+description = "Deep Harbor Dispatcher Service - Manages and dispatches tasks for Deep Harbor."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "psycopg2-binary>=2.9.11",
+    "requests>=2.32.5",
+]

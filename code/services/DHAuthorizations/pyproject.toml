@@ -1,0 +1,12 @@
+[project]
+name = "dhauthorizations"
+version = "0.1.0"
+description = "This service is responsible for handling authorizations (i.e. whether the member can use a particular tool)"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "configparser>=7.2.0",
+    "fastapi[standard]>=0.122.0",
+    "psycopg2-binary>=2.9.11",
+    "requests>=2.32.5",
+]

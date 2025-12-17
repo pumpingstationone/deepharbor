@@ -1,0 +1,5 @@
+.venv
+Dockerfile
+start_services.sh
+client_test
+__pycache__

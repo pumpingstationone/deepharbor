@@ -1,0 +1,23 @@
+apiVersion: 1
+
+datasources:
+  - name: DeepHarbor PostgreSQL
+    type: postgres
+    access: proxy
+    orgId: 1
+    url: db:5432
+    user: dh    
+    isDefault: true
+    editable: false
+    jsonData:
+      sslmode: 'disable'
+      maxOpenConns: 100
+      maxIdleConns: 100
+      maxIdleConnsAuto: true
+      connMaxLifetime: 14400
+      postgresVersion: 1500
+      timescaledb: false
+      postgresSchema: 'public'
+      database: 'deepharbor'
+    secureJsonData:
+      password: 'dh'
