@@ -48,6 +48,24 @@ CREATE INDEX IF NOT EXISTS idx_member_access ON member USING GIN (access);
 CREATE INDEX IF NOT EXISTS idx_member_access_rfid_tags_gin ON member USING GIN ((access->'rfid_tags'));
 CREATE INDEX IF NOT EXISTS idx_member_authorizations ON member USING GIN (authorizations);
 
+-- Full text search index on member table (all columns except id, status, forms, date_added, date_modified)
+CREATE INDEX IF NOT EXISTS idx_member_fulltext_search ON member USING GIN (
+    (
+        to_tsvector('english', COALESCE(jsonb_to_tsvector('english', identity, '["all"]')::text, '')) ||
+        to_tsvector('english', COALESCE(jsonb_to_tsvector('english', connections, '["all"]')::text, '')) ||
+        to_tsvector('english', COALESCE(jsonb_to_tsvector('english', access, '["all"]')::text, '')) ||
+        to_tsvector('english', COALESCE(jsonb_to_tsvector('english', authorizations, '["all"]')::text, '')) ||
+        to_tsvector('english', COALESCE(jsonb_to_tsvector('english', extras, '["all"]')::text, '')) ||
+        to_tsvector('english', COALESCE(jsonb_to_tsvector('english', notes, '["all"]')::text, ''))
+    )
+);
+
+-- Search index just for the identity column
+CREATE INDEX IF NOT EXISTS idx_member_identity_fulltext_search ON member USING GIN (
+    to_tsvector('english', COALESCE(jsonb_to_tsvector('english', identity, '["all"]')::text, ''))
+);
+
+
 -- Indexes for member_audit table
 CREATE INDEX IF NOT EXISTS idx_member_audit_id ON member_audit (id);
 CREATE INDEX IF NOT EXISTS idx_member_audit_id_version ON member_audit (id, version);
@@ -276,6 +294,89 @@ END;
 $body$
 LANGUAGE plpgsql;
 COMMENT ON FUNCTION get_all_tags_for_member(INTEGER) IS 'This function retrieves all RFID tags associated with a member from both the member and member_audit tables, indicating whether each tag is currently active or inactive.';
+
+/*
+ * Full Text Search Function
+ * This function performs full text search on member records across
+ * all searchable columns (identity, connections, access, authorizations,
+ * extras, notes) and returns results ranked by relevance.
+ */
+CREATE OR REPLACE FUNCTION search_members(search_query text)
+RETURNS TABLE (
+    id integer,
+    identity jsonb,
+    connections jsonb,
+    status jsonb,
+    access jsonb,
+    authorizations jsonb,
+    extras jsonb,
+    notes jsonb,
+    rank real
+) AS $body$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        m.id,
+        m.identity,
+        m.connections,
+        m.status,
+        m.access,
+        m.authorizations,
+        m.extras,
+        m.notes,
+        ts_rank(
+            (
+                to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.identity, '["all"]')::text, '')) ||
+                to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.connections, '["all"]')::text, '')) ||
+                to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.access, '["all"]')::text, '')) ||
+                to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.authorizations, '["all"]')::text, '')) ||
+                to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.extras, '["all"]')::text, '')) ||
+                to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.notes, '["all"]')::text, ''))
+            ),
+            plainto_tsquery('english', search_query)
+        ) AS rank
+    FROM member m
+    WHERE 
+        (
+            to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.identity, '["all"]')::text, '')) ||
+            to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.connections, '["all"]')::text, '')) ||
+            to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.access, '["all"]')::text, '')) ||
+            to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.authorizations, '["all"]')::text, '')) ||
+            to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.extras, '["all"]')::text, '')) ||
+            to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.notes, '["all"]')::text, ''))
+        ) @@ plainto_tsquery('english', search_query)
+    ORDER BY rank DESC;
+END;
+$body$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION search_members(text) IS 'Performs full text search on member records across all searchable JSONB columns and returns results ranked by relevance.';
+
+/*
+ * Similar function to the one above, but used just for searching
+ * the identity column.
+ */
+CREATE OR REPLACE FUNCTION search_members_by_identity(search_query text)
+RETURNS TABLE (
+    id integer,
+    identity jsonb,
+    rank real
+) AS $body$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        m.id,
+        m.identity,
+        ts_rank(
+            to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.identity, '["all"]')::text, '')),
+            plainto_tsquery('english', search_query)
+        ) AS rank
+    FROM member m
+    WHERE 
+        to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.identity, '["all"]')::text, ''))
+        @@ plainto_tsquery('english', search_query)
+    ORDER BY rank DESC;
+END;
+$body$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION search_members_by_identity(text) IS 'Performs full text search on the identity JSONB column of member records and returns results ranked by relevance.';
 
 /* 
  * member Audit Trigger and Functions
