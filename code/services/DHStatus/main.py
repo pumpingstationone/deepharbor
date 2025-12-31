@@ -104,7 +104,7 @@ def perform_status_changes(member_id: str, change_type: str):
     #
     dh2ad_url = config["DH2AD"]["endpoint_url"]
     dh2ad_payload = {
-        "user_id": member_identity.get("active_directory_username"),
+        "username": member_identity.get("active_directory_username"),
         "enabled": change_type        
     }
     try:
