@@ -5,7 +5,12 @@ description = "Endpoint that handles working with Active Directory with data fro
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "azure-identity>=1.25.1",
+    "configparser>=7.2.0",
     "fastapi[standard]>=0.122.0",
     "ms-active-directory>=1.14.1",
+    "msal>=1.34.0",
+    "msgraph-sdk>=1.51.0",
     "psycopg2-binary>=2.9.11",
+    "requests>=2.32.5",
 ]
