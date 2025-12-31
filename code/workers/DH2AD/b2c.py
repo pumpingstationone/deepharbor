@@ -93,7 +93,7 @@ def create_user_in_b2c(access_token,
         'surname': last_name,
         'mail': email_address,
         'onPremisesImmutableId': immutable_id,  # Store AD object GUID for sync
-        # Extension attributes - these need to be defined in your B2C tenant first
+        # Extension attributes to store AD Object GUID and DH ID
         f'extension_{extension_app_id}_ADObjectGUID': ad_object_id,
         f'extension_{extension_app_id}_CRMNumber': f'{dh_id}'
     }

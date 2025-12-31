@@ -98,6 +98,18 @@ def delete_user(session, username):
     
     logger.info(f"User {username} deleted successfully")
 
+def set_user_enabled(session, username, enabled=True):
+    action = "Enabling" if enabled else "Disabling"
+    logger.info(f"{action} user: {username}")
+    
+    user = session.find_user_by_sam_name(username)
+    if enabled:
+        session.enable_account(user)
+    else:
+        session.disable_account(user)
+    
+    logger.info(f"User {username} successfully {'enabled' if enabled else 'disabled'}")
+
 # If you're calling this function, it's likely because you're doing
 # B2C stuff or something that requires the universally-unique ID
 # of the user in Active Directory

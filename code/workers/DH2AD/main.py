@@ -1,8 +1,8 @@
 import os
 from fastapi import FastAPI, HTTPException
 
-# https://pypi.org/project/ms-active-directory/
-from ms_active_directory import ADDomain
+from ad import ad
+from b2c import b2c
 
 from dhs_logging import logger
 
@@ -129,28 +129,18 @@ async def set_member_enabled(request: dict):
     logger.info(f"Set member enabled request received: {request}")
 
     try:
-        """
-        # Connect to Active Directory
-        ad_domain = ADDomain(
-            domain_name="your_domain",
-            username="your_username",
-            password="your_password"
-        )
-
-        user_id = request.get("user_id")
+        # First let's get the username and enabled status
+        username = request.get("username")
         enabled = request.get("enabled", True)
-
-        if enabled:
-            ad_domain.enable_user(user_id)
-        else:
-            ad_domain.disable_user(user_id)
-
-        response = {
-            "user_id": user_id,
-            "enabled": enabled
-        }
-        """
-        response = {"user_id": request.get("user_id"), "enabled": request.get("enabled", True)}
+        
+        # Now connect to AD
+        sesion = ad.create_session()
+        user = ad.get_user_by_username(sesion, username)
+        ad.set_user_enabled_status(sesion, user, enabled)
+        ad.close_session(sesion)
+        
+        
+        response = {"username": request.get("username"), "enabled": request.get("enabled", True)}
         logger.info(f"User enabled status set successfully: {response}")
         return response
     except Exception as e:
