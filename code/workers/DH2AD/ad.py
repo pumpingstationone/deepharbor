@@ -74,6 +74,7 @@ def create_user(session,
                 password, 
                 first_name, 
                 last_name, 
+                email_address,
                 common_name,
                 supports_legacy_behavior=False):
     logger.info(f"Creating new user: {username}")
@@ -85,7 +86,9 @@ def create_user(session,
         last_name=last_name,
         common_name=common_name,
         object_location=config['active_directory']['member_DN'],
-        supports_legacy_behavior=supports_legacy_behavior
+        supports_legacy_behavior=supports_legacy_behavior,
+        mail=email_address,
+        userPrincipalName=email_address # so the user can log in with email
     )
     
     logger.info(f"User {username} created with DN: {user.distinguished_name}")
