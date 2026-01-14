@@ -38,18 +38,31 @@ async def _get_member_id_and_json(request: Request) -> tuple[str, dict]:
 ###############################################################################
 
 @app.get("/v1/member/id")
-async def get_member_id(
-    current_user: AuthenticatedClient,
-    email_address: str,
-):
+async def get_member_id_from_email(current_user: AuthenticatedClient, email_address: str):
     """Get member ID from email address."""
-    logger.debug(f"in get_member_id with email_address: {email_address}")
     return {"member_id": db.get_member_id_from_email(email_address)}
 
 @app.get("/v1/member/identity/")
 async def get_member_identity(current_user: AuthenticatedClient, member_id: str):
     """Get member identity information."""
     return db.get_member_identity(member_id)
+
+@app.get("/v1/member/search/")
+async def search_members(current_user: AuthenticatedClient, query: str):
+    """ Search for members based on a query string.
+        Note that this is specifically searching both identity
+        and access information, not _everything_ about a member.
+        There is a separate database function for that (search_members),
+        but it is not currently exposed via an endpoint because
+        it finds names in too many other fields (e.g., the "notes"
+        field).
+    """
+    return db.search_members_by_identity_and_access(query)
+
+@app.get("/v1/member/username_check/")
+async def check_member_username(current_user: AuthenticatedClient, username: str):
+    """Check if a username is available."""
+    return {"available": db.is_username_available(username)}
 
 @app.get("/v1/member/connections/")
 async def get_member_connections(current_user: AuthenticatedClient, member_id: str):
@@ -95,6 +108,16 @@ async def get_member_last_updated(current_user: AuthenticatedClient, member_id: 
 async def get_last_wa_sync(current_user: AuthenticatedClient):
     """Get last Wild Apricot sync time."""
     return {"last_sync": db.get_last_wa_sync_time()}
+
+@app.get("/v1/member/roles/")
+async def get_member_roles(current_user: AuthenticatedClient, member_id: str):
+    """Get member roles within Deep Harbor itself."""
+    return {"roles": db.get_member_roles(member_id)}
+
+@app.get("/v1/member/entry_logs/")
+async def get_member_entry_logs(current_user: AuthenticatedClient, member_id: str):
+    """Get member entry logs."""
+    return {"entry_logs": db.get_member_entry_logs(member_id)}
 
 ###############################################################################
 # Member POST endpoints
@@ -206,3 +229,31 @@ async def update_wa_sync_time(
     data = await request.json()
     logger.debug(f"In update_wa_sync_time with {data}")
     return db.update_last_wa_sync_time(data["last_sync"])
+
+###############################################################################
+# Bulk endpoints
+###############################################################################
+
+@app.get("/v1/members/names_and_emails/")
+async def get_all_member_names_and_emails(current_user: AuthenticatedClient):
+    """Get names and email addresses for all members."""
+    return {"members": db.get_all_member_names_and_emails()}
+
+@app.get("/v1/authorizations/available/")
+async def get_available_authorizations(current_user: AuthenticatedClient):
+    """Get all available authorizations."""
+    return {"available_authorizations": db.get_available_authorizations()}
+
+###############################################################################
+# Deep Harbor specific endpoints (e.g. user activity on websites)
+###############################################################################
+
+@app.post("/v1/dh/user_activity/")
+async def log_user_activity(
+    current_client: AuthenticatedClient,
+    request: Request,
+):
+    """Log user activity on Deep Harbor websites."""
+    data = await request.json()
+    logger.debug(f"In log_user_activity with {data}")
+    return db.log_user_activity(data)

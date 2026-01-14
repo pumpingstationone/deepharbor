@@ -26,8 +26,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO dh_ro;
  * holds all the member records, and member_audit holds the audit
  * trail for changes to those records.
  */
-CREATE TABLE IF NOT EXISTS member (id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY, identity JSONB NOT NULL, connections JSONB NULL, status JSONB NULL, forms JSONB, access JSONB, authorizations JSONB, extras JSONB, notes JSONB, date_added TIMESTAMP(6) WITH TIME ZONE DEFAULT now() NOT NULL, date_modified TIMESTAMP(6) WITH TIME ZONE DEFAULT now() NOT NULL);
-CREATE TABLE IF NOT EXISTS member_audit (id INTEGER NOT NULL, identity JSONB NOT NULL, connections JSONB NULL, status JSONB NULL, forms JSONB, access JSONB, authorizations JSONB, extras JSONB, notes JSONB, version INTEGER NOT NULL, hash text NOT NULL, date_added TIMESTAMP(6) WITH TIME ZONE NOT NULL);
+CREATE TABLE IF NOT EXISTS member (id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY, identity JSONB NOT NULL, connections JSONB NULL, status JSONB NULL, forms JSONB, access JSONB, authorizations JSONB, extras JSONB, notes JSONB, date_added TIMESTAMP(6) WITH TIME ZONE DEFAULT now() NOT NULL, date_modified TIMESTAMP(6) WITH TIME ZONE DEFAULT now() NOT NULL, last_updated_by INTEGER NULL);
+CREATE TABLE IF NOT EXISTS member_audit (id INTEGER NOT NULL, identity JSONB NOT NULL, connections JSONB NULL, status JSONB NULL, forms JSONB, access JSONB, authorizations JSONB, extras JSONB, notes JSONB, version INTEGER NOT NULL, hash text NOT NULL, date_added TIMESTAMP(6) WITH TIME ZONE NOT NULL, last_updated_by INTEGER NULL, PRIMARY KEY (id, version));
 -- Foreign key constraint to link member_audit to member
 ALTER TABLE member_audit ADD CONSTRAINT fk_member_audit_member_id FOREIGN KEY (id) REFERENCES member(id) ON DELETE CASCADE;
 
@@ -119,10 +119,15 @@ CREATE TABLE
                 client_description TEXT, 
                 PRIMARY KEY (client_name) 
     );
-/* Our initial OAuth2 client for dev web services */
-INSERT INTO oauth2_users (client_name, client_secret, date_added, client_description) VALUES ('dev-dhservices-v1', '$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW', '2025-01-20 14:54:39', 'dev web services v1');
-
 COMMENT ON TABLE oauth2_users IS 'This table holds the OAuth2 client credentials for applications that need to access the Deep Harbor API.';
+
+/* HEY! Update these with real client secrets using the generate_secret.sh tool! */
+/* Our initial OAuth2 client for dev web services */
+INSERT INTO oauth2_users (client_name, client_secret, client_description) VALUES ('dev-dhservices-v1', '$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW', 'dev web services v1');
+/* And another one for our admin portal */
+INSERT INTO oauth2_users (client_name, client_secret, client_description) VALUES ('dev-admin-portal', '$2b$12$OcAzWAtVKG0oTtzeZeU42.SlZyABSOLF8153s/dX.yFaDsLDWNK46', 'admin portal application');
+/* The member portal client */
+insert into oauth2_users (client_name, client_secret, client_description) values('dev-member-portal', '$2b$12$17IgUjlVac/yIL4P6lBAlOed37uKM3qce9YgLIGFWhWRNLvU0bNES', 'member portal application');
 
 /* 
  * For Wild Apricot sync tracking - this can go away once
@@ -139,9 +144,11 @@ COMMENT ON TABLE wild_apricot_sync IS 'This table tracks the last synchronizatio
 /* 
  * Functions for Wiegand conversion - this is used for the RFID
  * tags PS1 uses
+ * Note we take bigint as input for convertfromwiegand because
+ * the Wiegand 24-bit integer value can be larger than the
+ * maximum value for a standard integer.
  */
-
-CREATE FUNCTION convertfromwiegand (p_num integer)  RETURNS integer
+CREATE FUNCTION convertfromwiegand (p_num bigint)  RETURNS integer
   VOLATILE
 AS $body$
 DECLARE
@@ -378,6 +385,88 @@ END;
 $body$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION search_members_by_identity(text) IS 'Performs full text search on the identity JSONB column of member records and returns results ranked by relevance.';
 
+/*
+ * This function is used for searching members by identity and access
+ * (e.g., RFID tags) and returning full member records. This is used in
+ * the admin portal so that an admin can search for a member by name or RFID tag
+ */
+CREATE OR REPLACE FUNCTION search_members_by_identity_and_access(search_query text)
+RETURNS TABLE (
+    id integer,
+    identity jsonb,
+    connections jsonb,
+    status jsonb,
+    access jsonb,
+    authorizations jsonb,
+    extras jsonb,
+    notes jsonb,
+    rank real
+) AS $body$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        m.id,
+        m.identity,
+        m.connections,
+        m.status,
+        m.access,
+        m.authorizations,
+        m.extras,
+        m.notes,
+        ts_rank(
+            (
+                to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.identity, '["all"]')::text, '')) ||
+                to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.access, '["all"]')::text, ''))
+            ),
+            plainto_tsquery('english', search_query)
+        ) AS rank
+    FROM member m
+    WHERE 
+        -- Full-text search on identity and access
+        (
+            to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.identity, '["all"]')::text, '')) ||
+            to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.access, '["all"]')::text, ''))
+        ) @@ plainto_tsquery('english', search_query)
+        OR
+        -- Pattern matching for numeric searches (handles RFID tags with/without leading zeros)
+        (search_query ~ '^[0-9]+$' AND m.access::text ILIKE '%' || search_query || '%')
+    ORDER BY rank DESC;
+END;
+$body$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION search_members_by_identity_and_access(text) IS 'Performs full text search on the identity and access JSONB columns of member records and returns results ranked by relevance.';
+
+/*
+ * Function that returns full member records based on identity search
+ */
+CREATE OR REPLACE FUNCTION get_members_details_by_identity(search_name text)
+RETURNS TABLE (
+    id integer,
+    identity jsonb,
+    status jsonb,
+    access jsonb,
+    authorizations jsonb,
+    extras jsonb,
+    notes jsonb
+) AS $body$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        m.id,
+        m.identity,
+        m.status,
+        m.access,
+        m.authorizations,
+        m.extras,
+        m.notes
+    FROM member m
+    WHERE m.id IN (
+        SELECT s.id 
+        FROM search_members_by_identity(search_name) s
+    );
+END;
+$body$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION get_members_details_by_identity(text) IS 'Returns full member records (id, identity, status, access, authorizations, extras, notes) by searching the identity column. Uses search_members_by_identity to find matching member IDs. May return zero or more rows';
+
 /* 
  * member Audit Trigger and Functions
  * This trigger will create an audit record in the member_audit table
@@ -423,7 +512,8 @@ BEGIN
             notes,
             HASH,
             VERSION,
-            date_added 
+            date_added,
+            last_updated_by 
         )
         VALUES 
         ( 
@@ -444,7 +534,8 @@ BEGIN
                     member_audit 
                 WHERE 
                     id = new.id), 1), 
-            CURRENT_TIMESTAMP 
+            CURRENT_TIMESTAMP,
+            new.last_updated_by 
         );
 RETURN NEW;
 END;
@@ -552,6 +643,8 @@ COMMENT ON TRIGGER trigger_insert_member_changes ON member_changes IS 'This trig
 /*
  * Triggers to log changes to specific columns in the member table
  * into the member_changes table for processing by DHDispatcher.
+ * If you're looking to add more columns to be monitored, just add them
+ * to the function and the triggers below. 
  */
 
 -- This function will be called by triggers on the member table
@@ -668,74 +761,6 @@ INSERT INTO service_endpoints (name, endpoint) VALUES
 ('identity', 'http://dhidentity:8000/v1/change_identity');
 
 /*
- * Member passwords
- * Here we defined all the stuff we need to store and manage passwords
- * for members. These are hashed passwords only, never plaintext.
- * The member interacts with the system to set or change their password,
- * via the website or API, and we store only the hash here.
- */
-
--- Table to store password hashes for members.
--- member_id references member(id) and is the primary key so there's at most one password row per member.
-CREATE TABLE IF NOT EXISTS member_password (
-  member_id integer PRIMARY KEY REFERENCES member(id) ON DELETE CASCADE,
-  password_hash text NOT NULL,
-  date_added timestamptz NOT NULL DEFAULT now(),
-  date_modified timestamptz NOT NULL DEFAULT now()
-);
-COMMENT ON TABLE member_password IS 'This table stores hashed passwords for members. Each member can have at most one password entry.';
-
--- Upsert function: hash the supplied plaintext password and insert or update the row.
-CREATE OR REPLACE FUNCTION upsert_member_password(p_member_id integer, p_password text)
-RETURNS void
-LANGUAGE plpgsql
-AS $body$
-DECLARE
-  v_hash text;
-BEGIN
-  IF p_member_id IS NULL OR p_password IS NULL OR length(p_password) = 0 THEN
-    RAISE EXCEPTION 'member_id and password must be provided and password must be non-empty';
-  END IF;
-
-  v_hash := crypt(p_password, gen_salt('bf', 12));
-
-  INSERT INTO member_password (member_id, password_hash)
-  VALUES (p_member_id, v_hash)
-  ON CONFLICT (member_id) DO UPDATE
-    SET password_hash = EXCLUDED.password_hash,
-        date_modified = now();
-END;
-$body$;
-COMMENT ON FUNCTION upsert_member_password(integer, text) IS 'This function hashes the supplied plaintext password and inserts or updates the member_password table for the given member_id.';
-
--- debugging - verify a plaintext password against the stored hash.
-CREATE OR REPLACE FUNCTION verify_member_password(p_member_id integer, p_password text)
-RETURNS boolean
-LANGUAGE plpgsql
-AS $body$
-DECLARE
-  v_hash text;
-BEGIN
-  IF p_member_id IS NULL OR p_password IS NULL THEN
-    RETURN false;
-  END IF;
-
-  SELECT password_hash INTO v_hash
-  FROM member_password
-  WHERE member_id = p_member_id;
-
-  IF NOT FOUND THEN
-    RETURN false;
-  END IF;
-
-  -- crypt(pw, stored_hash) returns the hash computed with the salt from stored_hash;
-  -- comparing equality is the correct verification pattern.
-  RETURN v_hash = crypt(p_password, v_hash);
-END;
-$body$;
-COMMENT ON FUNCTION verify_member_password(integer, text) IS 'This function verifies a plaintext password against the stored hash for the given member_id and returns true if they match, false otherwise.';
-
-/*
  * Lookup tables
  * These tables hold various lookup values used in the system.
  */
@@ -765,60 +790,60 @@ insert into membership_types_lookup (id, name) values
         (16, 'Volunteer w/ Free Storage'),
         (17, 'Volunteer w/ Paid Storage');
 
-CREATE TABLE IF NOT EXISTS authorization_types_lookup (
+CREATE TABLE IF NOT EXISTS available_authorizations (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    description TEXT);
-COMMENT ON TABLE authorization_types_lookup IS 'This table holds the authorization types (i.e. the various equipment authorizations) used in the Deep Harbor system.';
-
+    description TEXT,
+    requires_login BOOLEAN NOT NULL DEFAULT FALSE);
+COMMENT ON TABLE available_authorizations IS 'This table holds the authorization types (i.e. the various equipment authorizations) used in the Deep Harbor system.';
 -- Hard-coded authorization types specific to the PS1 hackspace
 -- as of December 2025
-insert into authorization_types_lookup (id, name) values
-        (1, 'Boss Authorized Users'),
-        (2, 'CNC Plasma Authorized Users'),
-        (3, 'Epilog Authorized Users'),
-        (4, 'ShopBot Authorized Users'),
-        (5, 'Tormach Authorized Users'),
-        (6, 'Universal Authorized Users'),
-        (7, 'Vinyl Cutter Authorized Users'),
-        (8, 'Mimaki CJV30 printer Users'),
-        (9, 'Band Saw'),
-        (10, 'Billiards'),
-        (11, 'Blacksmithing'),
-        (12, 'Bridgeport Mill'),
-        (13, 'Button sewing machines'),
-        (14, 'Clausing Lathe'),
-        (15, 'Coffee Roaster'),
-        (16, 'Cold Metals Basic'),
-        (17, 'Drum Sander'),
-        (18, 'Ender 3D Printers'),
-        (19, 'Formlabs Form 3 printer'),
-        (20, 'Hand held plasma cutter'),
-        (21, 'Jointer'),
-        (22, 'LeBlond Lathe'),
-        (23, 'Metal Band Saw'),
-        (24, 'Metal Drill Press'),
-        (25, 'Mig Welders'),
-        (26, 'Mitre Saw'),
-        (27, 'Multi-Router'),
-        (28, 'Panel Saw'),
-        (29, 'Planer'),
-        (30, 'Pneumatic Power Tools'),
-        (31, 'Powder Coating Equipment'),
-        (32, 'Prusa 3D printers'),
-        (33, 'Router Table'),
-        (34, 'Sanders'),
-        (35, 'Saw Dado'),
-        (36, 'Serger sewing machine'),
-        (37, 'Square Chisel Morticer'),
-        (38, 'Surface Grinder'),
-        (39, 'Table Saw'),
-        (40, 'Tier one Sewing Machine'),
-        (41, 'Tig Welders'),
-        (42, 'Tube Bending Equipment'),
-        (43, 'Wood Drill Press'),
-        (44, 'Wood Lathe'),
-        (45, 'Wood Mini Lathe');
+insert into available_authorizations (id, name, requires_login) values
+        (1, 'Boss Authorized Users', true),
+        (2, 'CNC Plasma Authorized Users', true),
+        (3, 'Epilog Authorized Users', true),
+        (4, 'ShopBot Authorized Users', true),
+        (5, 'Tormach Authorized Users', true),
+        (6, 'Universal Authorized Users', true),
+        (7, 'Vinyl Cutter Authorized Users', true),
+        (8, 'Mimaki CJV30 printer Users', true),
+        (9, 'Band Saw', false),
+        (10, 'Billiards', false),
+        (11, 'Blacksmithing', false),
+        (12, 'Bridgeport Mill', false),
+        (13, 'Button sewing machines', false),
+        (14, 'Clausing Lathe', false),
+        (15, 'Coffee Roaster', false),
+        (16, 'Cold Metals Basic', false),
+        (17, 'Drum Sander', false),
+        (18, 'Ender 3D Printers', false),
+        (19, 'Formlabs Form 3 printer', false),
+        (20, 'Hand held plasma cutter', false),
+        (21, 'Jointer', false),
+        (22, 'LeBlond Lathe', false),
+        (23, 'Metal Band Saw', false),
+        (24, 'Metal Drill Press', false),
+        (25, 'Mig Welders', false),
+        (26, 'Mitre Saw', false),
+        (27, 'Multi-Router', false),
+        (28, 'Panel Saw', false),
+        (29, 'Planer', false),
+        (30, 'Pneumatic Power Tools', false),
+        (31, 'Powder Coating Equipment', false),
+        (32, 'Prusa 3D printers', false),
+        (33, 'Router Table', false),
+        (34, 'Sanders', false),
+        (35, 'Saw Dado', false),
+        (36, 'Serger sewing machine', false),
+        (37, 'Square Chisel Morticer', false),
+        (38, 'Surface Grinder', false),
+        (39, 'Table Saw', false),
+        (40, 'Tier one Sewing Machine', false),
+        (41, 'Tig Welders', false),
+        (42, 'Tube Bending Equipment', false),
+        (43, 'Wood Drill Press', false),
+        (44, 'Wood Lathe', false),
+        (45, 'Wood Mini Lathe', false);
 
 /*
  * Activity tables
@@ -826,11 +851,133 @@ insert into authorization_types_lookup (id, name) values
 
 -- This table logs member access of the doors using RFID tags.
 CREATE TABLE IF NOT EXISTS member_access_logs (
-  id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-  member_id INTEGER REFERENCES member(id) ON DELETE SET NULL,
-  rfid_tag TEXT NOT NULL,
-  access_point TEXT NOT NULL,
-  access_granted BOOLEAN NOT NULL,
-  timestamp TIMESTAMP(6) WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+    id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    member_id INTEGER REFERENCES member(id) ON DELETE SET NULL,
+    rfid_tag TEXT NOT NULL,
+    board_tag_num BIGINT NOT NULL,
+    access_point TEXT NOT NULL,
+    access_granted BOOLEAN NOT NULL,
+    timestamp TIMESTAMP(6) WITHOUT TIME ZONE 
 );
 COMMENT ON TABLE member_access_logs IS 'This table logs member access events (i.e. front door, back door) using RFID tags';
+
+-- Unique index to prevent duplicate access log entries
+CREATE UNIQUE INDEX IF NOT EXISTS idx_member_access_logs_unique 
+ON member_access_logs (rfid_tag, board_tag_num, access_point, access_granted, timestamp);
+COMMENT ON INDEX idx_member_access_logs_unique IS 'This unique index ensures that duplicate access log entries are not created for the same RFID tag, board tag number, access point, access granted status, and timestamp combination.';
+
+/* Helper function to find member by RFID tag */
+CREATE OR REPLACE FUNCTION get_member_by_rfid_tag(p_tag_number BIGINT)
+RETURNS TABLE (
+    id INTEGER,
+    first_name TEXT,
+    last_name TEXT,
+    email_address TEXT,
+    tag_id BIGINT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_converted_tag BIGINT;
+BEGIN
+     -- Try to convert the tag number first, handle any errors
+    BEGIN
+        v_converted_tag := convertfromwiegand(p_tag_number);
+    EXCEPTION WHEN OTHERS THEN
+        -- If conversion fails, just use the original tag number
+        RETURN QUERY
+        SELECT NULL::INTEGER, NULL::TEXT, NULL::TEXT, NULL::TEXT, p_tag_number;
+        RETURN;
+    END;
+
+    RETURN QUERY
+    SELECT m.id, 
+        m.identity ->> 'first_name' AS first_name,
+        m.identity ->> 'last_name' AS last_name,
+        m.identity -> 'emails' -> 0 ->> 'email_address' AS email_address,
+        v_converted_tag AS tag_id
+    FROM member m
+    WHERE EXISTS (
+        SELECT 1 
+        FROM jsonb_array_elements_text(m.access->'rfid_tags') AS tag
+        WHERE tag LIKE '%' || v_converted_tag::text || '%'
+    );
+    
+    -- If no member was found, return a row with NULLs for member fields but with the converted tag
+    IF NOT FOUND THEN
+        RETURN QUERY
+        SELECT NULL::INTEGER, NULL::TEXT, NULL::TEXT, NULL::TEXT, v_converted_tag;
+    END IF;
+END;
+$$;
+COMMENT ON FUNCTION get_member_by_rfid_tag(BIGINT) IS 'This function retrieves member details based on the provided RFID tag number by converting it from Wiegand format and searching the access->rfid_tags array in the member table.';
+
+-- View to combine member access logs with member identity information
+-- for things like reports or audits.
+CREATE OR REPLACE VIEW v_member_access_log AS
+SELECT mal.id,
+       mal.timestamp,
+       CASE 
+           WHEN mal.access_point = '1' THEN 'Front Door'
+           WHEN mal.access_point = '2' THEN 'Back Door'
+           ELSE mal.access_point
+       END AS access_point,
+       mal.access_granted,
+       mal.board_tag_num,
+       m.id AS member_id,
+       m.identity ->> 'first_name' AS first_name,
+       m.identity ->> 'last_name' AS last_name,
+       m.identity -> 'emails' -> 0 ->> 'email_address' AS email_address
+FROM member_access_logs mal
+LEFT JOIN member m ON mal.member_id = m.id;
+COMMENT ON VIEW v_member_access_log IS 'This view combines member access logs with member identity information for easier querying of access events along with basic member info.';
+
+/*
+ * Deep Harbor Care-n-Feeding DDL that revolves around administering 
+ * members, equipment, auths, etc.
+ */
+
+CREATE TABLE roles (
+    id INTEGER NOT NULL GENERATED ALWAYS AS IDENTITY,
+    NAME TEXT NOT NULL,
+    permission JSONB NOT NULL,
+    PRIMARY KEY (id)
+);
+COMMENT ON TABLE roles IS 'This table holds the various roles defined in the Deep Harbor system along with their associated permissions stored as JSONB.';
+
+/* 
+ * Some initial roles for Deep Harbor.
+ * Note - these values are *not* arbitrary. They refer to the names of the panels 
+ * in the DHAdminPortal interface. Check index.html in that project to see them in  
+ * the filterTabsByPermissions() function.
+ */
+INSERT INTO roles (name, permission) VALUES ('Authorizer', '{"view": ["identity", "authorizations"], "change": ["authorizations"]}');
+INSERT INTO roles (name, permission) VALUES ('Administrator', '{"view": ["identity", "status", "roles", "forms", "connections", "extras", "authorizations", "notes", "access", "entry"], "change": ["identity", "status", "roles", "forms", "connections", "extras", "authorizations", "notes", "access"]}');
+INSERT into roles (name, permission) VALUES ('Board', '{"view": ["identity", "status", "notes", "entry"], "change": ["status", "notes"]}')
+/* 
+ * How we assign roles to members - note that Deep Harbor is written with the idea that anyone who is a 
+ * member can have a role, the assumption that the membership is responsible for everything.
+ */
+CREATE TABLE member_to_role (
+    role_id    INTEGER,
+    member_id  INTEGER,
+    date_added TIMESTAMP(6) WITH TIME ZONE DEFAULT now() NOT NULL,
+    CONSTRAINT membertorole_fk1 FOREIGN KEY (role_id) REFERENCES "roles"
+    ("id"),
+    CONSTRAINT membertorole_fk2 FOREIGN KEY (member_id) REFERENCES "member"
+    ("id")
+);
+COMMENT ON TABLE member_to_role IS 'This table maps members to their assigned roles in the Deep Harbor system, allowing for role-based access control.';
+
+/*
+ * User activity logging table - this logs user activity in the DH system
+ */
+CREATE TABLE user_activity_logs
+(
+          member_id     INTEGER NOT NULL,
+          activity_details jsonb NOT NULL,
+          TIMESTAMP TIMESTAMP(6) WITH TIME ZONE NOT NULL,
+          CONSTRAINT useractivity_fk1 FOREIGN KEY (member_id) REFERENCES "member"
+          ("id")
+);
+COMMENT ON TABLE user_activity_logs IS 'This table logs user activity in the Deep Harbor system, recording member ID, timestamp, and page accessed for auditing purposes.';

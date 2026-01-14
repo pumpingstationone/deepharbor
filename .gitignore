@@ -1,0 +1,6 @@
+
+__pycache__/
+wa2dh.log
+.vscode/
+*~
+flask_session/

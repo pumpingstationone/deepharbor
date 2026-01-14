@@ -329,6 +329,27 @@ services:
       - dh_network
 
 ##########################################################
+# Utilities
+##########################################################
+  rfid2db:
+    build: ./code/utilities/RFID2DB
+    restart: always
+    environment:
+      TZ: "America/Chicago"
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: deepharbor
+      DATABASE_USER: dh
+      DATABASE_PASSWORD: dh
+      SERVICE_NAME: RFID2DB_UTILITY
+    depends_on:
+      db:
+        condition: service_healthy
+    container_name: dh_rfid2db
+    networks:
+      - dh_network
+
+##########################################################
 # Volumes and Networks
 ##########################################################
 

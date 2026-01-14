@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 
-# Note, requires passlib!
-python3 -c "from passlib.context import CryptContext; import secrets; pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto'); secret = secrets.token_urlsafe(32); print(f'Plaintext secret (give to client): \t{secret}'); print(f'Hashed secret (store in db): \t\t{pwd_context.hash(secret)}')"
+# Requires 'bcrypt' module for Python
+# Install with: pip install bcrypt
+python3 -c "import bcrypt; import secrets; secret = secrets.token_urlsafe(32); hashed = bcrypt.hashpw(secret.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'); print(f'Plaintext secret (give to client): \t{secret}'); print(f'Hashed secret (store in db): \t\t{hashed}')"

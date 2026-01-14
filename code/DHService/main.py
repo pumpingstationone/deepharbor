@@ -27,6 +27,20 @@ async def health_check():
     return {"status": "healthy", "service": os.getenv("SERVICE_NAME", "DH_SERVICE")}
 
 
+@app.get("/routes")
+async def list_routes():
+    """Debug endpoint to list all registered routes"""
+    routes = []
+    for route in app.routes:
+        if hasattr(route, "methods"):
+            routes.append({
+                "path": route.path,
+                "methods": list(route.methods),
+                "name": route.name
+            })
+    return {"routes": routes}
+
+
 ###############################################################################
 # Our endpoints for oauth2
 ###############################################################################

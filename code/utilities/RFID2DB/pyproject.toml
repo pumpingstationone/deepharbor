@@ -1,0 +1,12 @@
+[project]
+name = "rfid2db"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "configparser>=7.2.0",
+    "logging>=0.4.9.6",
+    "psycopg2-binary>=2.9.11",
+    "uhppoted>=0.8.11.2",
+]

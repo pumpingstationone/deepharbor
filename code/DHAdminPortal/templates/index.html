@@ -1,0 +1,1232 @@
+{% extends "base.html" %}
+{% block title %}Deep Harbor Administration Portal{% endblock %}
+{% block content %}
+
+<style>
+    /* Enhanced hover effect for table rows */
+    #resultsTableBody tr {
+        transition: all 0.2s ease;
+    }
+    
+    #resultsTableBody tr:hover {
+        background-color: #e888e0 !important;
+        transform: scale(1.01);
+        transform-origin: left center;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        cursor: pointer;
+    }
+</style>
+
+<h1>Deep Harbor Administration Portal</h1>
+
+{% if user %}
+<!-- We're logged in -->
+
+<!-- Logging notice -->
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="alert alert-warning text-center" role="alert">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <strong>HEY! </strong>Everything is logged, including login and logout, searches, panel views, and any data changes.
+        </div>
+    </div>
+</div>
+
+<!-- Show a search text box that we'll use to look up members -->
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="mb-3">
+            <div class="input-group input-group-lg">
+                <input type="text" class="form-control" id="memberSearch" placeholder="Search for a member...">
+                <button class="btn btn-primary" type="button" id="searchButton" onclick="searchMembers()">Search</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results table -->
+<div id="resultsSection" style="display: none;">
+    <h3 class="text-center">Search Results</h3>
+    <div class="table-responsive" style="max-height: 500px; overflow-y: auto; overflow-x: hidden;">
+        <table class="table table-striped table-hover">
+            <thead class="sticky-top bg-white">
+                <tr>
+                    <th onclick="sortTable('member_id')" style="cursor: pointer;">
+                        Member ID <span id="sort-member_id"></span>
+                    </th>
+                    <th onclick="sortTable('first_name')" style="cursor: pointer;">
+                        First Name <span id="sort-first_name"></span>
+                    </th>
+                    <th onclick="sortTable('last_name')" style="cursor: pointer;">
+                        Last Name <span id="sort-last_name"></span>
+                    </th>
+                    <th onclick="sortTable('primary_email_address')" style="cursor: pointer;">
+                        Email <span id="sort-primary_email_address"></span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Member Details Panel with Tabs -->
+<div id="memberDetailsSection" style="display: none; margin-top: 30px;">
+    <h3 class="text-center mb-4">Member Details</h3>
+    
+    <!-- Tabs Navigation -->
+    <ul class="nav nav-tabs" id="memberTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="identity-tab" data-bs-toggle="tab" data-bs-target="#identity" type="button" role="tab" aria-controls="identity" aria-selected="true">Identity</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button" role="tab" aria-controls="status" aria-selected="false">Status</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="roles-tab" data-bs-toggle="tab" data-bs-target="#roles" type="button" role="tab" aria-controls="roles" aria-selected="false">Roles</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="forms-tab" data-bs-toggle="tab" data-bs-target="#forms" type="button" role="tab" aria-controls="forms" aria-selected="false">Forms</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="connections-tab" data-bs-toggle="tab" data-bs-target="#connections" type="button" role="tab" aria-controls="connections" aria-selected="false">Connections</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="extras-tab" data-bs-toggle="tab" data-bs-target="#extras" type="button" role="tab" aria-controls="extras" aria-selected="false">Extras</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="authorizations-tab" data-bs-toggle="tab" data-bs-target="#authorizations" type="button" role="tab" aria-controls="authorizations" aria-selected="false">Authorizations</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="notes-tab" data-bs-toggle="tab" data-bs-target="#notes" type="button" role="tab" aria-controls="notes" aria-selected="false">Notes</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="access-tab" data-bs-toggle="tab" data-bs-target="#access" type="button" role="tab" aria-controls="access" aria-selected="false">Access</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="entry-tab" data-bs-toggle="tab" data-bs-target="#entry" type="button" role="tab" aria-controls="entry" aria-selected="false">Entry</button>
+        </li>
+    </ul>
+    
+    <!-- Tabs Content -->
+    <div class="tab-content" id="memberTabsContent" style="margin-top: 20px;">
+        <div class="tab-pane fade show active" id="identity" role="tabpanel" aria-labelledby="identity-tab">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Identity Information</h5>
+                        <button class="btn btn-primary btn-sm" id="identityEditBtn" onclick="toggleEditMode('identity')">Edit</button>
+                    </div>
+                    <div id="identityLoading" class="text-center" style="display: none;">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="identityData"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-pane fade" id="status" role="tabpanel" aria-labelledby="status-tab">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Status Information</h5>
+                        <button class="btn btn-primary btn-sm" id="statusEditBtn" onclick="toggleEditMode('status')">Edit</button>
+                    </div>
+                    <div id="statusLoading" class="text-center" style="display: none;">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="statusData"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-pane fade" id="roles" role="tabpanel" aria-labelledby="roles-tab">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Roles Information</h5>
+                        <button class="btn btn-primary btn-sm" id="rolesEditBtn" onclick="toggleEditMode('roles')">Edit</button>
+                    </div>
+                    <div id="rolesLoading" class="text-center" style="display: none;">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="rolesData"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-pane fade" id="forms" role="tabpanel" aria-labelledby="forms-tab">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Forms Information</h5>
+                        <button class="btn btn-primary btn-sm" id="formsEditBtn" onclick="toggleEditMode('forms')">Edit</button>
+                    </div>
+                    <div id="formsLoading" class="text-center" style="display: none;">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="formsData"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-pane fade" id="connections" role="tabpanel" aria-labelledby="connections-tab">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Connections Information</h5>
+                        <button class="btn btn-primary btn-sm" id="connectionsEditBtn" onclick="toggleEditMode('connections')">Edit</button>
+                    </div>
+                    <div id="connectionsLoading" class="text-center" style="display: none;">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="connectionsData"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-pane fade" id="extras" role="tabpanel" aria-labelledby="extras-tab">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Extras Information</h5>
+                        <button class="btn btn-primary btn-sm" id="extrasEditBtn" onclick="toggleEditMode('extras')">Edit</button>
+                    </div>
+                    <div id="extrasLoading" class="text-center" style="display: none;">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="extrasData"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-pane fade" id="authorizations" role="tabpanel" aria-labelledby="authorizations-tab">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Authorizations Information</h5>
+                        <button class="btn btn-primary btn-sm" id="authorizationsEditBtn" onclick="toggleEditMode('authorizations')">Edit</button>
+                    </div>
+                    <div id="authorizationsLoading" class="text-center" style="display: none;">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="authorizationsData"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-pane fade" id="notes" role="tabpanel" aria-labelledby="notes-tab">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Notes Information</h5>
+                        <button class="btn btn-primary btn-sm" id="notesEditBtn" onclick="toggleEditMode('notes')">Edit</button>
+                    </div>
+                    <div id="notesLoading" class="text-center" style="display: none;">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="notesData"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-pane fade" id="access" role="tabpanel" aria-labelledby="access-tab">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Access Information</h5>
+                        <button class="btn btn-primary btn-sm" id="accessEditBtn" onclick="toggleEditMode('access')">Edit</button>
+                    </div>
+                    <div id="accessLoading" class="text-center" style="display: none;">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="accessData"></div>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="entry" role="tabpanel" aria-labelledby="entry-tab">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Entry Logs</h5>
+                    </div>
+                    <div id="entryLoading" class="text-center" style="display: none;">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="entryData"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Store current member ID
+let currentMemberId = null;
+
+// Toggle edit mode for a specific tab
+function toggleEditMode(tabName) {
+    const editBtn = document.getElementById(`${tabName}EditBtn`);
+    const tabPane = document.getElementById(tabName);
+    
+    if (!tabPane) return;
+    
+    // Check current mode
+    const isEditing = editBtn.textContent === 'Cancel';
+    
+    if (isEditing) {
+        // Cancel edit mode - reload the tab data to reset changes
+        editBtn.textContent = 'Edit';
+        editBtn.classList.remove('btn-secondary');
+        editBtn.classList.add('btn-primary');
+        
+        // Remove Save button if it exists
+        const saveBtn = document.getElementById(`${tabName}SaveBtn`);
+        if (saveBtn) {
+            saveBtn.remove();
+        }
+        
+        // Reload the data to reset any changes
+        if (currentMemberId) {
+            fetchTabData(tabName, currentMemberId);
+        }
+    } else {
+        // Enable edit mode
+        editBtn.textContent = 'Cancel';
+        editBtn.classList.remove('btn-primary');
+        editBtn.classList.add('btn-secondary');
+        
+        // Enable all input fields and textareas in this tab
+        const inputs = tabPane.querySelectorAll('input[type="text"], textarea');
+        inputs.forEach(input => {
+            input.removeAttribute('readonly');
+            
+            // Add change listener to detect modifications
+            input.addEventListener('input', () => handleFieldChange(tabName), { once: false });
+        });
+        
+        // Enable checkboxes
+        const checkboxes = tabPane.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.removeAttribute('disabled');
+            
+            // Add change listener to detect modifications
+            checkbox.addEventListener('change', () => handleFieldChange(tabName), { once: false });
+        });
+    }
+}
+
+// Handle field changes - show Save button when any field is modified
+function handleFieldChange(tabName) {
+    const editBtn = document.getElementById(`${tabName}EditBtn`);
+    
+    // Only proceed if we're in edit mode (button shows "Cancel")
+    if (!editBtn || editBtn.textContent !== 'Cancel') {
+        return;
+    }
+    
+    // Add Save button if it doesn't exist
+    if (!document.getElementById(`${tabName}SaveBtn`)) {
+        const saveBtn = document.createElement('button');
+        saveBtn.id = `${tabName}SaveBtn`;
+        saveBtn.className = 'btn btn-success btn-sm ms-2';
+        saveBtn.textContent = 'Save';
+        saveBtn.onclick = () => saveTabData(tabName);
+        editBtn.parentElement.appendChild(saveBtn);
+    }
+}
+
+// Save tab data
+function saveTabData(tabName) {
+    console.log(`Saving data for tab: ${tabName}`);
+    
+    const tabPane = document.getElementById(tabName);
+    const saveBtn = document.getElementById(`${tabName}SaveBtn`);
+    if (!tabPane) return;
+    
+    // Disable save button while saving
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+    }
+    
+    // Collect all field data
+    const data = {};
+    const validationErrors = [];
+    const inputs = tabPane.querySelectorAll('input[type="text"], textarea');
+    inputs.forEach(input => {
+        const fieldName = input.getAttribute('data-field');
+        if (fieldName) {
+            let value = input.value;
+            
+            // Try to parse JSON for textarea fields that contain JSON
+            if (input.tagName === 'TEXTAREA') {
+                const trimmed = value.trim();
+                if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || 
+                    (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+                    try {
+                        value = JSON.parse(value);
+                    } catch (e) {
+                        // JSON is invalid - report error
+                        const fieldLabel = fieldName.split('_').map(word => 
+                            word.charAt(0).toUpperCase() + word.slice(1)
+                        ).join(' ');
+                        validationErrors.push(`${fieldLabel}: ${e.message}`);
+                        console.error(`Invalid JSON in field ${fieldName}:`, e);
+                    }
+                }
+            }
+            
+            data[fieldName] = value;
+        }
+    });
+    
+    // Check for validation errors before proceeding
+    if (validationErrors.length > 0) {
+        // Show validation error message
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-danger alert-dismissible fade show mt-3';
+        alertDiv.innerHTML = `
+            <strong>Validation Error!</strong> Please fix the following issues:
+            <ul class="mb-0 mt-2">
+                ${validationErrors.map(err => `<li>${err}</li>`).join('')}
+            </ul>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        tabPane.insertBefore(alertDiv, tabPane.firstChild);
+        
+        // Re-enable save button
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save';
+        }
+        return;
+    }
+    
+    // Collect checkbox data
+    // For authorizations, we need to collect multiple checkboxes into arrays
+    const checkboxes = tabPane.querySelectorAll('input[type="checkbox"]');
+    const checkboxFields = {}; // Track which fields have multiple checkboxes
+    
+    checkboxes.forEach(checkbox => {
+        const fieldName = checkbox.getAttribute('data-field');
+        if (fieldName) {
+            // For authorizations and computer_authorizations, collect into arrays
+            if (fieldName === 'authorizations' || fieldName === 'computer_authorizations') {
+                if (!checkboxFields[fieldName]) {
+                    checkboxFields[fieldName] = [];
+                }
+                if (checkbox.checked) {
+                    checkboxFields[fieldName].push(checkbox.value);
+                }
+            } else {
+                // For other checkboxes, just store the boolean value
+                data[fieldName] = checkbox.checked;
+            }
+        }
+    });
+    
+    // Merge checkbox arrays into data
+    Object.assign(data, checkboxFields);
+    
+    console.log('Data to save:', data);
+    console.log('Data keys:', Object.keys(data));
+    console.log('Authorizations array:', data.authorizations);
+    console.log('Computer authorizations array:', data.computer_authorizations);
+    
+    // Send data to API endpoint
+    fetch(`/api/member/${tabName}?member_id=${encodeURIComponent(currentMemberId)}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(async response => {
+        const contentType = response.headers.get('content-type');
+        
+        if (!response.ok) {
+            // Try to get error message from response
+            let errorMessage = 'Failed to save data';
+            
+            if (contentType && contentType.includes('application/json')) {
+                try {
+                    const err = await response.json();
+                    errorMessage = err.error || errorMessage;
+                } catch (e) {
+                    console.error('Failed to parse error JSON:', e);
+                }
+            } else {
+                // Response is not JSON, get text
+                try {
+                    const text = await response.text();
+                    errorMessage = `Server error (${response.status}): ${text.substring(0, 200)}`;
+                } catch (e) {
+                    errorMessage = `Server error (${response.status})`;
+                }
+            }
+            
+            throw new Error(errorMessage);
+        }
+        
+        // Parse successful response
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            // Non-JSON success response
+            const text = await response.text();
+            console.warn('Server returned non-JSON success response:', text);
+            return { success: true, message: text };
+        }
+    })
+    .then(result => {
+        console.log('Save successful:', result);
+        
+        // Show success message
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-success alert-dismissible fade show mt-3';
+        alertDiv.innerHTML = `
+            <strong>Success!</strong> Changes saved successfully.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        tabPane.insertBefore(alertDiv, tabPane.firstChild);
+        
+        // Auto-dismiss after 3 seconds
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 3000);
+        
+        // Exit edit mode
+        toggleEditMode(tabName);
+        
+        // Remove save button
+        if (saveBtn) {
+            saveBtn.remove();
+        }
+        
+        // Reload the data to show updated values
+        fetchTabData(tabName, currentMemberId);
+    })
+    .catch(error => {
+        console.error('Save error:', error);
+        
+        // Show error message
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-danger alert-dismissible fade show mt-3';
+        alertDiv.innerHTML = `
+            <strong>Error!</strong> ${error.message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        tabPane.insertBefore(alertDiv, tabPane.firstChild);
+        
+        // Re-enable save button
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save';
+        }
+    });
+}
+
+// Get user permissions from cookie
+function getUserPermissions() {
+    console.log('=== Getting user permissions from cookie ===');
+    console.log('All cookies:', document.cookie);
+    
+    const cookieValue = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('user_permissions='));
+    
+    console.log('user_permissions cookie value:', cookieValue);
+    
+    if (cookieValue) {
+        try {
+            let permissionsJson = decodeURIComponent(cookieValue.split('=')[1]);
+            console.log('Decoded permissions JSON string (before fixing):', permissionsJson);
+            
+            // Fix octal escape sequences (e.g., \054 for comma)
+            permissionsJson = permissionsJson.replace(/\\(\d{3})/g, (match, octal) => {
+                return String.fromCharCode(parseInt(octal, 8));
+            });
+            
+            console.log('Decoded permissions JSON string (after fixing):', permissionsJson);
+            
+            // Parse once to get the string (if it's double-encoded)
+            let permissions = JSON.parse(permissionsJson);
+            console.log('First parse result:', permissions);
+            console.log('Type of first parse:', typeof permissions);
+            
+            // If it's still a string, parse again
+            if (typeof permissions === 'string') {
+                console.log('Result is still a string, parsing again...');
+                permissions = JSON.parse(permissions);
+                console.log('Second parse result:', permissions);
+            }
+            
+            console.log('Final permissions object:', permissions);
+            console.log('permissions.view:', permissions.view);
+            console.log('Is permissions.view an array?', Array.isArray(permissions.view));
+            
+            return permissions;
+        } catch (e) {
+            console.error('Error parsing permissions:', e);
+            return null;
+        }
+    }
+    console.warn('No user_permissions cookie found');
+    return null;
+}
+
+// Check if user can view a specific tab
+function canViewTab(tabName, permissions) {
+    console.log(`\n=== Checking permission for tab "${tabName}" ===`);
+    
+    // If no permissions object provided, get it
+    if (!permissions) {
+        console.log('No permissions provided, fetching from cookie...');
+        permissions = getUserPermissions();
+    } else {
+        console.log('Using provided permissions:', permissions);
+    }
+    
+    // If still no permissions or no view array, show all tabs (fallback)
+    if (!permissions) {
+        console.log('❌ No permissions object found - SHOWING ALL TABS (fallback)');
+        return true;
+    }
+    
+    if (!permissions.view) {
+        console.log('❌ No permissions.view property found - SHOWING ALL TABS (fallback)');
+        return true;
+    }
+    
+    if (!Array.isArray(permissions.view)) {
+        console.log('❌ permissions.view is not an array - SHOWING ALL TABS (fallback)');
+        console.log('permissions.view type:', typeof permissions.view);
+        console.log('permissions.view value:', permissions.view);
+        return true;
+    }
+    
+    console.log('✓ Valid permissions.view array:', permissions.view);
+    
+    // Check if user has "all" permission
+    if (permissions.view.includes('all')) {
+        console.log('✓ User has "all" permission - ALLOWING tab');
+        return true;
+    }
+    
+    // Check if specific tab is in view permissions
+    const canView = permissions.view.includes(tabName);
+    console.log(`${canView ? '✓' : '❌'} Tab "${tabName}" ${canView ? 'IS' : 'IS NOT'} in view permissions`);
+    console.log('View permissions array:', permissions.view);
+    
+    return canView;
+}
+
+// Filter tabs based on user permissions
+function filterTabsByPermissions() {
+    console.log('Filtering tabs by permissions...');
+    const permissions = getUserPermissions(); // Get permissions once
+    // These are the tab names as used in permissions in the "roles" table.
+    // If you add another tab, make sure to add it to the roles permissions as well otherwise
+    // it won't be shown to anyone!
+    const allTabs = ['identity', 'status', 'roles', 'forms', 'connections', 'extras', 'authorizations', 'notes', 'access', 'entry'];
+    
+    allTabs.forEach(tabName => {
+        const tabButton = document.getElementById(`${tabName}-tab`);
+        const tabNavItem = tabButton ? tabButton.closest('.nav-item') : null;
+        
+        console.log(`Processing tab "${tabName}":`, { tabButton, tabNavItem });
+        
+        if (tabNavItem) {
+            if (!canViewTab(tabName, permissions)) {
+                // Hide tab if user doesn't have permission
+                console.log(`Hiding tab "${tabName}"`);
+                tabNavItem.style.display = 'none';
+            } else {
+                // Show tab if user has permission
+                console.log(`Showing tab "${tabName}"`);
+                tabNavItem.style.display = 'block';
+            }
+        }
+    });
+    
+    // Activate the first visible tab
+    activateFirstVisibleTab(permissions);
+}
+
+// Activate the first visible tab
+function activateFirstVisibleTab(permissions) {
+    if (!permissions) {
+        permissions = getUserPermissions();
+    }
+    
+    const allTabs = ['identity', 'status', 'roles', 'forms', 'connections', 'extras', 'authorizations', 'notes', 'access', 'entry'];
+    
+    // Deactivate all tabs first
+    allTabs.forEach(tabName => {
+        const tabButton = document.getElementById(`${tabName}-tab`);
+        const tabPane = document.getElementById(tabName);
+        if (tabButton && tabPane) {
+            tabButton.classList.remove('active');
+            tabButton.setAttribute('aria-selected', 'false');
+            tabPane.classList.remove('show', 'active');
+        }
+    });
+    
+    // Find and activate the first visible tab
+    for (const tabName of allTabs) {
+        if (canViewTab(tabName, permissions)) {
+            const tabButton = document.getElementById(`${tabName}-tab`);
+            const tabPane = document.getElementById(tabName);
+            if (tabButton && tabPane) {
+                console.log(`Activating tab: ${tabName}`);
+                tabButton.classList.add('active');
+                tabButton.setAttribute('aria-selected', 'true');
+                tabPane.classList.add('show', 'active');
+                break;
+            }
+        }
+    }
+}
+
+function searchMembers() {
+    const query = document.getElementById('memberSearch').value;
+    if (!query.trim()) {
+        alert('Please enter a member name or email to search.');
+        return;
+    }
+    
+    // Show loading state
+    document.getElementById('searchButton').disabled = true;
+    document.getElementById('searchButton').textContent = 'Searching...';
+    
+    // Call the search API
+    fetch(`/api/search?query=${encodeURIComponent(query)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Search failed');
+            }
+            return response.json();
+        })
+        .then(data => {
+            displayResults(data);
+        })
+        .catch(error => {
+            alert('Error searching members: ' + error.message);
+        })
+        .finally(() => {
+            // Reset button state
+            document.getElementById('searchButton').disabled = false;
+            document.getElementById('searchButton').textContent = 'Search';
+        });
+}
+
+// Global variables for sorting
+let currentMembers = [];
+let currentSortField = null;
+let currentSortDirection = 'asc';
+
+function sortTable(field) {
+    // Toggle direction if clicking the same field
+    if (currentSortField === field) {
+        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortField = field;
+        currentSortDirection = 'asc';
+    }
+    
+    // Sort the current members array
+    const sortedMembers = [...currentMembers].sort((a, b) => {
+        let aVal = a[field] || '';
+        let bVal = b[field] || '';
+        
+        // Handle numeric fields (member_id)
+        if (field === 'member_id') {
+            aVal = parseInt(aVal) || 0;
+            bVal = parseInt(bVal) || 0;
+        } else {
+            // Case-insensitive string comparison
+            aVal = String(aVal).toLowerCase();
+            bVal = String(bVal).toLowerCase();
+        }
+        
+        if (aVal < bVal) return currentSortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return currentSortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
+    
+    // Update sort indicators
+    ['member_id', 'first_name', 'last_name', 'primary_email_address'].forEach(f => {
+        const indicator = document.getElementById(`sort-${f}`);
+        if (indicator) {
+            if (f === field) {
+                indicator.textContent = currentSortDirection === 'asc' ? '▲' : '▼';
+            } else {
+                indicator.textContent = '';
+            }
+        }
+    });
+    
+    // Re-display with sorted data
+    displayResults(sortedMembers, false);
+}
+
+function displayResults(members, updateCache = true) {
+    // Store the members for sorting
+    if (updateCache) {
+        currentMembers = members;
+    }
+    const tbody = document.getElementById('resultsTableBody');
+    const resultsSection = document.getElementById('resultsSection');
+    const memberDetailsSection = document.getElementById('memberDetailsSection');
+    
+    // Clear previous results and hide member details section
+    tbody.innerHTML = '';
+    if (memberDetailsSection) {
+        memberDetailsSection.style.display = 'none';
+    }
+    
+    if (members.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center">No members found</td></tr>';
+    } else {
+        members.forEach(member => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${member.member_id}</td>
+                <td>${member.first_name || ''}</td>
+                <td>${member.last_name || ''}</td>
+                <td>${member.primary_email_address || ''}</td>
+            `;
+            // Add click handler to fetch member data
+            row.onclick = function() {
+                loadMemberData(member.member_id);
+            };
+            tbody.appendChild(row);
+        });
+    }
+    
+    // Show results section
+    resultsSection.style.display = 'block';
+}
+
+// Special format function for authorizations tab
+function formatAuthorizationsData(memberData, availableData) {
+    let html = '<div class="row">';
+    
+    // Debug logging
+    console.log('Member Data:', memberData);
+    console.log('Available Data:', availableData);
+    
+    // Extract member's authorization arrays
+    const memberAuths = memberData.authorizations || [];
+    const memberComputerAuths = memberData.computer_authorizations || [];
+    
+    // Extract available authorization arrays
+    // API returns a single "available_authorizations" field containing objects
+    const allAvailableFromAPI = (availableData.available_authorizations || [])
+        .map(auth => typeof auth === 'string' ? auth : auth.name) // Extract name from objects
+        .filter(name => name); // Filter out any undefined/null values
+    
+    console.log('Member auths:', memberAuths);
+    console.log('Member computer auths:', memberComputerAuths);
+    console.log('Available auths from API:', allAvailableFromAPI);
+    
+    // Merge all member authorizations together (both regular and computer)
+    const allMemberAuths = [...new Set([...memberAuths, ...memberComputerAuths])].sort();
+    
+    // Create sets for quick lookup
+    const memberAuthSet = new Set(memberAuths);
+    const memberComputerAuthSet = new Set(memberComputerAuths);
+    const allMemberAuthSet = new Set(allMemberAuths);
+    
+    console.log('All member auths (merged):', allMemberAuths);
+    console.log('All available auths:', allAvailableFromAPI);
+    
+    // Split into: authorizations member HAS vs authorizations member does NOT have
+    const memberHas = allMemberAuths;
+    const memberDoesNotHave = allAvailableFromAPI.filter(auth => !allMemberAuthSet.has(auth)).sort();
+    
+    console.log('Member has:', memberHas);
+    console.log('Member does NOT have:', memberDoesNotHave);
+    
+    // Helper function to determine if an authorization is a computer authorization
+    // Check if it's in the member's computer_authorizations or matches the pattern
+    const isComputerAuth = (auth) => {
+        return memberComputerAuthSet.has(auth) || 
+               auth.includes('Authorized Users') || 
+               auth.includes(' Users');
+    };
+    
+    // Get member's first name for the heading
+    const firstName = memberData.first_name || 'Member';
+    
+    // Left column: Member's Current Authorizations (checked)
+    html += '<div class="col-md-6">';
+    html += `<h6 class="mb-3">${firstName}'s Current Authorizations</h6>`;
+    html += '<div class="card">';
+    html += '<div class="card-body" style="max-height: 500px; overflow-y: auto;">';
+    
+    if (memberHas.length === 0) {
+        html += '<p class="text-muted">Member has no authorizations</p>';
+    } else {
+        memberHas.forEach(auth => {
+            // Ensure auth is a string
+            if (typeof auth !== 'string') {
+                console.error('Invalid authorization (not a string):', auth, 'Type:', typeof auth);
+                return; // Skip this item
+            }
+            
+            const checkboxId = `has_auth_${auth.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            // Determine if this is a computer authorization (for proper field name)
+            const fieldName = isComputerAuth(auth) ? 'computer_authorizations' : 'authorizations';
+            
+            html += `
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" value="${auth}" id="${checkboxId}" 
+                        data-field="${fieldName}" checked disabled>
+                    <label class="form-check-label" for="${checkboxId}">
+                        ${auth}
+                    </label>
+                </div>
+            `;
+        });
+    }
+    
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    // Right column: Available Authorizations Member Does NOT Have (unchecked)
+    html += '<div class="col-md-6">';
+    html += '<h6 class="mb-3">Available Authorizations</h6>';
+    html += '<div class="card">';
+    html += '<div class="card-body" style="max-height: 500px; overflow-y: auto;">';
+    
+    if (memberDoesNotHave.length === 0) {
+        html += '<p class="text-muted">Member has all available authorizations</p>';
+    } else {
+        memberDoesNotHave.forEach(auth => {
+            // Ensure auth is a string
+            if (typeof auth !== 'string') {
+                console.error('Invalid authorization (not a string):', auth, 'Type:', typeof auth);
+                return; // Skip this item
+            }
+            
+            const checkboxId = `avail_auth_${auth.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            // Determine if this is a computer authorization (for proper field name)
+            const fieldName = isComputerAuth(auth) ? 'computer_authorizations' : 'authorizations';
+            
+            html += `
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" value="${auth}" id="${checkboxId}" 
+                        data-field="${fieldName}" disabled>
+                    <label class="form-check-label" for="${checkboxId}">
+                        ${auth}
+                    </label>
+                </div>
+            `;
+        });
+    }
+    
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    html += '</div>';
+    return html;
+}
+
+function formatEntryData(data) {
+    console.log('Entry data received:', data);
+    const logs = data.logs || data.entry_logs || [];
+    console.log('Entry logs:', logs);
+    
+    if (logs.length === 0) {
+        return '<div class="alert alert-info">No entry logs found for this member.</div>';
+    }
+    
+    let html = `
+        <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark" style="position: sticky; top: 0; z-index: 10;">
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Access Point</th>
+                        <th>Access Status</th>
+                        <th>RFID Tag</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    logs.forEach(log => {
+        const timestamp = new Date(log.timestamp).toLocaleString();
+        const statusClass = log.access_granted === 'GRANTED' ? 'text-success' : 'text-danger';
+        const statusIcon = log.access_granted === 'GRANTED' ? '✓' : '✗';
+        
+        html += `
+            <tr>
+                <td>${timestamp}</td>
+                <td>${log.access_point}</td>
+                <td class="${statusClass}"><strong>${statusIcon} ${log.access_granted}</strong></td>
+                <td><code>${log.rfid_tag || 'N/A'}</code></td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-2 text-muted">
+            <small>Showing ${logs.length} most recent entry logs</small>
+        </div>
+    `;
+    
+    return html;
+}
+
+function formatData(data) {
+    let html = '<div class="row">';
+    
+    // Helper function to format field names
+    const formatLabel = (key) => key.split('_').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+    
+    // Helper function to format values as input fields
+    const formatValue = (key, value) => {
+        // Handle null/undefined/empty values
+        if (value === null || value === undefined || value === '') {
+            return `<input type="text" class="form-control" data-field="${key}" value="" placeholder="Not set" readonly>`;
+        }
+        
+        // Handle boolean values as checkbox
+        if (typeof value === 'boolean') {
+            return `<div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" data-field="${key}" ${value ? 'checked' : ''} disabled>
+                <label class="form-check-label">${value ? 'Yes' : 'No'}</label>
+            </div>`;
+        }
+        
+        // Handle arrays - display as textarea with JSON
+        if (Array.isArray(value)) {
+            if (value.length === 0) {
+                return `<textarea class="form-control" data-field="${key}" rows="3" placeholder="Empty list" readonly>[]</textarea>`;
+            }
+            return `<textarea class="form-control" data-field="${key}" rows="${Math.min(value.length + 2, 10)}" style="font-family: monospace; font-size: 0.9em;" readonly>${JSON.stringify(value, null, 2)}</textarea>`;
+        }
+        
+        // Handle objects - display as textarea with JSON
+        if (typeof value === 'object') {
+            const jsonStr = JSON.stringify(value, null, 2);
+            const lines = jsonStr.split('\n').length;
+            return `<textarea class="form-control" data-field="${key}" rows="${Math.min(lines, 10)}" style="font-family: monospace; font-size: 0.9em;" readonly>${jsonStr}</textarea>`;
+        }
+        
+        // Handle string/number values - use regular input
+        return `<input type="text" class="form-control" data-field="${key}" value="${value}" readonly>`;
+    };
+    
+    // Iterate through all fields
+    for (const [key, value] of Object.entries(data)) {
+        html += `
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">${formatLabel(key)}</h6>
+                        <div class="card-text">${formatValue(key, value)}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    return html;
+}
+
+function loadMemberData(memberId) {
+    currentMemberId = memberId;
+    const memberDetailsSection = document.getElementById('memberDetailsSection');
+    
+    // Filter tabs based on user permissions
+    filterTabsByPermissions();
+    
+    // Show member details section
+    memberDetailsSection.style.display = 'block';
+    
+    // Find the first visible tab to activate and load
+    const permissions = getUserPermissions();
+    const allTabs = ['identity', 'status', 'roles', 'forms', 'connections', 'extras', 'authorizations', 'notes', 'access', 'entry'];
+    let firstVisibleTab = null;
+    
+    for (const tabName of allTabs) {
+        if (canViewTab(tabName, permissions)) {
+            firstVisibleTab = tabName;
+            break;
+        }
+    }
+    
+    if (firstVisibleTab) {
+        console.log(`Activating first visible tab: ${firstVisibleTab}`);
+        // Activate the first visible tab
+        const firstTab = new bootstrap.Tab(document.getElementById(`${firstVisibleTab}-tab`));
+        firstTab.show();
+        
+        // Load data for the first visible tab
+        fetchTabData(firstVisibleTab, memberId);
+    }
+}
+
+function fetchTabData(tabName, memberId) {
+    // Check if user has permission to view this tab
+    if (!canViewTab(tabName)) {
+        console.warn(`User does not have permission to view ${tabName} tab`);
+        return;
+    }
+    
+    const loadingEl = document.getElementById(`${tabName}Loading`);
+    const dataEl = document.getElementById(`${tabName}Data`);
+    
+    // Show loading state
+    loadingEl.style.display = 'block';
+    dataEl.innerHTML = '';
+    
+    // Special handling for authorizations tab
+    if (tabName === 'authorizations') {
+        // Fetch both member authorizations and available authorizations
+        Promise.all([
+            fetch(`/api/member/${tabName}?member_id=${encodeURIComponent(memberId)}`).then(r => r.json()),
+            fetch('/api/authorizations/available').then(r => r.json())
+        ])
+        .then(([memberData, availableData]) => {
+            dataEl.innerHTML = formatAuthorizationsData(memberData, availableData);
+        })
+        .catch(error => {
+            dataEl.innerHTML = '<div class="alert alert-danger">Error: ' + error.message + '</div>';
+        })
+        .finally(() => {
+            loadingEl.style.display = 'none';
+        });
+        return;
+    }
+    
+    // Special handling for entry tab
+    if (tabName === 'entry') {
+        fetch(`/api/member/${tabName}?member_id=${encodeURIComponent(memberId)}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch ${tabName} data`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                dataEl.innerHTML = formatEntryData(data);
+            })
+            .catch(error => {
+                dataEl.innerHTML = '<div class="alert alert-danger">Error: ' + error.message + '</div>';
+            })
+            .finally(() => {
+                loadingEl.style.display = 'none';
+            });
+        return;
+    }
+    
+    // Fetch data from API for other tabs
+    fetch(`/api/member/${tabName}?member_id=${encodeURIComponent(memberId)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to fetch ${tabName} data`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            dataEl.innerHTML = formatData(data);
+        })
+        .catch(error => {
+            dataEl.innerHTML = '<div class="alert alert-danger">Error: ' + error.message + '</div>';
+        })
+        .finally(() => {
+            loadingEl.style.display = 'none';
+        });
+}
+
+// Add event listeners to tabs to load data when clicked
+document.addEventListener('DOMContentLoaded', function() {
+    const tabs = ['identity', 'status', 'roles', 'forms', 'connections', 'extras', 'authorizations', 'notes', 'access', 'entry'];
+    
+    tabs.forEach(tabName => {
+        const tabEl = document.getElementById(`${tabName}-tab`);
+        if (tabEl) {
+            tabEl.addEventListener('shown.bs.tab', function() {
+                if (currentMemberId) {
+                    fetchTabData(tabName, currentMemberId);
+                    // Log tab selection
+                    logTabSelection(tabName, currentMemberId);
+                }
+            });
+        }
+    });
+});
+
+// Function to log tab selection
+function logTabSelection(tabName, memberId) {
+    fetch('/api/log_activity', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            action: 'view_tab',
+            tab: tabName,
+            member_id: memberId
+        })
+    }).catch(error => {
+        console.error('Failed to log tab selection:', error);
+    });
+}
+
+function formatIdentityData(data) {
+    return formatData(data);
+}
+
+function fetchMemberIdentity(memberId) {
+    loadMemberData(memberId);
+}
+
+// Allow Enter key to trigger search
+document.getElementById('memberSearch').addEventListener('keypress', function(event) {
+    if (event.key === 'Enter') {
+        searchMembers();
+    }
+});
+</script>
+
+{% else %}
+<!-- We're not logged in -->
+<li><a href='{{ auth_url }}'>Sign In</a></li>
+{% endif %}
+
+{% endblock %}

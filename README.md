@@ -32,3 +32,48 @@ This service manipulates a member's information within Active Directory.
 * DH2RFID
 This service adds and removes RFID tags from the controller database to either allow or deny access to the premises.
 
+## Directory Structure
+* `pg/`: Contains PostgreSQL database initialization scripts and configuration files.
+* `DHAdminPortal/`: Source code for the administrative web portal.
+* `DHMemberPortal/`: Source code for the member-facing web portal.
+* `DHDispatcher/`: Source code for the dispatcher service that listens for database notifications.
+* `services/DHAccess/`: Source code for the access management service.
+* `services/DHAuthorizations/`: Source code for the authorizations management service.
+* `services/DHIdentity/`: Source code for the identity management service.
+* `services/DHStatus/`: Source code for the status management service.
+* `workers/DH2AD/`: Source code for the Active Directory integration service.
+* `workers/DH2RFID/`: Source code for the RFID integration service.
+* `pg/`: Contains all the PostgreSQL-based files including SQL schema definitions and database-related scripts.
+* `tools/`: Scripts and other files used for development and maintenance tasks (e.g., database migrations, backups).
+### Additional Files
+These files are located in the root directory of the Deep Harbor CRM project:
+* `docker-compose.yaml`: Docker Compose configuration file to set up the entire Deep Harbor CRM environment
+* `start_dh.sh`: Script to start all Deep Harbor components.
+* `stop_dh.sh`: Script to stop all Deep Harbor components.
+* `reset_for_restart.sh`: Script to reset the Deep Harbor environment for a fresh start.
+* `README.md`: This file, providing an overview and instructions for the Deep Harbor CRM project.
+* `nginx.conf`: Nginx configuration file for routing requests to the appropriate Deep Harbor components.
+
+
+## Getting Started
+To get started with Deep Harbor CRM, follow these steps:
+0. **Install Docker and Docker Compose**:
+   Ensure that Docker and Docker Compose are installed on your machine. You can download them from the [Docker website](https://www.docker.com/get-started).
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/pumpingstationone/deepharbor.git
+    cd deepharbor
+    ```
+2. **`start_dh.sh` Script**:
+   Use the provided `start_dh.sh` script to set up and start all necessary components. This script will handle starting the database, web portals, dispatcher, and services.
+   ```bash
+   ./start_dh.sh
+   ```
+   To stop all components, use:
+   ```bash
+   ./stop_dh.sh
+    ```
+   If you need to reset everything (including the database), use:
+   ```bash
+   ./reset_for_restart.sh
+   ```

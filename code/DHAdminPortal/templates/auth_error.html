@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title%}Whoops{% endblock%}
+
+{% block metadata %}
+{% if config.get("B2C_RESET_PASSWORD_AUTHORITY") and "AADB2C90118" in result.get("error_description") %}
+<!-- See also https://learn.microsoft.com/azure/active-directory-b2c/active-directory-b2c-reference-policies#linking-user-flows -->
+<meta http-equiv="refresh"
+  content='0;{{_build_auth_code_flow(authority=config["B2C_RESET_PASSWORD_AUTHORITY"])["auth_uri"]}}'>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading">{{ result.get("error") }}</h4>
+                <p>{{ result.get("error_description") }}</p>
+                <hr>
+                <p class="mb-0">If you believe this is an error, please contact your system administrator.</p>
+            </div>
+            <div class="text-center">
+                <a href="{{ url_for('index') }}" class="btn btn-primary">Return to Homepage</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
