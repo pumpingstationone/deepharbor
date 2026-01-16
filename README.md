@@ -34,19 +34,22 @@ This service adds and removes RFID tags from the controller database to either a
 
 ## Directory Structure
 * `pg/`: Contains PostgreSQL database initialization scripts and configuration files.
-* `DHAdminPortal/`: Source code for the administrative web portal.
-* `DHMemberPortal/`: Source code for the member-facing web portal.
-* `DHDispatcher/`: Source code for the dispatcher service that listens for database notifications.
-* `services/DHAccess/`: Source code for the access management service.
-* `services/DHAuthorizations/`: Source code for the authorizations management service.
-* `services/DHIdentity/`: Source code for the identity management service.
-* `services/DHStatus/`: Source code for the status management service.
-* `workers/DH2AD/`: Source code for the Active Directory integration service.
-* `workers/DH2RFID/`: Source code for the RFID integration service.
+* `code/DHAdminPortal/`: Source code for the administrative web portal.
+* `code/DHMemberPortal/`: Source code for the member-facing web portal.
+* `code/DHDispatcher/`: Source code for the dispatcher service that listens for database notifications.
+* `code/services/DHAccess/`: Source code for the access management service.
+* `code/services/DHAuthorizations/`: Source code for the authorizations management service.
+* `code/services/DHIdentity/`: Source code for the identity management service.
+* `code/services/DHStatus/`: Source code for the status management service.
+* `code/workers/DH2AD/`: Source code for the Active Directory integration service.
+* `code/workers/DH2RFID/`: Source code for the RFID integration service.
 * `pg/`: Contains all the PostgreSQL-based files including SQL schema definitions and database-related scripts.
 * `tools/`: Scripts and other files used for development and maintenance tasks (e.g., database migrations, backups).
+* `code/utilities`: Extra tools that interact with the system in some way.
+
 ### Additional Files
 These files are located in the root directory of the Deep Harbor CRM project:
+
 * `docker-compose.yaml`: Docker Compose configuration file to set up the entire Deep Harbor CRM environment
 * `start_dh.sh`: Script to start all Deep Harbor components.
 * `stop_dh.sh`: Script to stop all Deep Harbor components.
@@ -56,7 +59,9 @@ These files are located in the root directory of the Deep Harbor CRM project:
 
 
 ## Getting Started
+
 To get started with Deep Harbor CRM, follow these steps:
+
 0. **Install Docker and Docker Compose**:
    Ensure that Docker and Docker Compose are installed on your machine. You can download them from the [Docker website](https://www.docker.com/get-started).
 1. **Clone the Repository**:
@@ -77,3 +82,5 @@ To get started with Deep Harbor CRM, follow these steps:
    ```bash
    ./reset_for_restart.sh
    ```
+   
+**NOTE**: A number of the services rely on a `config.ini` file (to handle situations where the system is not run in Docker); the default database values are filled in (it's a development system afterall), but some parts (e.g. `DH2AD`) require actual credentials that will need to be supplied to make that part of the system work.
