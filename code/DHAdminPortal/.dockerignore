@@ -1,0 +1,7 @@
+.venv
+Dockerfile
+start_services.sh
+restart.sh
+run.sh
+flask_session
+__pycache__

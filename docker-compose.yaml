@@ -10,6 +10,11 @@
 # Also, if you _really_ want to start fresh, run:
 # docker system prune -a
 # to remove all unused images, containers, and networks.
+# Also note there are some helper scripts in the
+# base directory that can help with this:
+#   * start_dh.sh
+#   * stop_dh.sh
+#   * reset_for_restart.sh
 
 services:
   #########################################################
@@ -44,6 +49,50 @@ services:
       retries: 5
 
   #########################################################
+  # Front-end services. These are the services that provide 
+  # the front-end for the DeepHarbor system, such as 
+  # the member portal and admin portal.
+  #########################################################
+  
+  # Member Portal Service
+  dhmemberportal:
+    build: ./code/DHMemberPortal
+    restart: unless-stopped
+    network_mode: host
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      TZ: "America/Chicago"
+    ports:
+      - "5002:5002"
+    depends_on:
+      dhservice:
+        condition: service_healthy
+    container_name: dh_member_portal
+
+  # The admin portal service
+  dhadminportal:
+    build: ./code/DHAdminPortal
+    restart: unless-stopped
+    network_mode: host
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    ports:
+      - "5001:5001"
+    depends_on:
+      dhservice:
+        condition: service_healthy
+    container_name: dh_admin_portal
+    environment:
+      TZ: "America/Chicago"
+
+  #########################################################
   # Main Application Service - this is the core
   # DeepHarbor public web service that is called by 
   # front-end applications like the member portal or
@@ -52,7 +101,7 @@ services:
   
   dhservice:
     build: ./code/DHService
-    restart: always
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -85,7 +134,7 @@ services:
   # between services 
   dhdispatcher:
     build: ./code/DHDispatcher
-    restart: always
+    restart: unless-stopped
     environment:
       TZ: "America/Chicago"
       SERVICE_NAME: DH_DISPATCHER
@@ -110,7 +159,7 @@ services:
   # other identity systems in the future
   dhidentity:
     build: ./code/services/DHIdentity
-    restart: always
+    restart: unless-stopped
     environment:
       TZ: "America/Chicago"
       SERVICE_NAME: DH_IDENTITY
@@ -138,7 +187,7 @@ services:
   # and do not require computer access (e.g., laser cutters)
   dhauthorizations:
     build: ./code/services/DHAuthorizations
-    restart: always
+    restart: unless-stopped
     environment:
       TZ: "America/Chicago"
       SERVICE_NAME: DH_AUTHORIZATIONS
@@ -165,7 +214,7 @@ services:
     # Handles access to things like the doors
   dhaccess:
     build: ./code/services/DHAccess
-    restart: always
+    restart: unless-stopped
     environment:
       TZ: "America/Chicago"
       SERVICE_NAME: DH_ACCESS
@@ -199,7 +248,7 @@ services:
   # to the member's access and authorizations.
   dhstatus:
     build: ./code/services/DHStatus
-    restart: always
+    restart: unless-stopped
     environment:
       TZ: "America/Chicago"
       SERVICE_NAME: DH_STATUS
@@ -234,7 +283,7 @@ services:
   # For working with Active Directory
   dh2ad:
     build: ./code/workers/DH2AD
-    restart: always
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -251,14 +300,37 @@ services:
       DH_SERVICE_HOST: dhservice
       DH_SERVICE_PORT: 80
       SERVICE_NAME: DH2AD
+    volumes:
+      - ad_shared:/app/shared
     container_name: dh_dh2ad
     networks:
       - dh_network
   
+  # This is a compromise service that actually does the
+  # work of interfacing with Active Directory.
+  # It is separated from the DH2AD worker service
+  # so that it can use host networking to access the
+  # active directory controllers
+  dhadcontroller:
+    build: ./code/workers/DHADController
+    restart: unless-stopped
+    # Necessary to access the host network where the active directory
+    # controllers are
+    network_mode: host
+    environment:
+      TZ: "America/Chicago"
+      SERVICE_NAME: DH_AD_CONTROLLER
+    volumes:
+      - ad_shared:/app/shared
+    depends_on:
+      dh2ad:
+        condition: service_healthy
+    container_name: dh_ad_controller
+
   # For working with RFID systems
   dh2rfid:
     build: ./code/workers/DH2RFID
-    restart: always
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -274,17 +346,41 @@ services:
       TZ: "America/Chicago"
       DH_SERVICE_HOST: dhservice
       DH_SERVICE_PORT: 8000
-      SERVICE_NAME: DH2RFID
+      SERVICE_NAME: DH2RFID      
+    volumes:
+      - rfid_shared:/app/shared
     container_name: dh_dh2rfid
     networks:
       - dh_network
+    
+  # This is a compromise service that actually does the
+  # work of interfacing with the RFID reader hardware.
+  # It is separated from the DH2RFID worker service
+  # so that it can use host networking to access the
+  # RFID reader on the host machine.
+  dhrfidreader:
+    build: ./code/workers/DHRFIDReader
+    restart: unless-stopped
+    # Necessary to access the host network where the RFID reader is
+    network_mode: host
+    environment:
+      TZ: "America/Chicago"
+      SERVICE_NAME: DH_RFID_READER
+      RFID_READER_PORT: 60000
+      RFID_READER_SERIAL: 223199015
+    volumes:
+      - rfid_shared:/app/shared
+    depends_on:
+      dh2rfid:
+        condition: service_healthy
+    container_name: dh_rfid_reader
 
 #########################################################
 # Gateway Service (nginx)
 ##########################################################
   gateway:
       image: nginx:alpine
-      restart: always
+      restart: unless-stopped
       ports:
         - "80:80"
       environment:
@@ -310,7 +406,7 @@ services:
 ##########################################################
   grafana:
     image: grafana/grafana:latest
-    restart: always
+    restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
@@ -333,10 +429,12 @@ services:
 ##########################################################
   rfid2db:
     build: ./code/utilities/RFID2DB
-    restart: always
+    restart: unless-stopped
+    # Necessary to access the host network where the RFID reader is
+    network_mode: host
     environment:
       TZ: "America/Chicago"
-      DATABASE_HOST: db
+      DATABASE_HOST: localhost
       DATABASE_PORT: 5432
       DATABASE_NAME: deepharbor
       DATABASE_USER: dh
@@ -346,6 +444,39 @@ services:
       db:
         condition: service_healthy
     container_name: dh_rfid2db
+
+##########################################################
+# Services that work with external systems
+##########################################################
+
+  # PS1 uses Waiver Forever to manage waivers. This service
+  # works with Waiver Forever's "Don't-call-us-we'll-call-you"
+  # webhook system to get waiver information into Deep Harbor.
+  # Note that this service must be accessible from the public
+  # internet for Waiver Forever to be able to call it.
+  wf2dh:
+    build: ./code/WF2DH
+    restart: unless-stopped
+    environment:
+      TZ: "America/Chicago"
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: deepharbor
+      DATABASE_USER: dh
+      DATABASE_PASSWORD: dh
+      SERVICE_NAME: WF2DH
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    container_name: dh_wf2dh
     networks:
       - dh_network
 
@@ -356,9 +487,12 @@ services:
 # Persistent volume for PostgreSQL data
 volumes:
   dhpgdata:
+  rfid_shared:
+  ad_shared:
 
 # Custom network for DeepHarbor services to communicate
 # internally. All services are attached to this network.
 networks:
   dh_network:
     driver: bridge
+  

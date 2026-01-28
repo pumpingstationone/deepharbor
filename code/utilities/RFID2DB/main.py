@@ -57,7 +57,7 @@ def get_last_rfid_event_timestamp(conn):
     Retrieves the timestamp of the latest RFID event from the database.
     """
     cursor = conn.cursor()
-    cursor.execute("SELECT timestamp FROM member_access_logs ORDER BY timestamp DESC LIMIT 1;")
+    cursor.execute("SELECT timestamp FROM member_access_log ORDER BY timestamp DESC LIMIT 1;")
     record = cursor.fetchone()
     cursor.close()
     return record[0] if record else None
@@ -78,7 +78,7 @@ def test_db_connection():
 def insert_rfid_event(conn, event):
     cursor = conn.cursor()
     insert_query = """
-        INSERT INTO member_access_logs 
+        INSERT INTO member_access_log 
         ( 
               member_id,
               rfid_tag,
@@ -113,12 +113,22 @@ def insert_rfid_event(conn, event):
 # Board functions
 ###############################################################################
 
-def get_board_time():
+def get_board_time(max_retries=3):
     """
-    Gets the current time from the RFID board.
+    Gets the current time from the RFID board with retry logic.
     """
-    response = board.get_time(BOARD_SERIAL)
-    return response.datetime.strftime("%m-%d-%Y %H:%M:%S")
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            response = board.get_time(BOARD_SERIAL)
+            return response.datetime.strftime("%m-%d-%Y %H:%M:%S")
+        except Exception as e:
+            retry_count += 1
+            logger.warning(f"Failed to get board time (attempt {retry_count}/{max_retries}): {e}")
+            if retry_count < max_retries:
+                time.sleep(1)
+            else:
+                raise
 
 def get_events_after(timestamp):
     """
@@ -191,8 +201,22 @@ def main():
     logger.info(f"Board Configuration: Serial Number = {BOARD_SERIAL}")
     logger.debug(f"Bind = {bind}, Broadcast = {broadcast}, Listen = {listen}, Debug = {board_debug}")
     
-    record = board.get_controller(BOARD_SERIAL)
-    pprint(record.__dict__, indent=2, width=1)
+    # Get controller info with retry logic
+    max_retries = 3
+    retry_count = 0
+    record = None
+    while retry_count < max_retries and record is None:
+        try:
+            record = board.get_controller(BOARD_SERIAL)
+            pprint(record.__dict__, indent=2, width=1)
+        except Exception as e:
+            retry_count += 1
+            logger.warning(f"Failed to get controller info (attempt {retry_count}/{max_retries}): {e}")
+            if retry_count < max_retries:
+                time.sleep(2)
+            else:
+                logger.error("Could not connect to board after multiple attempts")
+                raise
     
     logger.info(f"Board time is: {get_board_time()}")
     

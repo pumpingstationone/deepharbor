@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Sign Up - Deep Harbor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+    <style>
+        .username-check {
+            display: flex;
+            gap: 0.5rem;
+            align-items: flex-start;
+        }
+        .username-check input {
+            flex: 1;
+        }
+        .btn-check {
+            padding: 0.75rem 1rem;
+            white-space: nowrap;
+        }
+        .username-message {
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+        }
+        .username-message.error {
+            color: #dc2626;
+        }
+        .username-message.success {
+            color: #16a34a;
+        }
+        .help-text {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Deep Harbor</h1>
+            <p class="tagline">Complete Your Application</p>
+        </div>
+
+        <div class="content centered">
+            <div class="card wide">
+                {% if contact_found %}
+                <div class="alert alert-info">
+                    Oh, hey! We found your information! Please review and complete the form below.
+                </div>
+                {% endif %}
+
+                <form method="POST" action="{{ url_for('signup_submit') }}">
+                    <input type="hidden" name="email" value="{{ email }}">
+                    <input type="hidden" name="waiver_signed_at" value="{{ contact.signed_at_datetime if contact else '' }}">
+                    
+                    <div class="info-group">
+                        <label>Email Address</label>
+                        <div class="info-value">{{ email }}</div>
+                    </div>
+                    
+                    {% if contact and contact.signed_at_datetime %}
+                    <div class="alert alert-info">
+                        <strong>Waiver Found:</strong> You signed a waiver on {{ contact.signed_at_datetime }}
+                    </div>
+                    {% endif %}
+
+                    <div class="form-group">
+                        <label for="first_name">First Name *</label>
+                        <input type="text" id="first_name" name="first_name" required 
+                               pattern=".*\S+.*"
+                               title="Cannot be empty or contain only spaces"
+                               value="{{ contact.first_name if contact else '' }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="last_name">Last Name *</label>
+                        <input type="text" id="last_name" name="last_name" required 
+                               pattern=".*\S+.*"
+                               title="Cannot be empty or contain only spaces"
+                               value="{{ contact.last_name if contact else '' }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="preferred_name">Preferred Name/Nickname</label>
+                        <input type="text" id="preferred_name" name="preferred_name" 
+                               pattern=".*\S+.*|^$"
+                               title="Cannot contain only spaces"
+                               value="{{ contact.preferred_name if contact else '' }}">
+                        <div class="help-text">How would you like to identify yourself?</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="birthday">Birthday *</label>
+                        <input type="date" id="birthday" name="birthday" required 
+                               value="{{ contact.birthday if contact else '' }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="username">Username *</label>
+                        <div class="username-check">
+                            <input type="text" id="username" name="username" required 
+                                   pattern="[a-zA-Z0-9_-]+" 
+                                   title="Username can only contain letters, numbers, underscores, and hyphens (no spaces)">
+                            <button type="button" class="btn btn-secondary btn-check" onclick="checkUsername()">Check Availability</button>
+                        </div>
+                        <div class="help-text">This is for logging into the space computers, the wiki, and other resources.</div>
+                        <div id="username-message" class="username-message"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="phone">Phone Number *</label>
+                        <input type="tel" id="phone" name="phone" required
+                               pattern=".*\S+.*"
+                               title="Cannot be empty or contain only spaces"
+                               value="{{ contact.phone_number if contact else '' }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="discord_handle">Discord Handle</label>
+                        <input type="text" id="discord_handle" name="discord_handle" 
+                               pattern=".*\S+.*|^$"
+                               title="Cannot contain only spaces"
+                               placeholder="username#1234"
+                               value="{{ contact.discord_handle if contact else '' }}">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary full-width">Complete Sign Up</button>
+                </form>
+
+                <div class="footer-links">
+                    <a href="{{ url_for('index') }}">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Trim all text inputs on form submission to prevent spaces-only submissions
+        document.querySelector('form').addEventListener('submit', function(event) {
+            const textInputs = this.querySelectorAll('input[type="text"], input[type="tel"]');
+            let hasError = false;
+            
+            textInputs.forEach(input => {
+                // Trim the value
+                input.value = input.value.trim();
+                
+                // Check if required field is now empty after trimming
+                if (input.hasAttribute('required') && input.value === '') {
+                    input.setCustomValidity('This field cannot be empty or contain only spaces');
+                    hasError = true;
+                } else {
+                    input.setCustomValidity('');
+                }
+            });
+            
+            if (hasError) {
+                event.preventDefault();
+                this.reportValidity();
+            }
+        });
+
+        async function checkUsername() {
+            const usernameInput = document.getElementById('username');
+            const messageDiv = document.getElementById('username-message');
+            const username = usernameInput.value.trim();
+
+            if (!username) {
+                messageDiv.textContent = 'Please enter a username';
+                messageDiv.className = 'username-message error';
+                return;
+            }
+
+            messageDiv.textContent = 'Checking...';
+            messageDiv.className = 'username-message';
+
+            try {
+                const response = await fetch(`{{ url_for('check_username') }}?username=${encodeURIComponent(username)}`);
+                const data = await response.json();
+
+                if (data.is_taken) {
+                    messageDiv.textContent = 'Please choose a different username';
+                    messageDiv.className = 'username-message error';
+                } else {
+                    messageDiv.textContent = 'Username is available!';
+                    messageDiv.className = 'username-message success';
+                }
+            } catch (error) {
+                messageDiv.textContent = 'Error checking username. Please try again.';
+                messageDiv.className = 'username-message error';
+            }
+        }
+
+        // Also check on blur
+        document.getElementById('username').addEventListener('blur', checkUsername);
+    </script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - Deep Harbor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Deep Harbor</h1>
+            <p class="tagline">Sign Up</p>
+        </div>
+
+        <div class="content centered">
+            <div class="card wide">
+                <h2>Get Started</h2>
+                <p>Enter your email address to begin your membership application.</p>
+                
+                {% if error %}
+                <div class="alert alert-error">{{ error }}</div>
+                {% endif %}
+
+                <form method="POST" action="{{ url_for('signup_check_email') }}">
+                    <div class="form-group">
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" name="email" required 
+                               placeholder="your.email@example.com" autofocus>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary full-width">Next</button>
+                </form>
+
+                <div class="footer-links">
+                    <a href="{{ url_for('index') }}">Back to home</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

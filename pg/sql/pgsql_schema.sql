@@ -106,6 +106,52 @@ SELECT id,
 FROM   member;
 COMMENT ON VIEW v_member_names_and_status IS 'This view provides a list of member IDs along with their first name, last name, and membership status from the member table.';
 
+-- This view wraps most of the member data for easier querying
+-- and displaying on the member portal
+CREATE OR REPLACE VIEW v_member_info as
+SELECT m.id member_id, 
+json_build_object(
+    'identity', json_build_object(
+        'member_id', m.id,
+        'first_name', m.identity ->> 'first_name'::TEXT,
+        'last_name', m.identity ->> 'last_name'::TEXT,
+        'primary_email', ((m.identity -> 'emails'::TEXT) -> 0) ->> 'email_address'::TEXT,
+        'nickname', m.identity ->> 'nickname'::TEXT,
+        'active_directory_username', m.identity ->> 'active_directory_username'::TEXT
+    ),
+    'connections', json_build_object(
+      'discord_username', m.connections ->> 'discord_username'::TEXT
+    ),
+    'forms', json_build_object(
+        'id_check_1', m.forms ->> 'id_check_1'::TEXT,
+        'id_check_2', m.forms ->> 'id_check_2'::TEXT,
+        'waiver_signed_date', to_date(m.forms ->> 'waiver_signed_date'::TEXT, 'YYYY-MM-DD' ),
+        'terms_of_use_accepted', m.forms ->> 'terms_of_use_accepted'::TEXT,
+        'essentials_form', m.forms ->> 'essentials_form'::TEXT,
+        'orientation_completed_date', to_date(m.forms ->> 'orientation_completed_date'::TEXT, 'YYYY-MM-DD' )
+    ),
+    'status', json_build_object(
+        'member_since', to_date(m.status ->> 'member_since'::TEXT, 'YYYY-MM-DD'), 
+        'membership_status', m.status ->> 'membership_status'::TEXT,
+        'membership_level', m.status ->> 'membership_level'::TEXT
+    ),
+    'access', json_build_object(
+        'rfid_tags', m.access -> 'rfid_tags'::TEXT
+    ),
+    'authorizations', json_build_object(
+        'physical_authorizations', m.authorizations -> 'authorizations'::TEXT,
+        'computer_authorizations', m.authorizations -> 'computer_authorizations'::TEXT
+    ),
+    'extras', json_build_object(
+        'storage_id', m.extras ->> 'storage_id'::TEXT,
+        'essentials_form', m.extras ->> 'essentials_form'::TEXT,
+        'orientation', m.extras ->> 'orientation'::TEXT,
+        'ip_addresses', m.extras ->> 'ip_addresses'::TEXT,
+        'storage_area', m.extras ->> 'storage_area'::TEXT)
+) AS member_info
+FROM   member m;
+COMMENT ON VIEW v_member_info IS 'This view provides a structured JSON representation of member information, including identity, connections, forms, status, access, authorizations, and extras from the member table.';
+
 /* 
  * OAuth2 Clients table - this holds the client credentials
  * for any OAuth2 clients that need to access the API.
@@ -152,8 +198,8 @@ CREATE FUNCTION convertfromwiegand (p_num bigint)  RETURNS integer
   VOLATILE
 AS $body$
 DECLARE
-    v_baseVal varchar(8);
-    v_facilityCode varchar(3);
+    v_baseVal varchar(20);  -- Increased from 8 to handle larger numbers
+    v_facilityCode varchar(15);  -- Increased to handle larger facility codes
     v_userCode varchar(5);
 
     v_bitCountdown integer := 24;
@@ -173,13 +219,30 @@ DECLARE
     v_userSum integer := 0;
 
 BEGIN
-    v_baseVal := p_num::VARCHAR(8);
+    -- Return NULL if input is NULL
+    IF p_num IS NULL THEN
+        RETURN NULL;
+    END IF;
+    
+    v_baseVal := p_num::VARCHAR;
+    
+    -- Validate that we have at least 5 digits (for user code)
+    IF length(v_baseVal) < 5 THEN
+        --RAISE EXCEPTION 'Invalid Wiegand number: % (must be at least 5 digits)', p_num;
+        RETURN NULL;
+    END IF;
 
     -- We have to be careful about the facility code because it could be 
     -- three digits or less, while the user code will always be five
     -- digits
     v_facilityCode := substring(v_baseVal from 1 for length(v_baseVal) - 5);
     v_userCode := SUBSTRING(v_baseVal from length(v_baseVal) - 4);
+    
+    -- If facility code is empty (5-digit number), set it to '0'
+    IF v_facilityCode = '' OR v_facilityCode IS NULL THEN
+        v_facilityCode := '0';
+    END IF;
+    
     --raise notice '[%] - [%]', v_facilityCode, v_userCode;
 
     -- Okay, here we go with all our bit-twiddling logic....
@@ -231,7 +294,7 @@ BEGIN
     return (select v_facilitySum + v_userSum);
 end;
 $body$ LANGUAGE plpgsql;
-COMMENT ON FUNCTION convertfromwiegand(integer) IS 'Converts a Wiegand 24-bit integer value into the corresponding facility code and user code integer value.';
+COMMENT ON FUNCTION convertfromwiegand(BIGINT) IS 'Converts a Wiegand 24-bit integer value into the corresponding facility code and user code integer value.';
 
 CREATE FUNCTION converttowiegand (p_num integer)  RETURNS integer
   VOLATILE
@@ -850,7 +913,7 @@ insert into available_authorizations (id, name, requires_login) values
  */
 
 -- This table logs member access of the doors using RFID tags.
-CREATE TABLE IF NOT EXISTS member_access_logs (
+CREATE TABLE IF NOT EXISTS member_access_log (
     id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     member_id INTEGER REFERENCES member(id) ON DELETE SET NULL,
     rfid_tag TEXT NOT NULL,
@@ -859,12 +922,12 @@ CREATE TABLE IF NOT EXISTS member_access_logs (
     access_granted BOOLEAN NOT NULL,
     timestamp TIMESTAMP(6) WITHOUT TIME ZONE 
 );
-COMMENT ON TABLE member_access_logs IS 'This table logs member access events (i.e. front door, back door) using RFID tags';
+COMMENT ON TABLE member_access_log IS 'This table logs member access events (i.e. front door, back door) using RFID tags';
 
 -- Unique index to prevent duplicate access log entries
-CREATE UNIQUE INDEX IF NOT EXISTS idx_member_access_logs_unique 
-ON member_access_logs (rfid_tag, board_tag_num, access_point, access_granted, timestamp);
-COMMENT ON INDEX idx_member_access_logs_unique IS 'This unique index ensures that duplicate access log entries are not created for the same RFID tag, board tag number, access point, access granted status, and timestamp combination.';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_member_access_log_unique 
+ON member_access_log (rfid_tag, board_tag_num, access_point, access_granted, timestamp);
+COMMENT ON INDEX idx_member_access_log_unique IS 'This unique index ensures that duplicate access log entries are not created for the same RFID tag, board tag number, access point, access granted status, and timestamp combination.';
 
 /* Helper function to find member by RFID tag */
 CREATE OR REPLACE FUNCTION get_member_by_rfid_tag(p_tag_number BIGINT)
@@ -924,11 +987,12 @@ SELECT mal.id,
        END AS access_point,
        mal.access_granted,
        mal.board_tag_num,
+       convertfromwiegand(mal.board_tag_num) AS tag_num,
        m.id AS member_id,
        m.identity ->> 'first_name' AS first_name,
        m.identity ->> 'last_name' AS last_name,
        m.identity -> 'emails' -> 0 ->> 'email_address' AS email_address
-FROM member_access_logs mal
+FROM member_access_log mal
 LEFT JOIN member m ON mal.member_id = m.id;
 COMMENT ON VIEW v_member_access_log IS 'This view combines member access logs with member identity information for easier querying of access events along with basic member info.';
 
@@ -953,7 +1017,8 @@ COMMENT ON TABLE roles IS 'This table holds the various roles defined in the Dee
  */
 INSERT INTO roles (name, permission) VALUES ('Authorizer', '{"view": ["identity", "authorizations"], "change": ["authorizations"]}');
 INSERT INTO roles (name, permission) VALUES ('Administrator', '{"view": ["identity", "status", "roles", "forms", "connections", "extras", "authorizations", "notes", "access", "entry"], "change": ["identity", "status", "roles", "forms", "connections", "extras", "authorizations", "notes", "access"]}');
-INSERT into roles (name, permission) VALUES ('Board', '{"view": ["identity", "status", "notes", "entry"], "change": ["status", "notes"]}')
+INSERT into roles (name, permission) VALUES ('Board', '{"view": ["identity", "status", "notes", "entry"], "change": ["status", "notes"]}');
+
 /* 
  * How we assign roles to members - note that Deep Harbor is written with the idea that anyone who is a 
  * member can have a role, the assumption that the membership is responsible for everything.
@@ -965,7 +1030,7 @@ CREATE TABLE member_to_role (
     CONSTRAINT membertorole_fk1 FOREIGN KEY (role_id) REFERENCES "roles"
     ("id"),
     CONSTRAINT membertorole_fk2 FOREIGN KEY (member_id) REFERENCES "member"
-    ("id")
+    ("id") on delete cascade
 );
 COMMENT ON TABLE member_to_role IS 'This table maps members to their assigned roles in the Deep Harbor system, allowing for role-based access control.';
 
@@ -974,10 +1039,81 @@ COMMENT ON TABLE member_to_role IS 'This table maps members to their assigned ro
  */
 CREATE TABLE user_activity_logs
 (
-          member_id     INTEGER NOT NULL,
-          activity_details jsonb NOT NULL,
-          TIMESTAMP TIMESTAMP(6) WITH TIME ZONE NOT NULL,
-          CONSTRAINT useractivity_fk1 FOREIGN KEY (member_id) REFERENCES "member"
-          ("id")
+    member_id     INTEGER NOT NULL,
+    activity_details jsonb NOT NULL,
+    TIMESTAMP TIMESTAMP(6) WITH TIME ZONE NOT NULL,
+    CONSTRAINT useractivity_fk1 FOREIGN KEY (member_id) REFERENCES "member"
+    ("id") on delete cascade
 );
-COMMENT ON TABLE user_activity_logs IS 'This table logs user activity in the Deep Harbor system, recording member ID, timestamp, and page accessed for auditing purposes.';
+COMMENT ON TABLE user_activity_logs IS 'This table records user activity in the Deep Harbor system, recording member ID, timestamp, and page accessed for auditing purposes.';
+
+-- RFID Board Sync table - this tracks the last sync timestamp for the RFID board so that
+-- we can avoid long sync times.
+CREATE TABLE rfid_board_sync
+(
+    position INTEGER NOT NULL,
+    TIMESTAMP TIMESTAMP(6) WITH TIME ZONE NOT NULL
+);
+COMMENT ON TABLE rfid_board_sync IS 'This table tracks the last synchronization position in its database for the RFID board used by PS1.';
+
+/*
+ * WaiverForever Integration Table
+ */
+
+-- PS1 uss WaiverForever for member waivers. This table stores
+-- the waiver details received from WaiverForever webhooks and acts
+-- as a record of waivers on file.
+CREATE TABLE waivers
+(
+    id INTEGER NOT NULL GENERATED ALWAYS AS identity,
+    details jsonb NOT NULL,
+    date_added TIMESTAMP WITH TIME zone DEFAULT now() NOT NULL,
+    PRIMARY KEY (id)
+);
+COMMENT ON TABLE waivers IS 'This table stores waiver details received from WaiverForever webhooks, including the waiver data in JSONB format and the date it was added.';
+
+-- View to simplify querying waiver details
+CREATE OR REPLACE VIEW v_waivers AS
+    SELECT DISTINCT 
+    ON (first_name, 
+            last_name, 
+            email_address, 
+            phone_number) id,
+            first_name,
+            last_name,
+            email_address,
+            phone_number,
+            signed_at_datetime,            
+            date_added
+    FROM     ( SELECT waivers.id, ( SELECT jsonb_array_elements.value ->> 'first_name'::TEXT
+                    FROM    jsonb_array_elements((waivers.details -> 'content'::TEXT) -> 'data'::TEXT) 
+                            jsonb_array_elements(value)
+                    WHERE   (jsonb_array_elements.value ->> 'type':: TEXT) = 'name_field'::TEXT 
+                    AND     (jsonb_array_elements.value ->> 'title'::TEXT) = 'Name'::TEXT
+                    LIMIT   1) AS first_name, ( SELECT jsonb_array_elements.value ->> 'last_name':: 
+                            TEXT
+                    FROM    jsonb_array_elements((waivers.details -> 'content'::TEXT) -> 'data'::TEXT) 
+                            jsonb_array_elements(value)
+                    WHERE   (jsonb_array_elements.value ->> 'type':: TEXT) = 'name_field'::TEXT 
+                    AND     (jsonb_array_elements.value ->> 'title'::TEXT) = 'Name'::TEXT
+                    LIMIT   1) AS last_name, ( SELECT jsonb_array_elements.value ->> 'value'::TEXT
+                    FROM    jsonb_array_elements((waivers.details -> 'content'::TEXT) -> 'data'::TEXT) 
+                            jsonb_array_elements(value)
+                    WHERE   (jsonb_array_elements.value ->> 'type'::TEXT) = 'email_field'::TEXT
+                    LIMIT   1) AS email_address, ( SELECT jsonb_array_elements.value ->> 'value'::TEXT
+                    FROM    jsonb_array_elements((waivers.details -> 'content'::TEXT) -> 'data'::TEXT) 
+                            jsonb_array_elements(value)
+                    WHERE   (jsonb_array_elements.value ->> 'type':: TEXT) = 'phone_field'::TEXT 
+                    AND     (jsonb_array_elements.value ->> 'title'::TEXT) = 'Phone number'::TEXT
+                    LIMIT   1) AS phone_number,                     
+                    TO_TIMESTAMP(
+                        (waivers.details -> 'content' ->> 'signed_at')::BIGINT
+                    ) AS signed_at_datetime,
+                    waivers.date_added
+            FROM    waivers) waiver_data
+    ORDER BY first_name, 
+            last_name, 
+            email_address, 
+            phone_number, 
+            date_added DESC;
+COMMENT ON VIEW v_waivers IS 'This view simplifies querying waiver details by extracting first name, last name, email address, phone number, and signed at datetime from the waivers table, returning the most recent waiver for each unique combination of these fields.';

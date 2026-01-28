@@ -73,6 +73,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "uhppoted" },
     { name = "uvicorn" },
+    { name = "wiegand-calculator" },
 ]
 
 [package.metadata]
@@ -82,6 +83,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "uhppoted", specifier = ">=0.8.11" },
     { name = "uvicorn", specifier = ">=0.38.0" },
+    { name = "wiegand-calculator", specifier = ">=0.0.1" },
 ]
 
 [[package]]
@@ -710,4 +712,13 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/21/e6/26d09fab466b7ca9c7737474c52be4f76a40301b08362eb2dbc19dcc16c1/websockets-15.0.1.tar.gz", hash = "sha256:82544de02076bafba038ce055ee6412d68da13ab47f0c60cab827346de828dee", size = 177016, upload-time = "2025-03-05T20:03:41.606Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fa/a8/5b41e0da817d64113292ab1f8247140aac61cbf6cfd085d6a0fa77f4984f/websockets-15.0.1-py3-none-any.whl", hash = "sha256:f7a866fbc1e97b5c617ee4116daaa09b722101d4a3c170c787450ba409f9736f", size = 169743, upload-time = "2025-03-05T20:03:39.41Z" },
+]
+
+[[package]]
+name = "wiegand-calculator"
+version = "0.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/5c/1d/fb8d78f853c424a84ecd06cd205da4aed60a7c78a2c81a7027a700ecb826/wiegand_calculator-0.0.1.tar.gz", hash = "sha256:671641e003b62acb8f3f1d37270db7f383deb3f6c4ef07a1164bbb1203a5dc35", size = 4345, upload-time = "2024-11-15T21:27:56.542Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c1/86/c19f4e5ee19e14eec18be89c031ac33410ccc74a4dd5a125a73056c1b6aa/wiegand_calculator-0.0.1-py3-none-any.whl", hash = "sha256:ef8df495938c9bcda8a46a50ef8cf66889205759f53ae33b3cef80ada24f89ab", size = 5318, upload-time = "2024-11-15T21:27:54.983Z" },
 ]

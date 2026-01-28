@@ -22,3 +22,8 @@ else
     echo "Failed to recreate service: $SERVICE"
     exit 1
 fi
+
+# Optional: Automatically start to tail the logs of the service if any parameter is passed
+if [ $# -gt 0 ]; then
+    docker logs -f `docker ps | grep $SERVICE | awk '{print $1}'`
+fi

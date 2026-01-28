@@ -19,6 +19,14 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 ###############################################################################
+# Health check endpoint
+###############################################################################
+
+@app.route("/health")
+def health():
+    return "OK", 200
+
+###############################################################################
 # Flask routes for B2C flows, including login and logout
 ###############################################################################
 
@@ -29,9 +37,8 @@ def anonymous():
 
 @app.route("/")
 def index():
-    logger.info("Index route accessed")
-    # if not session.get("user"):
-    #    return redirect(url_for("login"))
+    logger.info("Main route accessed")
+    
     if not session.get("user"):
         logger.info("No user logged in, building auth code flow")
         session["flow"] = _build_auth_code_flow(scopes=app_config.SCOPE)
@@ -103,7 +110,7 @@ def login():
         "login.html", auth_url=session["flow"]["auth_uri"], version=msal.__version__
     )
 
-@app.route(app_config.REDIRECT_PATH)  # Its absolute URL must match your app's redirect_uri set in AAD
+@app.route(app_config.REDIRECT_PATH)  # Its absolute URL must match your app's redirect_uri set in B2C
 def authorized():
     logger.info("Authorized route accessed")
     try:
@@ -266,7 +273,7 @@ def _build_auth_code_flow(authority=None, scopes=None):
     )
 
 def _get_token_from_cache(scope=None):
-    print("Getting token from cache")
+    logger.debug("Getting token from cache")
     cache = _load_cache()  # This web app maintains one cache per session
     cca = _build_msal_app(cache=cache)
     accounts = cca.get_accounts()

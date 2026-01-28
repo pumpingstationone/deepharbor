@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 8.0.1.final using JasperReports Library version 6.18.1-9d75d1969e774d4f179fb3be8401e98a0e6d1611  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="DH_Active_Users" pageWidth="612" pageHeight="792" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="2c9be273-bf2a-4bfe-bf85-c00b3dd78a08">
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="Deep Harbor - Tailscale"/>
+	<property name="ireport.jasperserver.url" value="http://100.85.181.14:8080/jasperserver/"/>
+	<property name="ireport.jasperserver.user" value="jasperadmin"/>
+	<property name="ireport.jasperserver.report.resource" value="/DH_Member_Reports/DH_Active_Users_files/main_jrxml"/>
+	<property name="ireport.jasperserver.reportUnit" value="/DH_Member_Reports/DH_Active_Users"/>
+	<queryString language="SQL">
+		<![CDATA[select (name->>'DisplayName') name, status from person where (status->>'MembershipEnabled')::boolean = true and (status->>'Status') = 'Active' order by name]]>
+	</queryString>
+	<field name="name" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="name"/>
+		<property name="com.jaspersoft.studio.field.label" value="name"/>
+	</field>
+	<field name="status" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="status"/>
+		<property name="com.jaspersoft.studio.field.label" value="status"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="person"/>
+	</field>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="96" splitType="Stretch">
+			<image>
+				<reportElement x="0" y="0" width="200" height="80" uuid="110bb91e-d13d-4dbd-8fa3-dd6fd2823042"/>
+				<imageExpression><![CDATA["repo:/PS1_Logo"]]></imageExpression>
+			</image>
+			<staticText>
+				<reportElement x="370" y="20" width="210" height="50" uuid="28c61e0b-15c9-4a64-915a-d4c66dc357ea"/>
+				<textElement textAlignment="Right">
+					<font size="18"/>
+				</textElement>
+				<text><![CDATA[All Active Users and Status]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band height="35" splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="34" splitType="Stretch">
+			<staticText>
+				<reportElement x="12" y="0" width="100" height="30" uuid="505efce4-5a97-486c-b553-90520f7221ec">
+					<property name="com.jaspersoft.studio.spreadsheet.connectionID" value="a0e5838c-65cc-47d3-9a05-32bae36375ec"/>
+				</reportElement>
+				<textElement>
+					<font size="16" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="285" y="0" width="100" height="30" uuid="10396053-5b56-4a8b-b193-48a3efc13f72">
+					<property name="com.jaspersoft.studio.spreadsheet.connectionID" value="fbd7396f-f575-447c-ad83-032e27dc835b"/>
+				</reportElement>
+				<textElement>
+					<font size="16" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Status]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="37" splitType="Stretch">
+			<textField>
+				<reportElement x="10" y="0" width="100" height="30" uuid="cd7a1ac2-2f7e-4e33-b039-3ac777aa6e4b">
+					<property name="com.jaspersoft.studio.spreadsheet.connectionID" value="a0e5838c-65cc-47d3-9a05-32bae36375ec"/>
+				</reportElement>
+				<textFieldExpression><![CDATA[$F{name}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="285" y="0" width="285" height="30" uuid="4ae54055-2c6c-4bcd-aee1-3670cf76f21f">
+					<property name="com.jaspersoft.studio.spreadsheet.connectionID" value="fbd7396f-f575-447c-ad83-032e27dc835b"/>
+				</reportElement>
+				<textFieldExpression><![CDATA[$F{status}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="45" splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band height="54" splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="42" splitType="Stretch"/>
+	</summary>
+</jasperReport>

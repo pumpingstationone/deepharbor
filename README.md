@@ -1,4 +1,8 @@
 # Deep Harbor CRM
+## Quick Note on configuration (or lack thereof)
+The system makes use of a lot of `config.ini` files in various places. These files are used to configure database connections, service endpoints, and other settings. There are a number of parameters that Deep Harbor uses that require things like an Active Directory server, an RFID controller, and so forth. The default `config.ini` files that are included with the code are meant for development purposes only and will need to be modified to reflect your actual environment.
+
+Also note that Pumping Station One uses [Azure B2C](https://learn.microsoft.com/en-us/azure/active-directory-b2c/overview) for identity management; if you are not using Azure B2C, you will need to modify the authentication and authorization code in both the DHAdminPortal and DHMemberPortal components to reflect your identity management system.
 ## Purpose
 The Deep Harbor CRM was written to support membership at [Pumping Station: One](https://pumpingstationone.org). It's meant to be performant and flexable, subscribing to the concept of _"You don't know what you don't know."_ What this means is that the system is designed to be easy to extend and modify to fit new situations with minimal changes.
 ## General Design
@@ -29,8 +33,17 @@ The following components are "worker services" in that they perform whatever low
 
 * DH2AD
 This service manipulates a member's information within Active Directory.
+* DHADController
+This service interfaces with the Active Directory controller to add users, change authorizations (via OUs), and other Active-Directory-centric tasks.
 * DH2RFID
 This service adds and removes RFID tags from the controller database to either allow or deny access to the premises.
+* DHRFIDController
+This service interfaces with the RFID controller to add and remove RFID tags as necessary.
+
+DH2ADController and DHRFIDController are examples of worker services that interface with external systems on the local network. Because the other containers do not have access to the local network, these worker services are necessary to perform the actual work of interfacing with those systems. They are called by their respective worker services (DH2AD and DH2RFID) to perform the actual work via shared volumes.
+
+* WF2DH
+This service receives webhook calls from Waiver Forever when a waiver is signed. It stores the waiver information in the Deep Harbor database in the `waivers` table. The idea is that assuming the person signing the waiver wants to become a member, the waiver information is already in the database when they go to sign up via the DHMemberPortal.
 
 ## Directory Structure
 * `pg/`: Contains PostgreSQL database initialization scripts and configuration files.
@@ -43,9 +56,12 @@ This service adds and removes RFID tags from the controller database to either a
 * `code/services/DHStatus/`: Source code for the status management service.
 * `code/workers/DH2AD/`: Source code for the Active Directory integration service.
 * `code/workers/DH2RFID/`: Source code for the RFID integration service.
+* `code/workers/DHADController/`: Source code for the Active Directory controller interface.
+* `code/workers/DHRFIDController/`: Source code for the RFID controller interface.
 * `pg/`: Contains all the PostgreSQL-based files including SQL schema definitions and database-related scripts.
 * `tools/`: Scripts and other files used for development and maintenance tasks (e.g., database migrations, backups).
 * `code/utilities`: Extra tools that interact with the system in some way.
+* `code/WF2DH/`: Source code for the Waiver Forever webhook integration service.
 
 ### Additional Files
 These files are located in the root directory of the Deep Harbor CRM project:

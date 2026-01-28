@@ -64,6 +64,13 @@ async def check_member_username(current_user: AuthenticatedClient, username: str
     """Check if a username is available."""
     return {"available": db.is_username_available(username)}
 
+# This gets an amalgamation of all member data fields for a given member
+@app.get("/v1/member/full_info/")
+async def get_full_member_info(current_user: AuthenticatedClient, member_id: str):
+    """Get full member information."""
+    return db.get_full_member_info(member_id)
+
+# These services are to get individual member data fields
 @app.get("/v1/member/connections/")
 async def get_member_connections(current_user: AuthenticatedClient, member_id: str):
     """Get member connections."""
@@ -257,3 +264,16 @@ async def log_user_activity(
     data = await request.json()
     logger.debug(f"In log_user_activity with {data}")
     return db.log_user_activity(data)
+
+###############################################################################
+# Contacts endpoints
+# These endpoints manage contacts that are not members (i.e. no member ID)
+###############################################################################
+
+# This endpoint allows searching for contacts by email address which we use
+# when a member is signing up; if they've already filled out a waiver, we
+# can grab their info from the waiver table and pre-fill their info.
+@app.get("/v1/contacts/search_by_email/")
+async def search_contacts_by_email(current_user: AuthenticatedClient, email_address: str):
+    """Search for contacts based on an email address."""
+    return db.search_contacts_by_email(email_address)

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Member Dashboard - Deep Harbor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Deep Harbor</h1>
+            <p class="tagline">Member Dashboard</p>
+            <div class="header-actions">
+                <span class="welcome">Welcome, {{ identity.nickname or identity.first_name or user.name or 'Member' }}!</span>
+                <a href="{{ url_for('logout') }}" class="btn btn-secondary btn-sm">Logout</a>
+            </div>
+        </div>
+
+        <div class="content dashboard">
+            <!-- Member Information Card -->
+            <div class="card">
+                <h2>Member Information</h2>
+                
+                {% if status %}
+                <div class="info-group">
+                    <label>Membership Level</label>
+                    <div class="info-value">{{ status.membership_level or 'Not specified' }}</div>
+                </div>
+
+                <div class="info-group">
+                    <label>Membership Status</label>
+                    <div class="info-value status-badge {% if status.membership_status == "active" %}status-active{% else %}status-inactive{% endif %}">
+                        {{ 'Active Member' if status.membership_status == "active" else 'Inactive' }}
+                    </div>
+                </div>
+
+                {% if status.member_since %}
+                <div class="info-group">
+                    <label>Member Since</label>
+                    {% set ms = status.member_since|string %}
+                    <div class="info-value">{{ ms[5:7] }}/{{ ms[8:10] }}/{{ ms[0:4] }}</div>
+                </div>
+                {% endif %}
+                {% endif %}
+
+                {% if identity %}
+                <div class="info-group">
+                    <label>Member ID</label>
+                    <div class="info-value">{{ session.member_id or 'Not available' }}</div>
+                </div>
+
+                <div class="info-group">
+                    <label>First Name</label>
+                    <div class="info-value">{{ identity.first_name or 'Not available' }}</div>
+                </div>
+
+                <div class="info-group">
+                    <label>Last Name</label>
+                    <div class="info-value">{{ identity.last_name or 'Not available' }}</div>
+                </div>
+
+                {% if identity.nickname %}
+                <div class="info-group">
+                    <label>Preferred Name/Nickname</label>
+                    <div class="info-value">{{ identity.nickname }}</div>
+                </div>
+                {% endif %}
+
+                <div class="info-group">
+                    <label>Email</label>
+                    <div class="info-value">{{ identity.email or session.email or user.email or 'Not available' }}</div>
+                </div>
+
+                {% if identity.phone %}
+                <div class="info-group">
+                    <label>Phone</label>
+                    <div class="info-value">{{ identity.phone }}</div>
+                </div>
+                {% endif %}
+
+                {% if identity.birthday %}
+                <div class="info-group">
+                    <label>Birthday</label>
+                    <div class="info-value">{{ identity.birthday }}</div>
+                </div>
+                {% endif %}
+
+                {% if identity.org_role %}
+                <div class="info-group">
+                    <label>Organization Role</label>
+                    <div class="info-value">{{ identity.org_role }}</div>
+                </div>
+                {% endif %}
+
+                {% if identity.active_directory_username %}
+                <div class="info-group">
+                    <label>Username</label>
+                    <div class="info-value">{{ identity.active_directory_username }}</div>
+                </div>
+                {% endif %}
+
+                {% if identity.waiver_signed_date %}
+                <div class="info-group">
+                    <label>Waiver Signed Date</label>
+                    <div class="info-value">{{ identity.waiver_signed_date }}</div>
+                </div>
+                {% endif %}
+
+                {% if identity.id_check_1 %}
+                <div class="info-group">
+                    <label>ID Check #1</label>
+                    <div class="info-value">{{ identity.id_check_1 }}</div>
+                </div>
+                {% endif %}
+
+                {% if identity.id_check_2 %}
+                <div class="info-group">
+                    <label>ID Check #2</label>
+                    <div class="info-value">{{ identity.id_check_2 }}</div>
+                </div>
+                {% endif %}
+
+                {% if identity.rfid_tags %}
+                <div class="info-group">
+                    <label>RFID Tag(s)</label>
+                    <div class="info-value">
+                        {% if identity.rfid_tags is string %}
+                            {{ identity.rfid_tags }}
+                        {% elif identity.rfid_tags is iterable %}
+                            {{ identity.rfid_tags | join(', ') }}
+                        {% else %}
+                            {{ identity.rfid_tags }}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="no-data">Unable to load member information.</p>
+                {% endif %}
+            </div>
+
+            <!-- Authorizations Card -->
+            <div class="card">
+                <h2>Authorizations</h2>
+                <h3>Computer-based Authorizations</h3>
+                {% if authorizations_computer_authorizations and authorizations_computer_authorizations|length > 0 %}
+                <div class="info-group">
+                    <div class="info-value">
+                        <ul style="margin: 0; padding-left: 1.5rem;">
+                        {% for auth in authorizations_computer_authorizations %}
+                            <li>{{ auth.authorization_name or auth.name or auth }}</li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% else %}
+                <p class="no-data">You don't have any authorizations yet.</p>
+                {% endif %}
+                <h3>Non-computer Authorizations</h3>
+                {% if authorizations_physical_authorizations and authorizations_physical_authorizations|length > 0 %}
+                <div class="info-group">
+                    <div class="info-value">
+                        <ul style="margin: 0; padding-left: 1.5rem;">
+                        {% for auth in authorizations_physical_authorizations %}
+                            <li>{{ auth.authorization_name or auth.name or auth }}</li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% else %}
+                <p class="no-data">You don't have any physical authorizations yet.</p>
+                {% endif %}
+            </div>
+
+            <!-- Miscellaneous Card -->
+            <div class="card">
+                <h2>Miscellaneous</h2>
+                
+                {% if extras %}
+                {% if extras.storage_id %}
+                <div class="info-group">
+                    <label>Storage ID</label>
+                    <div class="info-value">{{ identity.storage_id }}</div>
+                </div>
+                {% endif %}
+
+                {% if extras.ip_addresses %}
+                <div class="info-group">
+                    <label>Dedicated IPs</label>
+                    <div class="info-value">
+                        {% if extras.ip_addresses is string %}
+                            {{ extras.ip_addresses }}
+                        {% elif extras.ip_addresses is iterable %}
+                            {{ extras.ip_addresses | join(', ') }}
+                        {% else %}
+                            {{ extras.ip_addresses }}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if extras.storage_area %}
+                <div class="info-group">
+                    <label>Storage Location</label>
+                    <div class="info-value">{{ extras.storage_area }}</div>
+                </div>
+                {% endif %}
+                
+                {% else %}no-data">Unable to load miscellaneous information.</p>
+                <p class="no-data">Unable to load miscellaneous information.</p>
+                {% endif %}
+            </div>
+            <div class="card">
+                <h2>Forms</h2>
+               
+                {% if forms.id_check_1 %}
+                <div class="info-group">
+                    <label>ID Check 1</label>
+                    <div class="info-value">{{ forms.id_check_1 }}</div>
+                </div>
+                {% endif %}
+
+                {% if forms.id_check_2 %}
+                <div class="info-group">
+                    <label>ID Check 2</label>
+                    <div class="info-value">{{ forms.id_check_2 }}</div>
+                </div>
+                {% endif %}
+
+                {% if forms.terms_of_use_accepted %}
+                <div class="info-group">
+                    <label>Terms of Use Accepted</label>
+                    <div class="info-value">{{ forms.terms_of_use_accepted }}</div>
+                </div>
+                {% endif %}
+                
+                {% if forms.essentials_form %}
+                <div class="info-group">
+                    <label>Essentials Form</label>
+                    <div class="info-value">{{ forms.essentials_form }}</div>
+                </div>
+                {% endif %}
+
+                {% if forms.waiver_signed_date %}
+                <div class="info-group">
+                    <label>Waiver Signed Date</label>
+                    <div class="info-value">{{ forms.waiver_signed_date }}</div>
+                </div>
+                {% endif %}
+
+                {% if forms.orientation_completion_date %}
+                <div class="info-group">
+                    <label>Orientation Completion Date</label>
+                    <div class="info-value">{{ forms.orientation_completion_date }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

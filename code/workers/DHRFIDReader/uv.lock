@@ -1,0 +1,44 @@
+version = 1
+revision = 3
+requires-python = ">=3.14"
+
+[[package]]
+name = "configparser"
+version = "7.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8b/ac/ea19242153b5e8be412a726a70e82c7b5c1537c83f61b20995b2eda3dcd7/configparser-7.2.0.tar.gz", hash = "sha256:b629cc8ae916e3afbd36d1b3d093f34193d851e11998920fdcfc4552218b7b70", size = 51273, upload-time = "2025-03-08T16:04:09.339Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/09/fe/f61e7129e9e689d9e40bbf8a36fb90f04eceb477f4617c02c6a18463e81f/configparser-7.2.0-py3-none-any.whl", hash = "sha256:fee5e1f3db4156dcd0ed95bc4edfa3580475537711f67a819c966b389d09ce62", size = 17232, upload-time = "2025-03-08T16:04:07.743Z" },
+]
+
+[[package]]
+name = "dhrfidreader"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "configparser" },
+    { name = "logging" },
+    { name = "uhppoted" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "configparser", specifier = ">=7.2.0" },
+    { name = "logging", specifier = ">=0.4.9.6" },
+    { name = "uhppoted", specifier = ">=0.8.11.2" },
+]
+
+[[package]]
+name = "logging"
+version = "0.4.9.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/93/4b/979db9e44be09f71e85c9c8cfc42f258adfb7d93ce01deed2788b2948919/logging-0.4.9.6.tar.gz", hash = "sha256:26f6b50773f085042d301085bd1bf5d9f3735704db9f37c1ce6d8b85c38f2417", size = 96029, upload-time = "2013-06-04T23:43:22.086Z" }
+
+[[package]]
+name = "uhppoted"
+version = "0.8.11.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/92/7d/afea8acd45d89e24e851cf3ee6ddb081a0782509ec3c932f7634277e60c3/uhppoted-0.8.11.2.tar.gz", hash = "sha256:0d7f0ec5d549383ac0583556dd8bd06442f439e09bfd80ce7324073c55a6bc71", size = 45496, upload-time = "2025-12-08T20:34:45.844Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fd/23/e5e038ba05328d6899a57a4a981c88cb04196e646f9f070176bee80f42c0/uhppoted-0.8.11.2-py3-none-any.whl", hash = "sha256:d5541cde003a3cb6a884a7b029538e7731e59a2c16a66b7dccfaf8312d5dd58a", size = 40055, upload-time = "2025-12-08T20:34:44.522Z" },
+]

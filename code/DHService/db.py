@@ -377,6 +377,24 @@ def get_member_roles(member_id: str) -> list[str]:
     logger.debug(f"Member ID: {member_id} has roles: {roles}")
     return roles
 
+def get_full_member_info(member_id: str) -> dict:
+    logger.debug(f"Getting full member info for member ID: {member_id}")
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """ SELECT   member_info
+                    FROM     v_member_info
+                    WHERE    member_id = %s;
+                """,
+                (member_id,),
+            )
+            result = cur.fetchone()
+    if result:
+        # We just want to return the JSON object directly
+        return result[0]
+    logger.debug(f"No member found with ID: {member_id}")
+    return {}
+
 def get_member_entry_logs(member_id: str) -> list[dict]:
     logger.debug(f"Getting entry logs for member ID: {member_id}")
     entry_logs = []
@@ -428,6 +446,9 @@ def is_username_available(username: str) -> bool:
                 (username,),
             )
             result = cur.fetchone()
+        if not result:
+            logger.debug(f"Username: {username} is available: True")
+            return True
     available = result[0] == 0
     logger.debug(f"Username: {username} available: {available}")
     return available    
@@ -531,3 +552,37 @@ def log_user_activity(activity_data: dict):
         error_message = f"Error logging user activity: {e}"
         logger.error(error_message)
     return {"message": error_message}
+
+# Contacts database functions
+def search_contacts_by_email(email_address: str) -> list[dict]:
+    logger.debug(f"Searching for a contact with the email address: {email_address}")
+    contacts = []
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id,
+                          first_name,
+                          last_name,
+                          email_address,
+                          phone_number,
+                          signed_at_datetime
+                   FROM   v_waivers
+                   WHERE  email_address ILIKE %s
+                   limit 1;
+                """,
+                (email_address,),
+            )
+            results = cur.fetchall()
+    for result in results:
+        # Wrap this result under 'contact'
+        contact = {
+            "contact_id": result[0],
+            "first_name": result[1],
+            "last_name": result[2],
+            "primary_email_address": result[3],
+            "phone_number": result[4],
+            "signed_at_datetime": result[5],
+        }
+        contacts.append({"contact": contact})
+    logger.debug(f"Found {len(contacts)} contacts matching email address: {email_address}")
+    return contacts
