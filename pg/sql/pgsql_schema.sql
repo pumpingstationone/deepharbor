@@ -381,6 +381,8 @@ BEGIN
                           THEN 'ACTIVE'
                           ELSE 'INACTIVE'
                  END AS status
+        WHERE    at.tag IS NOT NULL
+        AND      TRIM(at.tag) <> ''
         FROM     all_tags at
         ORDER BY at.tag;
 END;
