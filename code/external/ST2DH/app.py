@@ -63,6 +63,11 @@ def update_membership(member):
         # Stripe, that would be bad.
         if current_status["membership_status"] == "Inactive" and member.membership_status == MembershipStatus.ACTIVE:
             current_status["membership_status"] = "Active"
+        elif current_status["membership_status"] == "Active" and member.membership_status == MembershipStatus.ACTIVE:
+            # Active stays active if they subscribe to a product in Stripe again, we just want to make 
+            # sure we update their membership level and other info, but we don't want to accidentally 
+            # set them to inactive just because they subscribed to a product in Stripe again.
+            current_status["membership_status"] = "Active"
         elif member.membership_status == MembershipStatus.ACTIVE and current_status["membership_status"] == "Active":
             # This is to cover the case where someone is already an active member and they subscribe 
             # to a product in Stripe, we want to make sure they stay active and that we update their 
@@ -72,11 +77,17 @@ def update_membership(member):
         elif current_status["membership_status"] == "Pending" and member.membership_status == MembershipStatus.ACTIVE:
             # Pending stays pending until someone manually approves them in the DH admin 
             # site, even if they subscribe to a product in Stripe.
-            current_status["membership_status"] = "Pending"
+            current_status["membership_status"] = "Pending"        
         else:
             # Everything else we set them to Inactive, regardless of the situation
             current_status["membership_status"] = "Inactive"
         
+        # If they're already active, we don't need to do anything, but if they're not active, 
+        # then we need to update their membership status in our database to reflect 
+        # that they're not active anymore.
+        if current_status["membership_status"] == "Active":
+            logger.info(f"Member ID: {member.id} is active, no need to update membership status in DHService")
+            return
         logger.info(f"Updating membership status for member ID: {member.id} to {current_status}")
         dhservices.update_member_status(access_token, member.id, current_status)
 
