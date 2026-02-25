@@ -88,10 +88,11 @@ def get_member_tags(member_id: str) -> list:
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             # Calls the stored procedure to get all tags for the member
-            tag_sql = f"""
-                select tag, wiegand_tag_num, status from get_all_tags_for_member({member_id});
-            """
-            cursor.execute(tag_sql)
+            # SECURITY FIX: Use parameterized query to prevent SQL injection
+            cursor.execute(
+                "SELECT tag, wiegand_tag_num, status FROM get_all_tags_for_member(%s)",
+                (member_id,)
+            )
             results = cursor.fetchall()
             tags = []
             for row in results:
