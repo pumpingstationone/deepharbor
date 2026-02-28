@@ -652,7 +652,7 @@ def get_available_membership_levels() -> list[dict]:
         with conn.cursor() as cur:
             cur.execute(
                 """SELECT id, name, description
-                   FROM membership_types_lookup"""
+                   FROM membership_types_lookup order by name"""
             )
             results = cur.fetchall()
     for result in results:

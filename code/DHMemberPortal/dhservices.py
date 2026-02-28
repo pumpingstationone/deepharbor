@@ -225,7 +225,7 @@ def update_member_authorizations(access_token: str, member_id: str, auth_data: d
     url = f"{DH_API_BASE_URL}/v1/member/authorizations/"
     headers = {
         "Authorization": f"Bearer {access_token}",
-        "x-member-id": member_id  # FastAPI expects dashes, not underscores, which came as a big surprise
+        "X-Member-ID": str(member_id)  # FastAPI expects dashes, not underscores, which came as a big surprise
     }
     logger.debug(f"Sending authorization update - member_id: {member_id}, data: {auth_data}")
     response = requests.post(url, headers=headers, json=auth_data)

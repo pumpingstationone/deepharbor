@@ -139,7 +139,7 @@ def signup_submit():
     status_data = {
         "waiver_signed": waiver_signed,
         "membership_level": "New Member",
-        "membership_status": "Pending", # They're pending until an admin approves it
+        "membership_status": "pending", # They're pending until an admin approves it
         "member_since": datetime.now().strftime('%Y-%m-%d'),
         "renewal_date": None,        
     }
@@ -161,12 +161,32 @@ def signup_submit():
         "from": "Member Portal Signup",
         "timestamp": datetime.now().isoformat()
     }
+    # We are adding the RFID tags in the access data because we want them 
+    # to be able to enter it in the signup form and have it show up in their 
+    # profile right away instead of having to go into the dashboard and add 
+    # it after the fact. This is because the RFID tag is required for them 
+    # to be able to access the space, so it's better to have it in there 
+    # from the start. We can always update it later if they get a new tag or something.
+    access_data = {
+        "rfid_tags": []
+    }
+    authorizations_data = {
+        "computer_authorizations": [],
+        "authorizations": []
+    }
+    extras_data = {
+        "storage_area": None,        
+    }
+    
     logger.debug(f"Waiver signed: {waiver_signed}, Waiver signed at: {waiver_signed_at}")
     logger.debug(f"Identity data to be sent for signup: {identity_data}")
     logger.debug(f"Connections data to be sent for signup: {connections_data}")
     logger.debug(f"Status data to be sent for signup: {status_data}")
     logger.debug(f"Forms data to be sent for signup: {forms_data}")
     logger.debug(f"Notes data to be sent for signup: {notes_data}")
+    logger.debug(f"Access data to be sent for signup: {access_data}")
+    logger.debug(f"Authorizations data to be sent for signup: {authorizations_data}")
+    logger.debug(f"Extras data to be sent for signup: {extras_data}")
     try:
         # Get access token for DHService
         access_token = dhservices.get_access_token(
@@ -203,6 +223,16 @@ def signup_submit():
         # And we add a note about the new signup
         dhservices.update_member_notes(access_token, member_id, notes_data)
         logger.info(f"Added note for new signup for member {member_id}")
+        
+        # These are empty but we want the record to show everything on
+        # first pass so that the admins can make changes as the fields
+        # would be null otherwise.
+        dhservices.update_member_access(access_token, member_id, access_data)
+        logger.info(f"Set initial access data for member {member_id}")
+        dhservices.update_member_authorizations(access_token, member_id, authorizations_data)
+        logger.info(f"Set initial authorizations data for member {member_id}")
+        dhservices.update_member_extras(access_token, member_id, extras_data)
+        logger.info(f"Set initial extras data for member {member_id}")
     except Exception as e:
         logger.error(f"Error creating new member: {str(e)}")
         flash('Error creating new member', 'error')

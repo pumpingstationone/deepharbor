@@ -129,7 +129,7 @@ async def health_check():
 
 # This is the meta function that will find and call other services as needed
 # If other services need to be called, this is where that logic would go
-def perform_status_changes(member_id: str, change_type: str):
+def perform_status_changes(member_id: str, change_type: str, membership_level: str) -> tuple[bool, str]:
     # Get the member identity to log who this is about
     
     member_identity = get_member_identity(member_id)
@@ -139,6 +139,7 @@ def perform_status_changes(member_id: str, change_type: str):
     email_address = get_member_email(member_id)
     
     logger.info(f"Member {first_name} {last_name} (ID {member_id} - {email_address}) status changed to {change_type}")
+    logger.info(f"Membership level for member {first_name} {last_name} (ID {member_id} - {email_address}) changed to {membership_level}")
     
     #
     # Active directory changes via DH2AD
@@ -307,6 +308,17 @@ def perform_status_changes(member_id: str, change_type: str):
     if change_type.lower() == "pending":
         logger.info(f"Member {first_name} {last_name} (ID {member_id}) is pending activation. No changes will be made to active directory or RFID tags at this point.")
         
+        # If the membership level is "New Member", we do *not* send a welcome email.
+        # Why? They've only signed up in Deep Harbor, but have not yet chosen a membership level,
+        # so we don't want to send them an email with info about completing the signup process
+        # until they actually choose a membership level (i.e. set up a recurring payment in Stripe). 
+        # Once they choose a membership level, their status will still be pending, but at least 
+        # then we know they have completed the signup process and we can send them an email with 
+        # info about next steps.
+        if membership_level.lower() == "new member":
+            logger.info(f"Member {first_name} {last_name} (ID {member_id}) has not chosen a membership level yet and has membership level 'New Member'. No welcome email will be sent at this time.")
+            return True, None
+        
         # Now let's send them a welcome email via DH2MG to let them know that their account is pending and will be activated as soon as they come in for an ID check.
         email_sent, email_error_message = send_email(MembershipStatus.PENDING)
         if email_sent is False:
@@ -359,9 +371,12 @@ def change_status(request: dict):
     # Let's get the membership status from change_data
     change_data = request.get("change_data", {})
     membership_status = change_data.get("membership_status")
+    membership_level = change_data.get("membership_level")
 
-    changed_status, error_message = perform_status_changes(request.get("member_id"), membership_status)        
-    
+    changed_status, error_message = perform_status_changes(request.get("member_id"), membership_status, membership_level)        
+    if error_message is None:
+        error_message = ""
+        
     if changed_status is True:
         logger.info(f"Successfully processed status change for member id {request.get('member_id')}")
     else:

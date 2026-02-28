@@ -61,21 +61,53 @@ def update_membership(member):
         # them to be able to be a member at all, so we don't want to change the status of 
         # someone who's "Banned" to "Active" just because they subscribed to a product in 
         # Stripe, that would be bad.
-        if current_status["membership_status"] == "Inactive" and member.membership_status == MembershipStatus.ACTIVE:
-            current_status["membership_status"] = "Active"
-        elif member.membership_status == MembershipStatus.ACTIVE and current_status["membership_status"] == "Active":
-            # This is to cover the case where someone is already an active member and they subscribe 
-            # to a product in Stripe, we want to make sure they stay active and that we update their 
-            # membership level and other info, but we don't want to accidentally set them to inactive 
-            # just because they subscribed to a product in Stripe again.
-            current_status["membership_status"] = "Active"
-        elif current_status["membership_status"] == "Pending" and member.membership_status == MembershipStatus.ACTIVE:
+        
+        # For sanity checking, let's convert the current membership status to lowercase so we can 
+        # compare it more easily, and also log it for debugging purposes.
+        membership_status = current_status["membership_status"].lower()
+        logger.debug(f"Member ID: {member.id} current membership status (lowercase): {membership_status}")
+         
+        logger.debug(f"Determining how to update membership status for member ID: {member.id} based on current status: {membership_status} and Stripe event membership status: {member.membership_status}")        
+       
+        # Do we need to update anything? - This is explicitly set below
+        # for sanity checking and to make it clear that in some cases we want to 
+        # update the membership information, but we don't want to change their 
+        # membership status because it's already correct, so we still want to update 
+        # the membership level and other info, but we don't want to accidentally 
+        # set them to inactive just because they subscribed to a product in Stripe again.
+        update_information = False
+        if membership_status == "inactive" and member.membership_status == MembershipStatus.ACTIVE:
+            update_information = True
+            current_status["membership_status"] = "active"
+            logger.debug(f"Member ID: {member.id} is currently Inactive and subscribing to a product in Stripe, setting membership status to Active")
+        elif membership_status == "active" and member.membership_status == MembershipStatus.ACTIVE:
+            # Do *NOT* update the membership status, because they're already active, 
+            # but we do want to update the membership level and other info, which will 
+            # happen later in this function.
+            update_information = False 
+            # Active stays active if they subscribe to a product in Stripe again, we just want to make 
+            # sure we update their membership level and other info, but we don't want to accidentally 
+            # set them to inactive just because they subscribed to a product in Stripe again.
+            current_status["membership_status"] = "active"
+            logger.debug(f"Member ID: {member.id} is currently Active and subscribing to a product in Stripe, keeping membership status as Active")
+        elif membership_status == "pending" and member.membership_status == MembershipStatus.ACTIVE:
+            update_information = True
             # Pending stays pending until someone manually approves them in the DH admin 
             # site, even if they subscribe to a product in Stripe.
-            current_status["membership_status"] = "Pending"
+            current_status["membership_status"] = "pending"
+            logger.debug(f"Member ID: {member.id} is currently Pending and subscribing to a product in Stripe, keeping membership status as Pending")
         else:
+            update_information = True
             # Everything else we set them to Inactive, regardless of the situation
-            current_status["membership_status"] = "Inactive"
+            current_status["membership_status"] = "inactive"
+            logger.debug(f"Member ID: {member.id} is currently {current_status['membership_status']} and subscribing (or unsubscribing) to a product in Stripe, setting membership status to Inactive")
+        
+        # If they're already active, we don't need to do anything, but if they're not active, 
+        # then we need to update their membership status in our database to reflect 
+        # that they're not active anymore.
+        if update_information == False:
+            logger.info(f"Member ID: {member.id} is active, no need to update membership status in DHService")
+            return
         
         logger.info(f"Updating membership status for member ID: {member.id} to {current_status}")
         dhservices.update_member_status(access_token, member.id, current_status)
@@ -277,7 +309,7 @@ def handle_message(stripe_event):
     if matching_product is None:
         logger.warning(f"Received a subscription event for a product we don't recognize: {product_id}")
         return
-    logger.info(f"They're subscribing to DH product: {matching_product['name']} (ID: {matching_product['product_id']})")
+    logger.info(f"DH product: {matching_product['name']} (ID: {matching_product['product_id']})")
     member.dh_product_name = matching_product["name"]
     
     # The type of message we got determines whether the member is active

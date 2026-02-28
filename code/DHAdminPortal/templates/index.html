@@ -120,6 +120,7 @@
         <span id="memberHeaderName"></span>
         <span class="mx-2">|</span>
         <span id="memberHeaderEmail"></span>
+        <span id="memberHeaderId" class="d-block mt-1"></span>
     </div>
     
     <!-- Tabs Navigation -->
@@ -298,7 +299,7 @@
             <div class="card">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="mb-0">Access Information</h5>
+                        <h5 class="mb-0">Access Information (Tags)</h5>
                         <button class="btn btn-primary btn-sm" id="accessEditBtn" onclick="toggleEditMode('access')">Edit</button>
                     </div>
                     <div id="accessLoading" class="text-center" style="display: none;">
@@ -385,6 +386,11 @@ function toggleEditMode(tabName) {
             addNotesRow();
             return;
         }
+
+        if (tabName === 'access') {
+            enableAccessEditMode();
+            return;
+        }
         
         // Enable all input fields, selects, and textareas in this tab
         const inputs = tabPane.querySelectorAll('input[type="text"], textarea, select');
@@ -410,6 +416,72 @@ function toggleEditMode(tabName) {
             checkbox.addEventListener('change', () => handleFieldChange(tabName), { once: false });
         });
     }
+}
+
+function enableAccessEditMode() {
+    const tagsList = document.getElementById('accessTagsList');
+    if (!tagsList) return;
+
+    // Make existing tag inputs editable and show delete buttons
+    tagsList.querySelectorAll('.access-tag-input').forEach(input => {
+        input.removeAttribute('readonly');
+        input.addEventListener('input', () => handleFieldChange('access'), { once: false });
+    });
+    tagsList.querySelectorAll('.access-tag-delete').forEach(btn => {
+        btn.style.display = '';
+        btn.addEventListener('click', function() {
+            this.closest('.access-tag-row').remove();
+            renumberAccessTags();
+            handleFieldChange('access');
+        }, { once: false });
+    });
+
+    // Add the "Add tag" button at the bottom
+    if (!document.getElementById('accessAddTagBtn')) {
+        const addBtn = document.createElement('button');
+        addBtn.id = 'accessAddTagBtn';
+        addBtn.className = 'btn btn-outline-primary btn-sm mt-1';
+        addBtn.textContent = '+ Add tag';
+        addBtn.type = 'button';
+        addBtn.addEventListener('click', () => {
+            // Hide the "no tags" message if present
+            const noTags = document.getElementById('accessNoTags');
+            if (noTags) noTags.style.display = 'none';
+
+            const index = tagsList.querySelectorAll('.access-tag-row').length;
+            const row = document.createElement('div');
+            row.className = 'input-group mb-2 access-tag-row';
+            row.setAttribute('data-tag-index', index);
+            row.innerHTML = `
+                <span class="input-group-text">Tag ${index + 1}</span>
+                <input type="text" class="form-control access-tag-input" value="" placeholder="Enter tag number">
+                <button class="btn btn-outline-danger btn-sm access-tag-delete" title="Remove tag">&times;</button>
+            `;
+            tagsList.appendChild(row);
+
+            const newInput = row.querySelector('.access-tag-input');
+            newInput.addEventListener('input', () => handleFieldChange('access'), { once: false });
+            newInput.focus();
+
+            row.querySelector('.access-tag-delete').addEventListener('click', function() {
+                this.closest('.access-tag-row').remove();
+                renumberAccessTags();
+                handleFieldChange('access');
+            });
+
+            handleFieldChange('access');
+        });
+        tagsList.parentElement.insertBefore(addBtn, tagsList.nextSibling);
+    }
+}
+
+function renumberAccessTags() {
+    const rows = document.querySelectorAll('#accessTagsList .access-tag-row');
+    rows.forEach((row, i) => {
+        row.setAttribute('data-tag-index', i);
+        const label = row.querySelector('.input-group-text');
+        if (label) label.textContent = `Tag ${i + 1}`;
+    });
 }
 
 function addNotesRow() {
@@ -522,6 +594,19 @@ function saveTabData(tabName) {
         if (!noteValue) {
             validationErrors.push('Note: required');
         }
+    }
+
+    // Special handling for access tab - collect tags into rfid_tags array
+    if (tabName === 'access') {
+        const tagInputs = tabPane.querySelectorAll('.access-tag-input');
+        const rfidTags = [];
+        tagInputs.forEach(input => {
+            const v = input.value.trim();
+            if (v) rfidTags.push(v);
+        });
+        // Clear generic fields and use rfid_tags array
+        Object.keys(data).forEach(k => delete data[k]);
+        data.rfid_tags = rfidTags;
     }
     
     // Check for validation errors before proceeding
@@ -1160,6 +1245,31 @@ function formatEntryData(data) {
     return html;
 }
 
+function formatAccessData(data) {
+    const tags = Array.isArray(data) ? data : (data && Array.isArray(data.rfid_tags) ? data.rfid_tags : []);
+
+    let html = '<div id="accessTagsList">';
+
+    if (tags.length === 0) {
+        html += '<div class="alert alert-info" id="accessNoTags">No RFID tags found for this member.</div>';
+    }
+
+    tags.forEach((tag, index) => {
+        html += `
+            <div class="input-group mb-2 access-tag-row" data-tag-index="${index}">
+                <span class="input-group-text">Tag ${index + 1}</span>
+                <input type="text" class="form-control access-tag-input" value="${escapeHtml(String(tag))}" readonly>
+                <button class="btn btn-outline-danger btn-sm access-tag-delete" style="display:none;" title="Remove tag">&times;</button>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    html += `<div class="mt-2 text-muted"><small>Showing ${tags.length} tag${tags.length === 1 ? '' : 's'}</small></div>`;
+
+    return html;
+}
+
 function formatNotesData(data) {
     const notes = Array.isArray(data) ? data : (data && Array.isArray(data.notes) ? data.notes : []);
 
@@ -1355,8 +1465,9 @@ function updateMemberHeaderInfo(member) {
     const header = document.getElementById('memberHeaderInfo');
     const nameEl = document.getElementById('memberHeaderName');
     const emailEl = document.getElementById('memberHeaderEmail');
+    const memberIdEl = document.getElementById('memberHeaderId');
 
-    if (!header || !nameEl || !emailEl) {
+    if (!header || !nameEl || !emailEl || !memberIdEl) {
         return;
     }
 
@@ -1364,6 +1475,7 @@ function updateMemberHeaderInfo(member) {
         header.style.display = 'none';
         nameEl.textContent = '';
         emailEl.textContent = '';
+        memberIdEl.textContent = '';
         return;
     }
 
@@ -1371,13 +1483,27 @@ function updateMemberHeaderInfo(member) {
     const lastName = member.last_name || '';
     const fullName = `${firstName} ${lastName}`.trim();
     const email = member.primary_email_address || '';
+    const memberId = member.member_id || '';
 
+    memberIdEl.textContent = `ID: ${memberId}`;
     nameEl.textContent = fullName || 'Member';
     emailEl.textContent = email || 'No email on file';
     header.style.display = 'block';
 }
 
+function isAnyTabEditing() {
+    const allTabs = ['identity', 'status', 'roles', 'forms', 'connections', 'extras', 'authorizations', 'notes', 'access', 'entry'];
+    return allTabs.some(tab => {
+        const btn = document.getElementById(`${tab}EditBtn`);
+        return btn && btn.textContent === 'Cancel';
+    });
+}
+
 function loadMemberData(memberOrId) {
+    if (isAnyTabEditing()) {
+        alert('Please cancel or save your changes before selecting another member.');
+        return;
+    }
     const member = typeof memberOrId === 'object' ? memberOrId : null;
     const memberId = member ? member.member_id : memberOrId;
     currentMemberId = memberId;
@@ -1449,6 +1575,10 @@ function fetchTabData(tabName, memberId) {
     
     const loadingEl = document.getElementById(`${tabName}Loading`);
     const dataEl = document.getElementById(`${tabName}Data`);
+    const editBtn = document.getElementById(`${tabName}EditBtn`);
+    
+    // Disable edit button while loading
+    if (editBtn) editBtn.disabled = true;
     
     // Show loading state
     loadingEl.style.display = 'block';
@@ -1469,6 +1599,7 @@ function fetchTabData(tabName, memberId) {
         })
         .finally(() => {
             loadingEl.style.display = 'none';
+            if (editBtn) editBtn.disabled = false;
         });
         return;
     }
@@ -1495,6 +1626,7 @@ function fetchTabData(tabName, memberId) {
         })
         .finally(() => {
             loadingEl.style.display = 'none';
+            if (editBtn) editBtn.disabled = false;
         });
         return;
     }
@@ -1516,6 +1648,29 @@ function fetchTabData(tabName, memberId) {
             })
             .finally(() => {
                 loadingEl.style.display = 'none';
+                if (editBtn) editBtn.disabled = false;
+            });
+        return;
+    }
+
+    // Special handling for access tab
+    if (tabName === 'access') {
+        fetch(`/api/member/${tabName}?member_id=${encodeURIComponent(memberId)}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch ${tabName} data`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                dataEl.innerHTML = formatAccessData(data);
+            })
+            .catch(error => {
+                dataEl.innerHTML = '<div class="alert alert-danger">Error: ' + error.message + '</div>';
+            })
+            .finally(() => {
+                loadingEl.style.display = 'none';
+                if (editBtn) editBtn.disabled = false;
             });
         return;
     }
@@ -1537,6 +1692,7 @@ function fetchTabData(tabName, memberId) {
             })
             .finally(() => {
                 loadingEl.style.display = 'none';
+                if (editBtn) editBtn.disabled = false;
             });
         return;
     }
@@ -1557,6 +1713,7 @@ function fetchTabData(tabName, memberId) {
         })
         .finally(() => {
             loadingEl.style.display = 'none';
+            if (editBtn) editBtn.disabled = false;
         });
 }
 
