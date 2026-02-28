@@ -48,8 +48,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 ###############################################################################
 
 def verify_password(plain_password, hashed_password):
-    logger.debug(f"plain_password: {plain_password}")
-    logger.debug(f"hashed_password: {hashed_password}")
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 def get_password_hash(password):

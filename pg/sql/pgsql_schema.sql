@@ -198,6 +198,10 @@ INSERT INTO oauth2_users (client_name, client_secret, client_description) VALUES
 insert into oauth2_users (client_name, client_secret, client_description) values('dev-member-portal', '$2b$12$17IgUjlVac/yIL4P6lBAlOed37uKM3qce9YgLIGFWhWRNLvU0bNES', 'member portal application');
 /* The Stripe integration client */
 insert into oauth2_users (client_name, client_secret, client_description) values('dev-stripe-client', '$2b$12$unL07f/9iLD1OOqhZR9dPuFIOMcEk/MhLDh667rWhmHCnik4E7pF6', 'Stripe integration for membership payments');
+/* DHStatus to DH2MG to send emails */
+insert into oauth2_users (client_name, client_secret, client_description) values ('dev-mail-client', '$2b$12$V8Dikb9vM7NifiNo.CaRCumI6coyAWEWBKCflsDtqDPO9TKO58J3q', 'status service to dh2mg for sending emails');
+
+
 /* 
  * For Wild Apricot sync tracking - this can go away once
  * we're no longer using Wild Apricot 
@@ -332,8 +336,20 @@ DECLARE
 
     v_FinalNum varchar(16) := '';
 BEGIN
+ -- Return NULL if input is NULL
+    IF p_num IS NULL THEN
+        RETURN NULL;
+    END IF;
+
     -- Convert the number passed to us as a binary string
     v_baseVal := CAST(p_num::bit(24)::VARCHAR AS VARCHAR(24));
+
+    -- Validate that we have at least 5 digits (for user code)
+    IF length(v_baseVal) < 5 THEN
+        --RAISE EXCEPTION 'Invalid Wiegand number: % (must be at least 5 digits)', p_num;
+        RETURN NULL;
+    END IF;
+
     -- Okay, we need two parts, the facility code, and the user code
     v_fc := SUBSTRING(v_baseVal from 1 for 8);
     v_uc := SUBSTRING(v_baseVal from 9);
@@ -372,7 +388,7 @@ BEGIN
                      WHERE  m.id = p_member_id
              )
         SELECT   at.tag,
-                 converttowiegand(at.tag::INTEGER) WIEGAND_TAG_NUM,
+                 converttowiegand(at.tag::BIGINT) WIEGAND_TAG_NUM,
                  CASE
                           WHEN EXISTS (    SELECT 1
                                            FROM    member m
@@ -382,6 +398,8 @@ BEGIN
                           ELSE 'INACTIVE'
                  END AS status
         FROM     all_tags at
+        WHERE    at.tag IS NOT NULL
+        AND      TRIM(at.tag) <> ''
         ORDER BY at.tag;
 END;
 $body$
@@ -1315,6 +1333,24 @@ CREATE TABLE subscriptions
   PRIMARY KEY (id)
 );
 COMMENT ON TABLE subscriptions IS 'This table stores subscription details received from Stripe webhooks via ST2DH, including the subscription data in JSONB format and the date it was added.';
+
+-- View to extract relevant subscription event details from the subscriptions table and join it with member information
+CREATE OR REPLACE VIEW v_subscription_events AS
+SELECT   m.id AS member_id,
+         m.identity->>'first_name' AS first_name,
+         m.identity->>'last_name' AS last_name, ( SELECT elem->>'email_address'
+         FROM    jsonb_array_elements(m.identity->'emails') AS elem
+         WHERE   elem->>'type' = 'primary'
+         LIMIT   1 ) AS email, s.id AS sub_event_id, (s.details #>> '{}')::jsonb ->> 'id' AS 
+         event_id, (s.details #>> '{}') ::jsonb -> 'data' -> 'object' ->> 'customer' AS customer_id 
+         , (s.details #>> '{}'):: jsonb -> 'data' -> 'object' ->> 'id' AS subscription_id, 
+         (s.details #>> '{}')::jsonb -> 'data' -> 'object' -> 'plan' ->> 'product' AS product_id, 
+         (s.details #>> '{}')::jsonb -> 'type' AS event_type
+FROM     subscriptions s
+JOIN     member m ON m.connections->>'stripe_id' = (s.details #>> '{}')::jsonb -> 'data' ->
+         'object' ->> 'customer'
+ORDER BY s.date_added;
+COMMENT ON VIEW v_subscription_events IS 'This view extracts relevant subscription event details from the subscriptions table and joins it with member information to provide a comprehensive view of subscription events, including member name, email, event ID, customer ID, subscription ID, product ID, and event type.';
 
 -- Products table to store details about the products that members can subscribe to. 
 -- This is used in conjunction with the Stripe integration to manage subscriptions and billing.
