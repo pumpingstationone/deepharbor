@@ -428,12 +428,11 @@ def get_all_roles() -> list[dict]:
 def create_role(name: str, permission: dict) -> dict:
     """Create a new role."""
     logger.debug(f"Creating role with name: {name}")
-    import json as json_module
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO roles (name, permission) VALUES (%s, %s) RETURNING id",
-                (name, json_module.dumps(permission)),
+                (name, json.dumps(permission)),
             )
             role_id = cur.fetchone()[0]
         conn.commit()
@@ -443,12 +442,11 @@ def create_role(name: str, permission: dict) -> dict:
 def update_role(role_id: int, name: str, permission: dict) -> dict:
     """Update an existing role."""
     logger.debug(f"Updating role ID: {role_id}")
-    import json as json_module
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE roles SET name = %s, permission = %s WHERE id = %s",
-                (name, json_module.dumps(permission), role_id),
+                (name, json.dumps(permission), role_id),
             )
             if cur.rowcount == 0:
                 return None

@@ -180,7 +180,7 @@ function renderRolesTable(roles) {
             <td>${changeBadges}</td>
             <td>
                 <button class="btn btn-sm btn-outline-primary me-1" onclick="showEditModal(${role.id})">Edit</button>
-                <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${role.id}, '${escapeHtml(role.name)}')">Delete</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${role.id})">Delete</button>
             </td>
         </tr>`;
     }).join('');
@@ -282,9 +282,10 @@ async function saveRole() {
     }
 }
 
-function showDeleteModal(roleId, roleName) {
+function showDeleteModal(roleId) {
     deleteTargetId = roleId;
-    document.getElementById('deleteRoleName').textContent = roleName;
+    const role = rolesCache[roleId];
+    document.getElementById('deleteRoleName').textContent = role ? role.name : String(roleId);
     deleteModal.show();
 }
 
@@ -309,7 +310,7 @@ async function confirmDelete() {
 }
 
 function escapeHtml(str) {
-    if (str == null) return '';
+    if (str === null || str === undefined) return '';
     return String(str)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')

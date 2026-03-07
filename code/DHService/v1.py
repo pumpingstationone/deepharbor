@@ -5,7 +5,7 @@
 from datetime import datetime
 from time import time
 from typing import Annotated
-from fastapi import Depends, Request, Header
+from fastapi import Depends, Request, Header, HTTPException
 
 from fastapiapp import app
 import auth
@@ -292,7 +292,6 @@ async def create_role(current_user: AuthenticatedClient, request: Request):
     name = data.get("name", "").strip()
     permission = data.get("permission", {})
     if not name:
-        from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="Role name is required")
     result = db.create_role(name, permission)
     return result
@@ -304,11 +303,9 @@ async def update_role(current_user: AuthenticatedClient, role_id: int, request: 
     name = data.get("name", "").strip()
     permission = data.get("permission", {})
     if not name:
-        from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="Role name is required")
     result = db.update_role(role_id, name, permission)
     if result is None:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Role not found")
     return result
 
@@ -317,7 +314,6 @@ async def delete_role(current_user: AuthenticatedClient, role_id: int):
     """Delete a role."""
     deleted = db.delete_role(role_id)
     if not deleted:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Role not found")
     return {"success": True}
 
