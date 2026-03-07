@@ -1024,3 +1024,80 @@ def api_update_member_connections():
     except Exception as e:
         logger.error(f"Error updating member connections: {e}")
         return {"error": str(e)}, 500
+
+###############################################################################
+# Roles management page and API routes
+###############################################################################
+
+@app.route("/roles")
+def roles():
+    logger.info("Roles management route accessed")
+    if not session.get("user"):
+        return redirect(url_for("index"))
+    return render_template(
+        "roles.html",
+        user=session["user"],
+        user_role=session.get("user_role", "Unknown"),
+    )
+
+@app.route("/api/roles", methods=["GET"])
+def api_get_roles():
+    if not session.get("user"):
+        return {"error": "Not authenticated"}, 401
+    try:
+        access_token = dhservices.get_access_token(
+            dhservices.DH_CLIENT_ID,
+            dhservices.DH_CLIENT_SECRET
+        )
+        roles_data = dhservices.get_all_roles(access_token)
+        return roles_data
+    except Exception as e:
+        logger.error(f"Error getting roles: {e}")
+        return {"error": str(e)}, 500
+
+@app.route("/api/roles", methods=["POST"])
+def api_create_role():
+    if not session.get("user"):
+        return {"error": "Not authenticated"}, 401
+    try:
+        access_token = dhservices.get_access_token(
+            dhservices.DH_CLIENT_ID,
+            dhservices.DH_CLIENT_SECRET
+        )
+        data = request.get_json()
+        result = dhservices.create_role(access_token, data)
+        return result
+    except Exception as e:
+        logger.error(f"Error creating role: {e}")
+        return {"error": str(e)}, 500
+
+@app.route("/api/roles/<int:role_id>", methods=["PUT"])
+def api_update_role(role_id):
+    if not session.get("user"):
+        return {"error": "Not authenticated"}, 401
+    try:
+        access_token = dhservices.get_access_token(
+            dhservices.DH_CLIENT_ID,
+            dhservices.DH_CLIENT_SECRET
+        )
+        data = request.get_json()
+        result = dhservices.update_role(access_token, role_id, data)
+        return result
+    except Exception as e:
+        logger.error(f"Error updating role {role_id}: {e}")
+        return {"error": str(e)}, 500
+
+@app.route("/api/roles/<int:role_id>", methods=["DELETE"])
+def api_delete_role(role_id):
+    if not session.get("user"):
+        return {"error": "Not authenticated"}, 401
+    try:
+        access_token = dhservices.get_access_token(
+            dhservices.DH_CLIENT_ID,
+            dhservices.DH_CLIENT_SECRET
+        )
+        result = dhservices.delete_role(access_token, role_id)
+        return result
+    except Exception as e:
+        logger.error(f"Error deleting role {role_id}: {e}")
+        return {"error": str(e)}, 500

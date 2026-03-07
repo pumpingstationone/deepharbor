@@ -182,6 +182,34 @@ def get_available_membership_levels(access_token: str):
     response.raise_for_status()
     return response.json()
 
+def get_all_roles(access_token: str):
+    url = f"{DH_API_BASE_URL}/v1/roles/"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    return response.json()
+
+def create_role(access_token: str, role_data: dict):
+    url = f"{DH_API_BASE_URL}/v1/roles/"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.post(url, headers=headers, json=role_data)
+    response.raise_for_status()
+    return response.json()
+
+def update_role(access_token: str, role_id: int, role_data: dict):
+    url = f"{DH_API_BASE_URL}/v1/roles/{role_id}"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.put(url, headers=headers, json=role_data)
+    response.raise_for_status()
+    return response.json()
+
+def delete_role(access_token: str, role_id: int):
+    url = f"{DH_API_BASE_URL}/v1/roles/{role_id}"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.delete(url, headers=headers)
+    response.raise_for_status()
+    return response.json()
+
 #
 # Endpoints to save changes to member data
 #

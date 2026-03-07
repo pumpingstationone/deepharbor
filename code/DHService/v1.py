@@ -277,6 +277,51 @@ async def get_available_membership_levels(current_user: AuthenticatedClient):
     return {"available_membership_levels": db.get_available_membership_levels()}
 
 ###############################################################################
+# Roles management endpoints
+###############################################################################
+
+@app.get("/v1/roles/")
+async def get_all_roles(current_user: AuthenticatedClient):
+    """Get all roles defined in the system."""
+    return {"roles": db.get_all_roles()}
+
+@app.post("/v1/roles/")
+async def create_role(current_user: AuthenticatedClient, request: Request):
+    """Create a new role."""
+    data = await request.json()
+    name = data.get("name", "").strip()
+    permission = data.get("permission", {})
+    if not name:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Role name is required")
+    result = db.create_role(name, permission)
+    return result
+
+@app.put("/v1/roles/{role_id}")
+async def update_role(current_user: AuthenticatedClient, role_id: int, request: Request):
+    """Update an existing role."""
+    data = await request.json()
+    name = data.get("name", "").strip()
+    permission = data.get("permission", {})
+    if not name:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Role name is required")
+    result = db.update_role(role_id, name, permission)
+    if result is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Role not found")
+    return result
+
+@app.delete("/v1/roles/{role_id}")
+async def delete_role(current_user: AuthenticatedClient, role_id: int):
+    """Delete a role."""
+    deleted = db.delete_role(role_id)
+    if not deleted:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Role not found")
+    return {"success": True}
+
+###############################################################################
 # Deep Harbor specific endpoints (e.g. user activity on websites)
 ###############################################################################
 

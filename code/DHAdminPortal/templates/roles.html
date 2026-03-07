@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+{% block title %}Roles Management — Deep Harbor Administration{% endblock %}
+{% block content %}
+
+<style>
+    .permission-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 6px;
+    }
+    .permission-badge {
+        font-size: 0.75em;
+    }
+</style>
+
+<h1>Roles Management</h1>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0">Defined Roles</h4>
+            <button class="btn btn-success" onclick="showCreateModal()">
+                + New Role
+            </button>
+        </div>
+
+        <div id="rolesLoading" class="text-center py-4">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+
+        <div id="rolesError" class="alert alert-danger" style="display:none;"></div>
+
+        <div id="rolesTableWrapper" style="display:none;">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>View Permissions</th>
+                        <th>Change Permissions</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="rolesTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Create / Edit Role Modal -->
+<div class="modal fade" id="roleModal" tabindex="-1" aria-labelledby="roleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="roleModalLabel">New Role</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editRoleId">
+                <div class="mb-3">
+                    <label for="roleName" class="form-label">Role Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="roleName" placeholder="e.g. Authorizer">
+                </div>
+
+                <p class="form-label mb-1">Permissions</p>
+                <p class="text-muted small mb-2">
+                    Select which member-data panels this role can <strong>view</strong> and which it can
+                    <strong>change</strong>. A role needs at least <em>view</em> access to see a panel.
+                </p>
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered align-middle">
+                        <thead class="table-secondary">
+                            <tr>
+                                <th>Panel</th>
+                                <th class="text-center">View</th>
+                                <th class="text-center">Change</th>
+                            </tr>
+                        </thead>
+                        <tbody id="permissionsTable"></tbody>
+                    </table>
+                </div>
+
+                <div id="modalError" class="alert alert-danger mt-2" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveRoleBtn" onclick="saveRole()">Save Role</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Delete Role</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the role <strong id="deleteRoleName"></strong>?</p>
+                <p class="text-danger small">
+                    This will remove the role definition. Any members currently assigned this role will
+                    lose access immediately.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDelete()">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// All panels that can appear in permissions, in display order.
+// These match the tab names used in index.html and the roles.permission JSONB.
+const ALL_PANELS = [
+    'identity', 'status', 'roles', 'forms', 'connections',
+    'extras', 'authorizations', 'notes', 'access', 'entry'
+];
+
+let deleteTargetId = null;
+let roleModal = null;
+let deleteModal = null;
+let rolesCache = {};
+
+document.addEventListener('DOMContentLoaded', () => {
+    roleModal = new bootstrap.Modal(document.getElementById('roleModal'));
+    deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    loadRoles();
+});
+
+async function loadRoles() {
+    document.getElementById('rolesLoading').style.display = 'block';
+    document.getElementById('rolesTableWrapper').style.display = 'none';
+    document.getElementById('rolesError').style.display = 'none';
+
+    try {
+        const response = await fetch('/api/roles');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const rolesList = data.roles || [];
+        rolesCache = {};
+        rolesList.forEach(r => { rolesCache[r.id] = r; });
+        renderRolesTable(rolesList);
+        document.getElementById('rolesTableWrapper').style.display = 'block';
+    } catch (err) {
+        document.getElementById('rolesError').textContent = `Failed to load roles: ${err.message}`;
+        document.getElementById('rolesError').style.display = 'block';
+    } finally {
+        document.getElementById('rolesLoading').style.display = 'none';
+    }
+}
+
+function renderRolesTable(roles) {
+    const tbody = document.getElementById('rolesTableBody');
+    if (roles.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No roles defined yet.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = roles.map(role => {
+        const perm = role.permission || {};
+        const viewList = Array.isArray(perm.view) ? perm.view : [];
+        const changeList = Array.isArray(perm.change) ? perm.change : [];
+        const viewBadges = viewList.map(p =>
+            `<span class="badge bg-info text-dark permission-badge me-1">${escapeHtml(p)}</span>`
+        ).join('') || '<span class="text-muted small">none</span>';
+        const changeBadges = changeList.map(p =>
+            `<span class="badge bg-warning text-dark permission-badge me-1">${escapeHtml(p)}</span>`
+        ).join('') || '<span class="text-muted small">none</span>';
+        return `<tr>
+            <td>${role.id}</td>
+            <td><strong>${escapeHtml(role.name)}</strong></td>
+            <td>${viewBadges}</td>
+            <td>${changeBadges}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="showEditModal(${role.id})">Edit</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${role.id}, '${escapeHtml(role.name)}')">Delete</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function buildPermissionsTable(viewPerms, changePerms) {
+    const tbody = document.getElementById('permissionsTable');
+    tbody.innerHTML = ALL_PANELS.map(panel => {
+        const hasView = viewPerms.includes(panel);
+        const hasChange = changePerms.includes(panel);
+        const label = panel.charAt(0).toUpperCase() + panel.slice(1);
+        return `<tr>
+            <td>${label}</td>
+            <td class="text-center">
+                <input class="form-check-input" type="checkbox" id="view_${panel}"
+                    name="view" value="${panel}" ${hasView ? 'checked' : ''}>
+            </td>
+            <td class="text-center">
+                <input class="form-check-input" type="checkbox" id="change_${panel}"
+                    name="change" value="${panel}" ${hasChange ? 'checked' : ''}>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function showCreateModal() {
+    document.getElementById('roleModalLabel').textContent = 'New Role';
+    document.getElementById('editRoleId').value = '';
+    document.getElementById('roleName').value = '';
+    document.getElementById('modalError').style.display = 'none';
+    buildPermissionsTable([], []);
+    roleModal.show();
+}
+
+function showEditModal(roleId) {
+    const role = rolesCache[roleId];
+    if (!role) return;
+    document.getElementById('roleModalLabel').textContent = 'Edit Role';
+    document.getElementById('editRoleId').value = roleId;
+    document.getElementById('roleName').value = role.name;
+    document.getElementById('modalError').style.display = 'none';
+    const perm = role.permission || {};
+    buildPermissionsTable(
+        Array.isArray(perm.view) ? perm.view : [],
+        Array.isArray(perm.change) ? perm.change : []
+    );
+    roleModal.show();
+}
+
+async function saveRole() {
+    const roleId = document.getElementById('editRoleId').value;
+    const name = document.getElementById('roleName').value.trim();
+    const modalError = document.getElementById('modalError');
+    modalError.style.display = 'none';
+
+    if (!name) {
+        modalError.textContent = 'Role name is required.';
+        modalError.style.display = 'block';
+        return;
+    }
+
+    const viewPerms = [...document.querySelectorAll('input[name="view"]:checked')].map(el => el.value);
+    const changePerms = [...document.querySelectorAll('input[name="change"]:checked')].map(el => el.value);
+
+    const payload = {
+        name,
+        permission: { view: viewPerms, change: changePerms }
+    };
+
+    const saveBtn = document.getElementById('saveRoleBtn');
+    saveBtn.disabled = true;
+
+    try {
+        let response;
+        if (roleId) {
+            response = await fetch(`/api/roles/${roleId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        } else {
+            response = await fetch('/api/roles', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        }
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || err.error || `HTTP ${response.status}`);
+        }
+        roleModal.hide();
+        loadRoles();
+    } catch (err) {
+        modalError.textContent = `Failed to save role: ${err.message}`;
+        modalError.style.display = 'block';
+    } finally {
+        saveBtn.disabled = false;
+    }
+}
+
+function showDeleteModal(roleId, roleName) {
+    deleteTargetId = roleId;
+    document.getElementById('deleteRoleName').textContent = roleName;
+    deleteModal.show();
+}
+
+async function confirmDelete() {
+    if (!deleteTargetId) return;
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.disabled = true;
+    try {
+        const response = await fetch(`/api/roles/${deleteTargetId}`, { method: 'DELETE' });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || err.error || `HTTP ${response.status}`);
+        }
+        deleteModal.hide();
+        loadRoles();
+    } catch (err) {
+        alert(`Failed to delete role: ${err.message}`);
+    } finally {
+        confirmBtn.disabled = false;
+        deleteTargetId = null;
+    }
+}
+
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+</script>
+
+{% endblock %}

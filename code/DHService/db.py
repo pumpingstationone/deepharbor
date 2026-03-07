@@ -412,6 +412,61 @@ def get_member_roles(member_id: str) -> list[str]:
     logger.debug(f"Member ID: {member_id} has roles: {roles}")
     return roles
 
+def get_all_roles() -> list[dict]:
+    """Get all roles defined in the system."""
+    logger.debug("Getting all roles")
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, name, permission FROM roles ORDER BY name")
+            results = cur.fetchall()
+    roles = []
+    for result in results:
+        roles.append({"id": result[0], "name": result[1], "permission": result[2]})
+    logger.debug(f"Retrieved {len(roles)} roles from the database.")
+    return roles
+
+def create_role(name: str, permission: dict) -> dict:
+    """Create a new role."""
+    logger.debug(f"Creating role with name: {name}")
+    import json as json_module
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO roles (name, permission) VALUES (%s, %s) RETURNING id",
+                (name, json_module.dumps(permission)),
+            )
+            role_id = cur.fetchone()[0]
+        conn.commit()
+    logger.debug(f"Created role with ID: {role_id}")
+    return {"id": role_id, "name": name, "permission": permission}
+
+def update_role(role_id: int, name: str, permission: dict) -> dict:
+    """Update an existing role."""
+    logger.debug(f"Updating role ID: {role_id}")
+    import json as json_module
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE roles SET name = %s, permission = %s WHERE id = %s",
+                (name, json_module.dumps(permission), role_id),
+            )
+            if cur.rowcount == 0:
+                return None
+        conn.commit()
+    logger.debug(f"Updated role ID: {role_id}")
+    return {"id": role_id, "name": name, "permission": permission}
+
+def delete_role(role_id: int) -> bool:
+    """Delete a role. Returns True if deleted, False if not found."""
+    logger.debug(f"Deleting role ID: {role_id}")
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM roles WHERE id = %s", (role_id,))
+            deleted = cur.rowcount > 0
+        conn.commit()
+    logger.debug(f"Deleted role ID: {role_id}, success: {deleted}")
+    return deleted
+
 def get_full_member_info(member_id: str) -> dict:
     logger.debug(f"Getting full member info for member ID: {member_id}")
     with get_db_connection() as conn:

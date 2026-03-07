@@ -14,32 +14,33 @@
 </head>
 
 <body>
-    <!--
+    {% if user %}
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        {% if user %}
-        <div class="container-fluid">            
-            <a class="navbar-brand" href="{{ url_for('index')}}">Deep Harbor Administration</a>            
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('index') }}">Deep Harbor Administration</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
                 data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false"
                 aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            
             <div class="collapse navbar-collapse" id="navbarSupportedContent">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item">
-                        <a class="nav-link active" aria-current="page" href="{{ url_for('index')}}">Home</a>
+                        <a class="nav-link{% if request.endpoint == 'index' %} active{% endif %}" href="{{ url_for('index') }}">Members</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('graphcall')}}">Graph API</a>
+                        <a class="nav-link{% if request.endpoint == 'roles' %} active{% endif %}" href="{{ url_for('roles') }}">Roles</a>
                     </li>
                 </ul>
-            </div>            
+                <span class="navbar-text text-light me-3">
+                    {{ user.name }} &mdash; {{ user_role }}
+                </span>
+                <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}">Logout</a>
+            </div>
         </div>
-        {% endif %}
     </nav>
-    -->
-    
+    {% endif %}
+
     <div class="container body-content">        
         <br />
         {% block content %}
