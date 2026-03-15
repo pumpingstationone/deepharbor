@@ -510,6 +510,38 @@ def is_username_available(username: str) -> bool:
     logger.debug(f"Username: {username} available: {available}")
     return available    
 
+def search_members_by_rfid_tag(rfid_tag: str) -> list[dict]:
+    logger.debug(f"Searching for a member with RFID tag: {rfid_tag}")
+    members = []
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT m.id,
+                       m.identity ->> 'first_name' AS first_name,
+                       m.identity ->> 'last_name' AS last_name,
+                       m.identity ->> 'pronouns' AS pronouns,
+                       v.primary_email AS primary_email_address
+                FROM   member m, 
+                       v_member_id_email v,
+                       jsonb_array_elements_text(m.access -> 'rfid_tags') AS tag
+                WHERE  ltrim(tag, '0') = ltrim(%s, '0')
+                AND    m.id = v.id;                
+                """,
+                (rfid_tag,),
+            )
+            results = cur.fetchall()
+    for result in results:
+        members.append({
+            "member_id": result[0],
+            "first_name": result[1],
+            "last_name": result[2],
+            "pronouns": result[3],
+            "primary_email_address": result[4]
+        })
+    logger.debug(f"Found {len(members)} members with RFID tag: {rfid_tag}")
+    return members
+
 ###############################################################################
 # Wild Apricot Sync Functions
 ###############################################################################

@@ -49,6 +49,11 @@ async def get_member_identity(current_user: AuthenticatedClient, member_id: str)
     """Get member identity information."""
     return db.get_member_identity(member_id)
 
+@app.get("/v1/member/search_by_rfid_tag/")
+async def search_members_by_rfid_tag(current_user: AuthenticatedClient, rfid_tag: str):
+    """Search for members by RFID tag."""
+    return db.search_members_by_rfid_tag(rfid_tag)
+
 @app.get("/v1/member/search/")
 async def search_members(current_user: AuthenticatedClient, query: str):
     """ Search for members based on a query string.
