@@ -72,6 +72,8 @@ def anonymous():
 @app.route('/')
 def index():
     """Landing page with login and signup options"""
+    if session.get("user"):
+        return redirect(url_for("member_dashboard"))
     if AUTH_MODE == "dev":
         return render_template('dev_login.html', preset_users=MEMBER_DEV_USERS)
     return render_template('landing.html')
