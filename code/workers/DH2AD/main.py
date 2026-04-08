@@ -279,6 +279,31 @@ async def set_member_enabled(request: dict):
         logger.error(f"Error setting member enabled state: {e}")
         raise HTTPException(status_code=500, detail=f"Internal Server Error: " + str(e))
 
+@app.post("/v1/update_user_ssh_keys")
+async def update_user_ssh_keys(request: dict):
+    logger.debug(f"Ooo, gonna set user ssh keys: {request}")
+    try:
+        username = request.get("username")
+        ssh_keys = request.get("ssh_keys", [])
+        logger.info(f"Setting member ssh keys: {username}, ssh_keys={ssh_keys}")
+        result = perform_ad_operation("update_user_ssh_keys",
+                                      payload={"username", username, "ssh_keys",
+                                               ssh_keys})
+        if result is None:
+            raise HTTPException(status_code=500, detail="Failed to update member SSH keys in AD")
+        success, data = result
+        if data is None:
+            raise HTTPException(status_code=500, detail="Invalid response from Active Directory")
+        if not success:
+            logger.error(f"Failed to set member ssh keys: {data}")
+            raise HTTPException(status_code=500, detail="Failed to update SSH keys in AD")
+        if data.get("status") != "success":
+            logger.error(f"Failed to set member ssh keys: {data}")
+            raise HTTPException(status_code=500, detail="Failed to update SSH keys in AD")
+        return data["data"]
+    except Exception as e:
+        logger.error(f"Failed to set member ssh keys: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update SSH keys in AD")
 
 ###############################################################################
 # Authorization management endpoints - these will call perform_ad_operation to add or
