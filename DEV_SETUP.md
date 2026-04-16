@@ -132,6 +132,13 @@ find code -name "config.ini.example" -exec sh -c \
 
 Config files are gitignored and will never be committed.
 
+The Grafana service also needs an env file for Okta configuration.
+Copy the example file (the defaults work for dev):
+
+```bash
+cp -n .env.grafana.okta.example .env.grafana.okta.production
+```
+
 ### 2. Generate Seed Data
 
 ```bash
@@ -171,6 +178,7 @@ All 14 services have a `config.ini.example` that works for dev:
 | Workers | DH2AD, DH2RFID | DEV_MODE=true bypasses hardware calls |
 | External | ST2DH, WF2DH, DH2MG | Creds blank; won't receive/send external data |
 | Utilities | RFID2DB | Disabled in dev (hardware profile) |
+| Grafana | .env.grafana.okta.production | Copied from .env.grafana.okta.example; Okta fields blank in dev |
 
 ## Seed Data
 

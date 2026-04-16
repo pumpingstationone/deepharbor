@@ -86,6 +86,16 @@ cmd_setup() {
     echo "  Copied: $config_count, Skipped: $skip_count"
     echo ""
 
+    # Step 1b: Copy Grafana Okta env file
+    echo "--- Copying Grafana Okta env file ---"
+    if [[ -f ".env.grafana.okta.production" ]]; then
+        echo "  SKIP: .env.grafana.okta.production (already exists)"
+    else
+        cp .env.grafana.okta.example .env.grafana.okta.production
+        echo "  COPY: .env.grafana.okta.example -> .env.grafana.okta.production"
+    fi
+    echo ""
+
     # Step 2: Generate seed data
     echo "--- Generating seed data ---"
     if [[ -f "pg/sql/seed_data.local.sql" ]] && [[ -s "pg/sql/seed_data.local.sql" ]]; then
