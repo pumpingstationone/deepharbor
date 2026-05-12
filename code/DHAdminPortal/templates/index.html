@@ -3771,9 +3771,18 @@ function renderApiClientsTable(rows) {
             : '<span class="badge bg-success">Active</span>';
         const toggleLabel = c.disabled ? 'Re-enable' : 'Disable';
         const toggleClass = c.disabled ? 'btn-outline-success' : 'btn-outline-warning';
-        const createdBy = c.created_by_member_id
-            ? `<a href="#" onclick="loadMember(${c.created_by_member_id}); return false;">#${c.created_by_member_id}</a>`
-            : '<span class="text-muted">—</span>';
+        // "First Last (#id)" with the id linking to the member detail view.
+        // Falls back to just "#id" if the creator's identity is missing
+        // (member deleted, or pre-existing rows that have no creator).
+        let createdBy;
+        if (c.created_by_member_id) {
+            const name = [c.created_by_first_name, c.created_by_last_name]
+                .filter(Boolean).join(' ').trim();
+            const idLink = `<a href="#" onclick="loadMember(${c.created_by_member_id}); return false;">#${c.created_by_member_id}</a>`;
+            createdBy = name ? `${escapeHtml(name)} (${idLink})` : idLink;
+        } else {
+            createdBy = '<span class="text-muted">—</span>';
+        }
         return `<tr>
             <td>${c.id}</td>
             <td><code>${escapeHtml(c.client_name)}</code></td>

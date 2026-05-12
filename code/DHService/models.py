@@ -41,6 +41,8 @@ class ApiClientOut(BaseModel):
     disabled: bool
     date_added: datetime | None = None
     created_by_member_id: int | None = None
+    created_by_first_name: str | None = None
+    created_by_last_name: str | None = None
     last_used_at: datetime | None = None
     rotated_at: datetime | None = None
 

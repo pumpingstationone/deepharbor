@@ -184,21 +184,27 @@ def _row_to_api_client(row) -> dict:
         "created_by_member_id": row[5],
         "last_used_at": row[6],
         "rotated_at": row[7],
+        "created_by_first_name": row[8],
+        "created_by_last_name": row[9],
     }
 
 
-_API_CLIENT_COLS = """
-    id, client_name, client_description, disabled,
-    date_added, created_by_member_id, last_used_at, rotated_at
+# LEFT JOIN against member so a deleted/missing creator still returns the row
+# with null name fields rather than dropping it from the listing.
+_API_CLIENT_SELECT = """
+    SELECT o.id, o.client_name, o.client_description, o.disabled,
+           o.date_added, o.created_by_member_id, o.last_used_at, o.rotated_at,
+           m.identity->>'first_name' AS created_by_first_name,
+           m.identity->>'last_name'  AS created_by_last_name
+      FROM oauth2_users o
+      LEFT JOIN member m ON m.id = o.created_by_member_id
 """
 
 
 def list_api_clients() -> list[dict]:
     with get_db_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                f"SELECT {_API_CLIENT_COLS} FROM oauth2_users ORDER BY client_name"
-            )
+            cur.execute(f"{_API_CLIENT_SELECT} ORDER BY o.client_name")
             rows = cur.fetchall()
     return [_row_to_api_client(r) for r in rows]
 
@@ -206,10 +212,7 @@ def list_api_clients() -> list[dict]:
 def get_api_client(client_id: int) -> dict | None:
     with get_db_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                f"SELECT {_API_CLIENT_COLS} FROM oauth2_users WHERE id = %s",
-                (client_id,),
-            )
+            cur.execute(f"{_API_CLIENT_SELECT} WHERE o.id = %s", (client_id,))
             row = cur.fetchone()
     return _row_to_api_client(row) if row else None
 
