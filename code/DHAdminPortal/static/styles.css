@@ -2072,6 +2072,12 @@ body.sidebar-resizing .details-sidebar {
     border-color: #3f3f46;
 }
 
+/* Bootstrap's .form-text defaults to near-black which disappears against the
+   dark modal body — restore a muted-but-visible variant of the theme text. */
+[data-theme="dark"] .form-text {
+    color: rgba(228, 228, 231, 0.65);
+}
+
 [data-theme="dark"] .modal-footer {
     border-color: #3f3f46;
 }
@@ -2665,6 +2671,10 @@ body.sidebar-resizing .details-sidebar {
 
 [data-theme="midnight"] .modal-header {
     border-color: #243356;
+}
+
+[data-theme="midnight"] .form-text {
+    color: rgba(200, 214, 229, 0.65);
 }
 
 [data-theme="midnight"] .modal-footer {
@@ -3383,6 +3393,19 @@ body.sidebar-resizing .details-sidebar {
 
 [data-theme="hacker"] .modal-footer {
     border-color: #1a3a1a;
+}
+
+[data-theme="hacker"] .form-text {
+    color: rgba(0, 255, 65, 0.7);
+}
+
+/* The secret-reveal modal uses bg-warning-subtle (light yellow) on its header.
+   In dark themes the header heading inherits the theme's light text color,
+   producing light-on-light. Force dark amber so the "Copy this secret now"
+   title is readable in every theme — light themes already had dark text. */
+.modal-header.bg-warning-subtle,
+.modal-header.bg-warning-subtle .modal-title {
+    color: #664d03;
 }
 
 [data-theme="hacker"] .btn-close {
