@@ -395,15 +395,13 @@ def _api_clients_url(suffix: str = "") -> str:
 def list_api_clients(access_token: str):
     headers = {"Authorization": f"Bearer {access_token}"}
     response = requests.get(_api_clients_url("/"), headers=headers, timeout=10)
-    response.raise_for_status()
-    return response.json()
+    return response
 
 
 def get_api_client(access_token: str, client_id: int):
     headers = {"Authorization": f"Bearer {access_token}"}
     response = requests.get(_api_clients_url(f"/{client_id}"), headers=headers, timeout=10)
-    response.raise_for_status()
-    return response.json()
+    return response
 
 
 def create_api_client(

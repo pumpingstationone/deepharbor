@@ -1657,7 +1657,8 @@ def api_list_api_clients():
         access_token = dhservices.get_access_token(
             dhservices.DH_CLIENT_ID, dhservices.DH_CLIENT_SECRET,
         )
-        return dhservices.list_api_clients(access_token)
+        response = dhservices.list_api_clients(access_token)
+        return _proxy_dhservice_response(response)
     except Exception as e:
         logger.error(f"Error listing api_clients: {e}")
         return {"error": str(e)}, 500
@@ -1670,7 +1671,8 @@ def api_get_api_client(client_id):
         access_token = dhservices.get_access_token(
             dhservices.DH_CLIENT_ID, dhservices.DH_CLIENT_SECRET,
         )
-        return dhservices.get_api_client(access_token, client_id)
+        response = dhservices.get_api_client(access_token, client_id)
+        return _proxy_dhservice_response(response)
     except Exception as e:
         logger.error(f"Error fetching api_client {client_id}: {e}")
         return {"error": str(e)}, 500
