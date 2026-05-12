@@ -187,20 +187,33 @@ json_build_object(
 FROM   member m;
 COMMENT ON VIEW v_member_info IS 'This view provides a structured JSON representation of member information, including identity, connections, forms, status, access, authorizations, and extras from the member table.';
 
-/* 
+/*
  * OAuth2 Clients table - this holds the client credentials
  * for any OAuth2 clients that need to access the API.
+ *
+ * Primary key is the surrogate `id` so that `client_name` can be renamed
+ * without losing referential history. `client_name` is still the value
+ * external services present at /token (alongside `client_secret`); it is
+ * NOT a secret but is constrained to a lowercase/digit/dash/underscore
+ * shape via Pydantic + Flask validators (see code/DHService/models.py
+ * ApiClientCreateIn and code/DHAdminPortal/app.py validate_api_client_name).
  */
-CREATE TABLE 
-    oauth2_users 
-    ( 
-                client_name        TEXT NOT NULL, 
-                client_secret      TEXT NOT NULL, 
-                date_added         TIMESTAMP(6) WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, 
-                client_description TEXT, 
-                PRIMARY KEY (client_name) 
-    );
-COMMENT ON TABLE oauth2_users IS 'This table holds the OAuth2 client credentials for applications that need to access the Deep Harbor API.';
+CREATE TABLE IF NOT EXISTS oauth2_users (
+    id                   SERIAL PRIMARY KEY,
+    client_name          TEXT NOT NULL UNIQUE,
+    client_secret        TEXT NOT NULL,
+    client_description   TEXT,
+    disabled             BOOLEAN NOT NULL DEFAULT FALSE,
+    date_added           TIMESTAMP(6) WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_by_member_id INT REFERENCES member(id) ON DELETE SET NULL NULL,
+    last_used_at         TIMESTAMPTZ NULL,
+    rotated_at           TIMESTAMPTZ NULL
+);
+COMMENT ON TABLE oauth2_users IS 'OAuth2 client credentials for applications that need to access the Deep Harbor API.';
+COMMENT ON COLUMN oauth2_users.disabled IS 'Soft-revoke flag; auth.get_current_active_client() rejects when TRUE.';
+COMMENT ON COLUMN oauth2_users.created_by_member_id IS 'Admin who provisioned this client via the admin portal.';
+COMMENT ON COLUMN oauth2_users.last_used_at IS 'Touched on successful /token exchange.';
+COMMENT ON COLUMN oauth2_users.rotated_at IS 'Touched on secret rotation.';
 
 /* HEY! Update these with real client secrets using the generate_secret.sh tool! */
 /* Our initial OAuth2 client for dev web services */

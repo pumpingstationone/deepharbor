@@ -154,19 +154,154 @@ def get_client_by_client_name(client_name: str) -> Client | None:
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """SELECT client_name, client_secret, client_description 
+                """SELECT id, client_name, client_secret, client_description, disabled
                    FROM oauth2_users WHERE client_name = %s""",
                 (client_name,),
             )
-            client = cur.fetchone()
-    if client is None:
+            row = cur.fetchone()
+    if row is None:
         return None
     return Client(
-        client_name=client[0],
-        description=client[2],
-        enabled=False,
-        hashed_password=client[1],
+        id=row[0],
+        client_name=row[1],
+        hashed_password=row[2],
+        description=row[3],
+        disabled=row[4],
     )
+
+
+###############################################################################
+# Oauth2 admin functions (API client management)
+###############################################################################
+
+def _row_to_api_client(row) -> dict:
+    return {
+        "id": row[0],
+        "client_name": row[1],
+        "client_description": row[2],
+        "disabled": row[3],
+        "date_added": row[4],
+        "created_by_member_id": row[5],
+        "last_used_at": row[6],
+        "rotated_at": row[7],
+    }
+
+
+_API_CLIENT_COLS = """
+    id, client_name, client_description, disabled,
+    date_added, created_by_member_id, last_used_at, rotated_at
+"""
+
+
+def list_api_clients() -> list[dict]:
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {_API_CLIENT_COLS} FROM oauth2_users ORDER BY client_name"
+            )
+            rows = cur.fetchall()
+    return [_row_to_api_client(r) for r in rows]
+
+
+def get_api_client(client_id: int) -> dict | None:
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {_API_CLIENT_COLS} FROM oauth2_users WHERE id = %s",
+                (client_id,),
+            )
+            row = cur.fetchone()
+    return _row_to_api_client(row) if row else None
+
+
+def create_api_client(
+    client_name: str,
+    client_secret_hash: str,
+    client_description: str | None,
+    created_by_member_id: int | None,
+) -> dict:
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO oauth2_users
+                       (client_name, client_secret, client_description, created_by_member_id)
+                       VALUES (%s, %s, %s, %s) RETURNING id""",
+                    (client_name, client_secret_hash, client_description, created_by_member_id),
+                )
+                new_id = cur.fetchone()[0]
+                conn.commit()
+        return {"id": new_id, "message": "OK"}
+    except psycopg2.errors.UniqueViolation:
+        logger.info(f"create_api_client rejected duplicate client_name: {client_name}")
+        return {"id": None, "message": "client_name already exists"}
+    except Exception as e:
+        logger.error(f"create_api_client failed for {client_name}: {e}")
+        return {"id": None, "message": f"create failed: {e}"}
+
+
+def update_api_client_secret(client_id: int, client_secret_hash: str) -> dict:
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """UPDATE oauth2_users
+                   SET client_secret = %s, rotated_at = NOW()
+                 WHERE id = %s""",
+                (client_secret_hash, client_id),
+            )
+            updated = cur.rowcount
+            conn.commit()
+    return {"id": client_id, "updated": updated}
+
+
+# Allowlist for patch_api_client — mirrors the FIELD_VALIDATORS allowlist pattern
+# used elsewhere in the codebase (CLAUDE.md: "always use the allowlist pattern
+# for SQL column interpolation").
+_API_CLIENT_PATCH_COLUMNS = {"disabled", "client_description"}
+
+
+def patch_api_client(
+    client_id: int,
+    disabled: bool | None,
+    client_description: str | None,
+) -> dict:
+    updates: dict[str, object] = {}
+    if disabled is not None:
+        updates["disabled"] = disabled
+    if client_description is not None:
+        updates["client_description"] = client_description
+    if not updates:
+        return {"id": client_id, "updated": 0}
+    for col in updates:
+        if col not in _API_CLIENT_PATCH_COLUMNS:
+            raise ValueError(f"column {col!r} is not patchable")
+    set_clause = ", ".join(f"{col} = %s" for col in updates)
+    params = list(updates.values()) + [client_id]
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE oauth2_users SET {set_clause} WHERE id = %s",
+                params,
+            )
+            updated = cur.rowcount
+            conn.commit()
+    return {"id": client_id, "updated": updated}
+
+
+def touch_last_used(client_name: str) -> None:
+    """Best-effort UPDATE of last_used_at on /token success.
+    Must not raise — it sits in the hot path of authentication.
+    """
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE oauth2_users SET last_used_at = NOW() WHERE client_name = %s",
+                    (client_name,),
+                )
+                conn.commit()
+    except Exception as e:
+        logger.error(f"touch_last_used failed for {client_name}: {e}")
 
 ###############################################################################
 # Member Database Functions

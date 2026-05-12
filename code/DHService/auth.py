@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from config import config
 from models import Client
+import db
 from db import get_client_by_client_name
 
 from dhs_logging import logger
@@ -65,6 +66,7 @@ def authenticate_client(client_name: str, password: str):
         return False
     if not verify_password(password, client.hashed_password):
         return False
+    db.touch_last_used(client.client_name)
     return client
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):

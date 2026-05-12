@@ -382,6 +382,73 @@ def remove_role_from_member(access_token: str, member_id: int):
     return response.json()
 
 ###############################################################################
+# Admin endpoints (API client management)
+###############################################################################
+# These wrappers intentionally do NOT call raise_for_status() on 4xx — we want
+# the Flask route to surface 400/404/409/422 detail back to the UI verbatim so
+# the create modal can show "client_name already exists" inline.
+
+def _api_clients_url(suffix: str = "") -> str:
+    return f"{DH_API_BASE_URL}/v1/admin/api_clients{suffix}"
+
+
+def list_api_clients(access_token: str):
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.get(_api_clients_url("/"), headers=headers, timeout=10)
+    response.raise_for_status()
+    return response.json()
+
+
+def get_api_client(access_token: str, client_id: int):
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.get(_api_clients_url(f"/{client_id}"), headers=headers, timeout=10)
+    response.raise_for_status()
+    return response.json()
+
+
+def create_api_client(
+    access_token: str,
+    client_name: str,
+    client_description: str | None,
+    created_by_member_id: int | None,
+):
+    headers = {"Authorization": f"Bearer {access_token}"}
+    body = {
+        "client_name": client_name,
+        "client_description": client_description,
+        "created_by_member_id": created_by_member_id,
+    }
+    response = requests.post(_api_clients_url("/"), headers=headers, json=body, timeout=10)
+    return response
+
+
+def rotate_api_client(access_token: str, client_id: int):
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.post(
+        _api_clients_url(f"/{client_id}/rotate"), headers=headers, timeout=10,
+    )
+    return response
+
+
+def patch_api_client(
+    access_token: str,
+    client_id: int,
+    disabled: bool | None = None,
+    client_description: str | None = None,
+):
+    headers = {"Authorization": f"Bearer {access_token}"}
+    body: dict = {}
+    if disabled is not None:
+        body["disabled"] = disabled
+    if client_description is not None:
+        body["client_description"] = client_description
+    response = requests.patch(
+        _api_clients_url(f"/{client_id}"), headers=headers, json=body, timeout=10,
+    )
+    return response
+
+
+###############################################################################
 # Contacts endpoints
 # These endpoints manage contacts that are not members (i.e. no member ID)
 ###############################################################################

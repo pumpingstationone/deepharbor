@@ -64,6 +64,42 @@ FIELD_VALIDATORS = {
     "id_check_by": (r'^[1-9]\d*$', 10, "Onboarder must be a valid member"),
 }
 
+###############################################################################
+# API client validation
+###############################################################################
+# Mirrors the Pydantic regex on ApiClientCreateIn in code/DHService/models.py.
+# Defense-in-depth — DHService re-validates, but failing here returns a 400
+# with a friendlier message than FastAPI's auto-generated 422.
+
+_API_CLIENT_NAME_RE = re.compile(r'^[a-z0-9][a-z0-9_-]*[a-z0-9]$')
+
+
+def validate_api_client_name(value):
+    """Returns (ok: bool, normalized_or_error: str)."""
+    if not isinstance(value, str):
+        return False, "client_name must be a string"
+    name = value.strip()
+    if not (3 <= len(name) <= 64):
+        return False, "client_name must be 3-64 characters"
+    if not _API_CLIENT_NAME_RE.match(name):
+        return False, (
+            "client_name may contain only lowercase letters, digits, dashes, "
+            "and underscores; must start and end with a letter or digit"
+        )
+    return True, name
+
+
+def validate_api_client_description(value):
+    """Returns (ok: bool, normalized_or_error: str)."""
+    if value is None:
+        return True, None
+    if not isinstance(value, str):
+        return False, "client_description must be a string"
+    desc = value.strip()
+    if len(desc) > 512:
+        return False, "client_description must be 512 characters or fewer"
+    return True, (desc or None)
+
 ID_CHECK_ACTIVATION_PAST_DAYS = 7
 ID_CHECK_ACTIVATION_FUTURE_DAYS = 1  # Allows up to 24h of clock skew
 
@@ -1580,4 +1616,152 @@ def api_remove_role():
         return dhservices.remove_role_from_member(access_token, data["member_id"])
     except Exception as e:
         logger.error(f"Error removing role: {e}")
+        return {"error": str(e)}, 500
+
+
+###############################################################################
+# Admin API routes (API client management)
+###############################################################################
+
+def _acting_admin(access_token: str) -> tuple[str | None, int | None]:
+    """Resolve the current admin's email + member_id for audit logging."""
+    user = session.get("user") or {}
+    email = user.get("email") or user.get("preferred_username")
+    member_id = None
+    if email:
+        try:
+            data = dhservices.get_member_id(access_token, email) or {}
+            member_id = data.get("member_id")
+        except Exception as e:
+            logger.error(f"_acting_admin: failed to resolve member_id for {email}: {e}")
+    return email, member_id
+
+
+def _proxy_dhservice_response(response):
+    """Pass a DHService response (success or 4xx) through to the browser, preserving
+    the status code so the UI can branch on 409 vs 400 vs 422."""
+    if response.status_code >= 500:
+        logger.error(f"DHService returned {response.status_code}: {response.text}")
+        return {"error": "Upstream service error"}, 502
+    try:
+        body = response.json()
+    except ValueError:
+        body = {"error": response.text or "Unknown error"}
+    return body, response.status_code
+
+
+@app.route("/api/admin/api_clients")
+@requires_view_permission("systems.api_clients")
+def api_list_api_clients():
+    try:
+        access_token = dhservices.get_access_token(
+            dhservices.DH_CLIENT_ID, dhservices.DH_CLIENT_SECRET,
+        )
+        return dhservices.list_api_clients(access_token)
+    except Exception as e:
+        logger.error(f"Error listing api_clients: {e}")
+        return {"error": str(e)}, 500
+
+
+@app.route("/api/admin/api_clients/<int:client_id>")
+@requires_view_permission("systems.api_clients")
+def api_get_api_client(client_id):
+    try:
+        access_token = dhservices.get_access_token(
+            dhservices.DH_CLIENT_ID, dhservices.DH_CLIENT_SECRET,
+        )
+        return dhservices.get_api_client(access_token, client_id)
+    except Exception as e:
+        logger.error(f"Error fetching api_client {client_id}: {e}")
+        return {"error": str(e)}, 500
+
+
+@app.route("/api/admin/api_clients", methods=["POST"])
+@requires_change_permission("systems.api_clients")
+def api_create_api_client():
+    data = request.get_json() or {}
+    ok_name, name_or_err = validate_api_client_name(data.get("client_name", ""))
+    if not ok_name:
+        return {"error": name_or_err}, 400
+    ok_desc, desc_or_err = validate_api_client_description(data.get("client_description"))
+    if not ok_desc:
+        return {"error": desc_or_err}, 400
+    try:
+        access_token = dhservices.get_access_token(
+            dhservices.DH_CLIENT_ID, dhservices.DH_CLIENT_SECRET,
+        )
+        admin_email, admin_member_id = _acting_admin(access_token)
+        response = dhservices.create_api_client(
+            access_token, name_or_err, desc_or_err, admin_member_id,
+        )
+        body, status = _proxy_dhservice_response(response)
+        if status == 200 and isinstance(body, dict) and body.get("id"):
+            logger.info(
+                "API client created via admin portal: id=%s name=%s by_admin=%s member_id=%s",
+                body.get("id"), name_or_err, admin_email, admin_member_id,
+            )
+        return body, status
+    except Exception as e:
+        logger.error(f"Error creating api_client: {e}")
+        return {"error": str(e)}, 500
+
+
+@app.route("/api/admin/api_clients/<int:client_id>/rotate", methods=["POST"])
+@requires_change_permission("systems.api_clients")
+def api_rotate_api_client(client_id):
+    try:
+        access_token = dhservices.get_access_token(
+            dhservices.DH_CLIENT_ID, dhservices.DH_CLIENT_SECRET,
+        )
+        admin_email, admin_member_id = _acting_admin(access_token)
+        response = dhservices.rotate_api_client(access_token, client_id)
+        body, status = _proxy_dhservice_response(response)
+        if status == 200 and isinstance(body, dict) and body.get("id"):
+            logger.info(
+                "API client rotated via admin portal: id=%s name=%s by_admin=%s member_id=%s",
+                body.get("id"), body.get("client_name"), admin_email, admin_member_id,
+            )
+        return body, status
+    except Exception as e:
+        logger.error(f"Error rotating api_client {client_id}: {e}")
+        return {"error": str(e)}, 500
+
+
+@app.route("/api/admin/api_clients/<int:client_id>", methods=["PATCH"])
+@requires_change_permission("systems.api_clients")
+def api_patch_api_client(client_id):
+    data = request.get_json() or {}
+    allowed = {"disabled", "client_description"}
+    unknown = set(data.keys()) - allowed
+    if unknown:
+        return {"error": f"unsupported field(s): {sorted(unknown)}"}, 400
+    disabled = data.get("disabled")
+    if disabled is not None and not isinstance(disabled, bool):
+        return {"error": "disabled must be a boolean"}, 400
+    description = data.get("client_description")
+    if "client_description" in data:
+        ok_desc, desc_or_err = validate_api_client_description(description)
+        if not ok_desc:
+            return {"error": desc_or_err}, 400
+        description = desc_or_err
+    try:
+        access_token = dhservices.get_access_token(
+            dhservices.DH_CLIENT_ID, dhservices.DH_CLIENT_SECRET,
+        )
+        admin_email, admin_member_id = _acting_admin(access_token)
+        response = dhservices.patch_api_client(
+            access_token, client_id,
+            disabled=disabled,
+            client_description=description if "client_description" in data else None,
+        )
+        body, status = _proxy_dhservice_response(response)
+        if status == 200 and isinstance(body, dict) and body.get("id"):
+            logger.info(
+                "API client patched via admin portal: id=%s name=%s disabled=%s desc_changed=%s by_admin=%s member_id=%s",
+                body.get("id"), body.get("client_name"), disabled,
+                "client_description" in data, admin_email, admin_member_id,
+            )
+        return body, status
+    except Exception as e:
+        logger.error(f"Error patching api_client {client_id}: {e}")
         return {"error": str(e)}, 500

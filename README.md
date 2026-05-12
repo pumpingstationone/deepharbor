@@ -143,6 +143,8 @@ Each portal and external service authenticates to DHService using OAuth2 client 
 
 Set `api_base_url` to `http://gateway/dh/service` (the internal nginx gateway route) for services on the Docker bridge network, or `http://localhost/dh/service` for services using host networking.
 
+**Provisioning additional API clients:** after the initial bootstrap clients above are configured, all subsequent OAuth2 client credentials should be provisioned through **Admin Portal → Systems → API Clients** (permission `systems.api_clients` required). The admin UI generates the secret server-side, displays the plaintext exactly once, and writes the bcrypt hash to `oauth2_users`. `tools/generate_secret.sh` is retained as a fallback for the initial bootstrap-from-empty-DB scenario only.
+
 ### Step 4: Configure Azure B2C Authentication
 
 Both portals require Azure B2C for user authentication. Fill in the `[b2c]` section in each portal's `config.ini`:
