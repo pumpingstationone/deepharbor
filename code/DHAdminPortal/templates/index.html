@@ -4019,11 +4019,10 @@ function withEmailConfirm(actionLabel, onConfirm, replacingModal = null) {
         confirmed = true;
         submit.removeEventListener('click', handler);
         input.removeEventListener('input', onInput);
+        // Just kick off the hide. onConfirm runs in cleanup (below) once the
+        // hide animation completes, so any modal opened by onConfirm (e.g. the
+        // secret reveal) doesn't stack on top of the still-fading confirm modal.
         confirmEmailModalObj.hide();
-        Promise.resolve(onConfirm()).catch(err => {
-            alert('Action failed: ' + err);
-            if (replacingModal) replacingModal.show();
-        });
     };
     submit.addEventListener('click', handler);
 
@@ -4032,7 +4031,12 @@ function withEmailConfirm(actionLabel, onConfirm, replacingModal = null) {
         submit.removeEventListener('click', handler);
         input.removeEventListener('input', onInput);
         modalEl.removeEventListener('hidden.bs.modal', cleanup);
-        if (!confirmed && replacingModal) {
+        if (confirmed) {
+            Promise.resolve(onConfirm()).catch(err => {
+                alert('Action failed: ' + err);
+                if (replacingModal) replacingModal.show();
+            });
+        } else if (replacingModal) {
             replacingModal.show();
         }
     };
