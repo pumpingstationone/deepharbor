@@ -2,15 +2,19 @@
 # This file contains all the v1 services
 # *******************************************************************************
 
+import secrets
 from datetime import datetime
 from time import time
 from typing import Annotated
-from fastapi import Depends, Request, Header
+
+import bcrypt
+from fastapi import Depends, HTTPException, Request, Header
 
 from fastapiapp import app
 import auth
 from dhs_logging import logger
 import db
+from models import ApiClientCreateIn, ApiClientPatchIn
 
 # Type alias for authenticated client dependency
 AuthenticatedClient = Annotated[auth.Client, Depends(auth.get_current_active_client)]
@@ -426,3 +430,98 @@ async def remove_role_from_member(
     """Remove a member's role assignment."""
     data = await request.json()
     return db.remove_role_from_member(data["member_id"])
+
+###############################################################################
+# Admin endpoints (API client management)
+###############################################################################
+
+def _generate_client_secret() -> tuple[str, str]:
+    plaintext = secrets.token_urlsafe(32)
+    hashed = bcrypt.hashpw(plaintext.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return plaintext, hashed
+
+
+@app.get("/v1/admin/api_clients/")
+async def list_api_clients(current_client: AuthenticatedClient):
+    """List all OAuth2 API clients (metadata only — never includes secrets)."""
+    return {"api_clients": db.list_api_clients()}
+
+
+@app.get("/v1/admin/api_clients/{client_id}")
+async def get_api_client(current_client: AuthenticatedClient, client_id: int):
+    """Get a single API client's metadata."""
+    row = db.get_api_client(client_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="API client not found")
+    return row
+
+
+@app.post("/v1/admin/api_clients/")
+async def create_api_client(
+    current_client: AuthenticatedClient,
+    body: ApiClientCreateIn,
+):
+    """Create a new API client. Returns plaintext secret ONCE."""
+    plaintext, hashed = _generate_client_secret()
+    result = db.create_api_client(
+        body.client_name,
+        hashed,
+        body.client_description,
+        body.created_by_member_id,
+    )
+    if result.get("id") is None:
+        msg = result.get("message") or "create failed"
+        if msg == "client_name already exists":
+            raise HTTPException(status_code=409, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
+    logger.info(
+        "API client created: id=%s name=%s by_member_id=%s acting_client=%s",
+        result["id"], body.client_name, body.created_by_member_id,
+        current_client.client_name,
+    )
+    return {
+        "id": result["id"],
+        "client_name": body.client_name,
+        "plaintext_secret": plaintext,
+    }
+
+
+@app.post("/v1/admin/api_clients/{client_id}/rotate")
+async def rotate_api_client(
+    current_client: AuthenticatedClient,
+    client_id: int,
+):
+    """Generate a new secret for an existing API client. Returns plaintext ONCE."""
+    existing = db.get_api_client(client_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="API client not found")
+    plaintext, hashed = _generate_client_secret()
+    db.update_api_client_secret(client_id, hashed)
+    logger.info(
+        "API client secret rotated: id=%s name=%s acting_client=%s",
+        client_id, existing["client_name"], current_client.client_name,
+    )
+    return {
+        "id": client_id,
+        "client_name": existing["client_name"],
+        "plaintext_secret": plaintext,
+    }
+
+
+@app.patch("/v1/admin/api_clients/{client_id}")
+async def patch_api_client(
+    current_client: AuthenticatedClient,
+    client_id: int,
+    body: ApiClientPatchIn,
+):
+    """Toggle `disabled` and/or update `client_description`."""
+    existing = db.get_api_client(client_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="API client not found")
+    db.patch_api_client(client_id, body.disabled, body.client_description)
+    logger.info(
+        "API client patched: id=%s name=%s disabled=%s desc_changed=%s acting_client=%s",
+        client_id, existing["client_name"], body.disabled,
+        body.client_description is not None, current_client.client_name,
+    )
+    return db.get_api_client(client_id)
