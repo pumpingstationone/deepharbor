@@ -139,6 +139,7 @@ json_build_object(
         'last_name', m.identity ->> 'last_name'::TEXT,
         'primary_email', jsonb_path_query_first( m.identity, '$.emails[*] ? (@.type == "primary").email_address' )#>>'{}',
         'nickname', m.identity ->> 'nickname'::TEXT,
+        'birthday', to_date(m.identity ->> 'birthday'::TEXT, 'YYYY-MM-DD' ),
         'active_directory_username', m.identity ->> 'active_directory_username'::TEXT,
         'pronouns', m.identity ->> 'pronouns'::TEXT,
         'nametag_subtitle', m.identity ->> 'nametag_subtitle'::TEXT,
