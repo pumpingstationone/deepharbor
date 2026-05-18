@@ -422,7 +422,7 @@ BEGIN
                      FROM   member m
                      WHERE  m.id = p_member_id
              )
-        SELECT   at.tag,
+        SELECT   lpad(at.tag::text, 10, '0') as tag,
                  converttowiegand(at.tag::BIGINT) WIEGAND_TAG_NUM,
                  CASE
                           WHEN EXISTS (    SELECT 1
