@@ -139,7 +139,12 @@ json_build_object(
         'last_name', m.identity ->> 'last_name'::TEXT,
         'primary_email', jsonb_path_query_first( m.identity, '$.emails[*] ? (@.type == "primary").email_address' )#>>'{}',
         'nickname', m.identity ->> 'nickname'::TEXT,
-        'birthday', to_date(m.identity ->> 'birthday'::TEXT, 'YYYY-MM-DD' ),
+        -- Same shape-check pattern as id_check_date below: a malformed
+        -- birthday string (anything not YYYY-MM-DD) would otherwise raise
+        -- "invalid value for YYYY" and poison the entire v_member_info row.
+        'birthday', CASE WHEN m.identity ->> 'birthday' ~ '^\d{4}-\d{2}-\d{2}$'
+                         THEN to_date(m.identity ->> 'birthday', 'YYYY-MM-DD')
+                         ELSE NULL END,
         'active_directory_username', m.identity ->> 'active_directory_username'::TEXT,
         'pronouns', m.identity ->> 'pronouns'::TEXT,
         'nametag_subtitle', m.identity ->> 'nametag_subtitle'::TEXT,
