@@ -920,6 +920,9 @@ def api_member_connections():
             dhservices.DH_CLIENT_SECRET
         )
         connections = dhservices.get_member_connections(access_token, member_id)
+        # They may not have any connections, so return empty dict instead of null
+        if connections is None:
+            connections = {}
         return connections
     except Exception as e:
         print(f"Error getting member connections: {e}")
