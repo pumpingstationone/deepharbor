@@ -71,7 +71,7 @@ async def health_check():
 
 
 ###############################################################################
-# Endpoint to sync authorizations
+# Endpoint to sync identity changes
 ###############################################################################
 
 @app.post("/v1/change_identity")
@@ -102,7 +102,7 @@ async def change_identity(request: dict):
 
         # Deep Harbor allows for multiple emails for a user, but right now we only
         # support the "primary" email. In the future, we may want to support multiple emails and
-        # allow the user to specify which email to use for authorizations changes.
+        # allow the user to specify which email to use for identity changes.
         # This is being done here and not downstream because by the time we get to DH2AD worker, 
         # we want to have all the necessary information to process the request and not have 
         # it be responsible for parsing the member identity and figuring out which email to use. 
@@ -146,14 +146,14 @@ async def change_identity(request: dict):
         payload = dh2ad_request
         response = requests.post(url, json=payload)
         if response.status_code != 200:
-            logger.error(f"Failed to change authorizations via DH2AD: {response.text}")
+            logger.error(f"Failed to change identity via DH2AD: {response.text}")
             raise HTTPException(
-                status_code=500, detail=f"Failed to change authorizations via DH2AD: {response.text}"
+                status_code=500, detail=f"Failed to change identity via DH2AD: {response.text}"
             )
 
         processed_request = {"processed": True, "details": response.json()}
         logger.info(
-            f"Authorization changes processed successfully: {processed_request}"
+            f"Identity changes processed successfully: {processed_request}"
         )
         
         # Here is the only spot where we can do anything with the newly created AD
@@ -163,5 +163,5 @@ async def change_identity(request: dict):
         
         return processed_request
     except Exception as e:
-        logger.error(f"Error processing authorization changes: {e}")
+        logger.error(f"Error processing identity changes: {e}")
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {e}")
