@@ -2,8 +2,6 @@
 {% block title %}Keys & Access - Pumping Station: One{% endblock %}
 {% block page_title %}<i class="fa-solid fa-key ic-keys"></i> Keys & Access{% endblock %}
 {% block dashboard_content %}
-            {% set keys_locked = (status.membership_status or '')|lower != 'active' %}
-
             <div id="keysPageContent">
             <div class="card mb-3{% if keys_locked %} dh-card-locked{% endif %}">
                 <div class="card-body">
