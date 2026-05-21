@@ -484,10 +484,14 @@ def member_keys():
         elif isinstance(access['rfid_tags'], str):
             access['rfid_tags'] = ','.join(tag.strip().zfill(10) for tag in access['rfid_tags'].split(',') if tag.strip())
 
+    status = member_info.get('status', {}) if isinstance(member_info, dict) else {}
+    keys_locked = (status.get('membership_status') or '').lower() != 'active'
+
     return render_template('dashboard_keys.html',
                          access=access,
                          identity=member_info.get('identity', {}) if isinstance(member_info, dict) else {},
-                         status=member_info.get('status', {}) if isinstance(member_info, dict) else {},
+                         status=status,
+                         keys_locked=keys_locked,
                          user=session.get('user'))
 
 @app.route('/dashboard/auths')
