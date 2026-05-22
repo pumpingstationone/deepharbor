@@ -369,7 +369,7 @@ def authorized():
             # very first post-login request, not just after the first dashboard hit.
             try:
                 full_info = dhservices.get_full_member_info(access_token, member_id) or {}
-                session['membership_status'] = (full_info.get('status', {}) or {}).get('membership_status', '').lower()
+                session['membership_status'] = ((full_info.get('status') or {}).get('membership_status') or '').lower()
             except Exception as e:
                 logger.warning(f"Could not fetch status at B2C login for member_id={member_id}: {e}")
                 session['membership_status'] = ''
@@ -411,7 +411,7 @@ def _get_authenticated_member_info():
         # Refresh cached membership_status so the before_request gate catches
         # mid-session admin status flips (e.g. active → banned) on the next page.
         if isinstance(member_info, dict):
-            session['membership_status'] = (member_info.get('status', {}) or {}).get('membership_status', '').lower()
+            session['membership_status'] = ((member_info.get('status') or {}).get('membership_status') or '').lower()
         return member_info, None
     except Exception as e:
         logger.error(f"Error fetching member data: {str(e)}", exc_info=True)
@@ -620,7 +620,7 @@ def member_update_profile():
     if 'rfid_tags' in request.form:
         try:
             current_member_info = dhservices.get_full_member_info(access_token, member_id) or {}
-            current_status = (current_member_info.get('status') or {}).get('membership_status', '')
+            current_status = (current_member_info.get('status') or {}).get('membership_status') or ''
         except Exception as e:
             logger.error(f"Error fetching member status for RFID gate: {str(e)}", exc_info=True)
             current_status = ''
@@ -822,7 +822,7 @@ def dev_login_select():
         # very first post-login request, not just after the first dashboard hit.
         try:
             full_info = dhservices.get_full_member_info(access_token, member_id) or {}
-            session['membership_status'] = (full_info.get('status', {}) or {}).get('membership_status', '').lower()
+            session['membership_status'] = ((full_info.get('status') or {}).get('membership_status') or '').lower()
         except Exception as e:
             logger.warning(f"Could not fetch status at dev login for member_id={member_id}: {e}")
             session['membership_status'] = ''
