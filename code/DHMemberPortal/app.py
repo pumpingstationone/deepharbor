@@ -81,8 +81,11 @@ def index():
 @app.route('/signup')
 def signup_start():
     """First step of signup - email entry"""
-    # Clear any existing session data to prevent showing previous data from any login or signup attempts
-    session.clear()
+    # Drop only the signup-scoped session key. Don't session.clear() — that
+    # logs out any signed-in user who visits /signup (weaponizable as a
+    # logout link, GET so no CSRF) and wipes the flash queue, so error
+    # redirects from signup_submit lose their flash message before render.
+    session.pop('signup_email', None)
     return render_template('signup_email.html')
 
 @app.route('/signup/check-email', methods=['POST'])
