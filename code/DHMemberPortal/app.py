@@ -241,6 +241,17 @@ def signup_submit():
             flash('A member with this email already exists', 'error')
             return redirect(url_for('signup_start'))
 
+        # Server-side username uniqueness gate. /api/check-username is only
+        # the AJAX UX hint — without this, the form happily creates a second
+        # row with a duplicate active_directory_username, which collides in
+        # AD/B2C downstream. Case-insensitive (matches is_username_available
+        # in DHService, PR #252). Skip when no username was provided; the
+        # broader required-field enforcement is tracked separately.
+        username = (request.form.get("username") or "").strip()
+        if username and dhservices.is_username_taken(access_token, username):
+            flash('That username is already taken. Please choose another.', 'error')
+            return redirect(url_for('signup_start'))
+
         member_id = dhservices.add_member(access_token, identity_data).get("member_id")
     except Exception as e:
         logger.error(f"Error creating new member: {str(e)}")
