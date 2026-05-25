@@ -129,7 +129,7 @@ def create_user_in_b2c(access_token,
 
     # Okay, here we go...
     user_data = {
-        'accountEnabled': True,
+        'accountEnabled': False,
         'displayName': f'{first_name} {last_name}',
         'mailNickname': username,
         'identities': [
