@@ -96,6 +96,11 @@ def update_membership(member):
             # site, even if they subscribe to a product in Stripe.
             current_status["membership_status"] = "pending"
             logger.debug(f"Member ID: {member.id} is currently Pending and subscribing to a product in Stripe, keeping membership status as Pending")
+        elif membership_status == "banned":
+            update_information = False
+            # The member is banned. We do absolutely _nothing_ to change this status.
+            current_status["membership_status"] = "banned"
+            logger.debug(f"Member ID: {member.id} is currently ***BANNED*** and no changes will be performed.")
         else:
             update_information = True
             # Everything else we set them to Suspended, regardless of the situation
