@@ -1581,3 +1581,113 @@ def api_remove_role():
     except Exception as e:
         logger.error(f"Error removing role: {e}")
         return {"error": str(e)}, 500
+
+
+###############################################################################
+# Equipment Module proxy routes
+# Proxies equipment config and webhook-test to the DHEquipment service so
+# DHAdmin can host the Equipment Module settings panel.
+###############################################################################
+
+def _equip_ctx():
+    """Build member context dict from current session."""
+    return {
+        "member_id":   session.get("member_id"),
+        "permissions": session.get("user_permissions", {}),
+        "role":        session.get("user_role", ""),
+    }
+
+
+@app.route("/api/equipment/config/<key>", methods=["GET"])
+@requires_view_permission("equipment.config")
+def api_equip_get_config(key):
+    ctx = _equip_ctx()
+    try:
+        result = dhservices.equip_get(f"/v1/equipment/config/{key}", **ctx)
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching equipment config {key}: {e}")
+        return {"error": str(e)}, 500
+
+
+@app.route("/api/equipment/config/<key>", methods=["PUT"])
+@requires_change_permission("equipment.config")
+def api_equip_set_config(key):
+    ctx = _equip_ctx()
+    body = request.get_json(silent=True) or {}
+    try:
+        result = dhservices.equip_put(f"/v1/equipment/config/{key}", body, **ctx)
+        return result
+    except Exception as e:
+        logger.error(f"Error setting equipment config {key}: {e}")
+        return {"error": str(e)}, 500
+
+
+@app.route("/api/equipment/webhook-test", methods=["POST"])
+@requires_change_permission("equipment.config")
+def api_equip_webhook_test():
+    """Send a test payload to a webhook URL server-side (avoids CORS)."""
+    import hmac as _hmac, hashlib as _hashlib, json as _json
+    body = request.get_json(silent=True) or {}
+    url = body.get("url", "").strip()
+    wh_type = body.get("type", "generic")
+    secret = body.get("secret", "")
+    discord_username = body.get("discord_username", "DH Equipment")
+    discord_avatar = body.get("discord_avatar_url", "")
+    discord_style = body.get("discord_style", {})
+
+    if not url:
+        return {"error": "No URL provided"}, 400
+
+    ts = datetime.utcnow().isoformat() + "Z"
+    test_payload = {"title": "Test Event", "status": "test", "event": "test"}
+
+    try:
+        import requests as _req
+        if wh_type == "discord":
+            title_prefix = discord_style.get("title_prefix", "").strip()
+            embed_title = f"{title_prefix} Test Notification".strip() if title_prefix else "Test Notification"
+            custom_color = discord_style.get("color", "").strip().lstrip("#")
+            try:
+                color = int(custom_color, 16) if custom_color else 0x5865F2
+            except ValueError:
+                color = 0x5865F2
+            desc_template = discord_style.get("description_template", "").strip()
+            description = desc_template.format_map({**test_payload, "event": "test"}) if desc_template \
+                else "This is a test notification from Deep Harbor Equipment Management."
+            footer_text = discord_style.get("footer", "").strip() or "Deep Harbor Equipment"
+            content = discord_style.get("content", "").strip()
+            send_body = {
+                "username": discord_username or "DH Equipment",
+                "embeds": [{
+                    "title": embed_title,
+                    "description": description,
+                    "color": color,
+                    "footer": {"text": footer_text},
+                    "timestamp": ts,
+                }],
+            }
+            if content:
+                send_body["content"] = content
+            if discord_avatar:
+                send_body["avatar_url"] = discord_avatar
+            resp = _req.post(url, json=send_body,
+                             headers={"User-Agent": "DiscordBot (https://github.com/discord/discord-api-docs, 10)"},
+                             timeout=10)
+        else:
+            generic_payload = {
+                "event": "test",
+                "source": "dh-equipment",
+                "message": "This is a test notification from Deep Harbor Equipment Management.",
+                "timestamp": ts,
+            }
+            headers = {"Content-Type": "application/json"}
+            if secret:
+                sig = _hmac.new(secret.encode(), _json.dumps(generic_payload).encode(), _hashlib.sha256).hexdigest()
+                headers["X-DH-Signature"] = f"sha256={sig}"
+            resp = _req.post(url, json=generic_payload, headers=headers, timeout=10)
+
+        return {"status": resp.status_code, "ok": resp.ok}, 200
+    except Exception as e:
+        logger.error(f"Webhook test error: {e}")
+        return {"error": str(e)}, 500

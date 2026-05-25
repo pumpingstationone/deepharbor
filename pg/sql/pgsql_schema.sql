@@ -1229,10 +1229,10 @@ COMMENT ON TABLE roles IS 'This table holds the various roles defined in the Dee
  * the filterTabsByPermissions() function.
  */
 INSERT INTO roles (id, name, permission) OVERRIDING SYSTEM VALUE VALUES (1, 'Authorizer', '{"view": ["member.identity", "member.authorizations", "member.notes"], "change": ["member.authorizations", "member.notes"]}');
-INSERT INTO roles (id, name, permission) OVERRIDING SYSTEM VALUE VALUES (2, 'Administrator', '{"view": ["member.identity", "member.status", "member.roles", "member.forms", "member.connections", "member.extras", "member.authorizations", "member.notes", "member.access", "member.entry", "space.access_logs", "systems.roles", "systems.assign_roles"], "change": ["member.identity", "member.status", "member.roles", "member.forms", "member.connections", "member.extras", "member.authorizations", "member.notes", "member.access", "systems.roles", "systems.assign_roles"]}');
+INSERT INTO roles (id, name, permission) OVERRIDING SYSTEM VALUE VALUES (2, 'Administrator', '{"view": ["member.identity", "member.status", "member.roles", "member.forms", "member.connections", "member.extras", "member.authorizations", "member.notes", "member.access", "member.entry", "space.access_logs", "systems.roles", "systems.assign_roles", "equipment.areas", "equipment.items", "equipment.groups", "equipment.tickets", "equipment.schedules", "equipment.auth_sessions", "equipment.maintenance", "equipment.dashboard", "equipment.config"], "change": ["member.identity", "member.status", "member.roles", "member.forms", "member.connections", "member.extras", "member.authorizations", "member.notes", "member.access", "systems.roles", "systems.assign_roles", "equipment.areas", "equipment.items", "equipment.groups", "equipment.tickets", "equipment.schedules", "equipment.auth_sessions", "equipment.maintenance", "equipment.config"]}');
 INSERT INTO roles (id, name, permission) OVERRIDING SYSTEM VALUE VALUES (3, 'Board', '{"view": ["member.identity", "member.status", "member.notes", "member.entry"], "change": ["member.status", "member.notes"]}');
 INSERT INTO roles (id, name, permission) OVERRIDING SYSTEM VALUE VALUES (4, 'Just Forms', '{"view": ["member.forms"], "change": ["member.forms"]}');
-INSERT INTO roles (id, name, permission) OVERRIDING SYSTEM VALUE VALUES (5, 'SuperAdmin', '{"view": ["member.identity", "member.status", "member.roles", "member.forms", "member.connections", "member.extras", "member.authorizations", "member.notes", "member.access", "member.entry", "space.access_logs", "systems.roles", "systems.assign_roles"], "change": ["member.identity", "member.status", "member.roles", "member.forms", "member.connections", "member.extras", "member.authorizations", "member.notes", "member.access", "systems.roles", "systems.assign_roles"]}');
+INSERT INTO roles (id, name, permission) OVERRIDING SYSTEM VALUE VALUES (5, 'SuperAdmin', '{"view": ["member.identity", "member.status", "member.roles", "member.forms", "member.connections", "member.extras", "member.authorizations", "member.notes", "member.access", "member.entry", "space.access_logs", "systems.roles", "systems.assign_roles", "equipment.areas", "equipment.items", "equipment.groups", "equipment.tickets", "equipment.schedules", "equipment.auth_sessions", "equipment.maintenance", "equipment.dashboard", "equipment.config"], "change": ["member.identity", "member.status", "member.roles", "member.forms", "member.connections", "member.extras", "member.authorizations", "member.notes", "member.access", "systems.roles", "systems.assign_roles", "equipment.areas", "equipment.items", "equipment.groups", "equipment.tickets", "equipment.schedules", "equipment.auth_sessions", "equipment.maintenance", "equipment.config"]}');
 INSERT INTO roles (id, name, permission) OVERRIDING SYSTEM VALUE VALUES (6, 'just-space-logs', '{"view": ["space.access_logs"], "change": []}');
 SELECT setval(pg_get_serial_sequence('roles', 'id'), (SELECT MAX(id) FROM roles));
 
@@ -1441,3 +1441,572 @@ insert into email_template_parameters (template_id, parameter_name, parameter_ty
 insert into email_template_parameters (template_id, parameter_name, parameter_type) values(2, 'first_name', 'string');
 insert into email_template_parameters (template_id, parameter_name, parameter_type) values(3, 'first_name', 'string');
 insert into email_template_parameters (template_id, parameter_name, parameter_type) values(3, 'email_address', 'string');
+
+
+/************************************************************************
+ *
+ * Equipment Module
+ * 
+ * These tables support the Deep Harbor Equipment Management module,
+ * adapted from the Purple Asset One (PA1) project. This module provides
+ * equipment inventory, repair ticketing, scheduling, authorization
+ * sessions, maintenance tracking, and equipment grouping.
+ *
+ ***********************************************************************/
+
+
+/* =====================================================================
+ * Equipment Module Roles
+ * =====================================================================
+ * Area Host: can view and manage equipment, areas, tickets, schedules,
+ *   auth sessions, and maintenance. Also has member-level access for
+ *   identity, authorizations, and notes.
+ * Technician: similar view access but more limited change permissions —
+ *   equipment items, tickets, schedules, maintenance only.
+ * ===================================================================== */
+
+INSERT INTO roles (id, name, permission) OVERRIDING SYSTEM VALUE VALUES (
+    7, 'Area Host',
+    '{
+        "view": [
+            "member.identity", "member.authorizations", "member.notes",
+            "equipment.areas", "equipment.items", "equipment.groups",
+            "equipment.tickets", "equipment.schedules", "equipment.auth_sessions",
+            "equipment.maintenance", "equipment.dashboard"
+        ],
+        "change": [
+            "member.authorizations", "member.notes",
+            "equipment.areas", "equipment.items", "equipment.groups",
+            "equipment.tickets", "equipment.schedules", "equipment.auth_sessions",
+            "equipment.maintenance"
+        ]
+    }'
+);
+
+INSERT INTO roles (id, name, permission) OVERRIDING SYSTEM VALUE VALUES (
+    8, 'Technician',
+    '{
+        "view": [
+            "member.identity", "member.authorizations", "member.notes",
+            "equipment.areas", "equipment.items", "equipment.groups",
+            "equipment.tickets", "equipment.schedules", "equipment.auth_sessions",
+            "equipment.maintenance", "equipment.dashboard"
+        ],
+        "change": [
+            "member.notes",
+            "equipment.items", "equipment.tickets",
+            "equipment.schedules", "equipment.maintenance"
+        ]
+    }'
+);
+
+SELECT setval(pg_get_serial_sequence('roles', 'id'), (SELECT MAX(id) FROM roles));
+
+
+/* =====================================================================
+ * Areas
+ * =====================================================================
+ * Named zones within the space (e.g. Woodshop, Electronics, CNC).
+ * Named generically as "areas" for future reuse beyond equipment.
+ * The metadata JSONB field stores contact info, website, discord, etc.
+ * ===================================================================== */
+
+CREATE TABLE IF NOT EXISTS areas (
+    id          INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    name        TEXT UNIQUE NOT NULL,
+    description TEXT,
+    metadata    JSONB DEFAULT '{}',
+    attachments JSONB DEFAULT '[]',
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+COMMENT ON TABLE areas IS 'Named zones within the space (e.g. Woodshop, Electronics). Used by the equipment module and potentially other modules in the future.';
+
+
+/* =====================================================================
+ * Equipment
+ * =====================================================================
+ * Main equipment inventory table. Tracks make, model, serial number,
+ * status, and custom attributes. The electrical and breaker JSONB
+ * columns store structured power specs and circuit location data.
+ *
+ * electrical example:
+ *   {"voltage": 240, "amperage": 30, "phase": "single",
+ *    "plug_type": "NEMA 6-30P", "notes": "Requires dedicated circuit"}
+ *
+ * breaker example:
+ *   {"panel": "B", "breaker_number": 14,
+ *    "location_description": "North wall, behind the CNC area",
+ *    "notes": "Shared circuit with dust collector"}
+ *
+ * The version column supports optimistic locking — the auto-update
+ * trigger increments it on every UPDATE.
+ * ===================================================================== */
+
+CREATE TABLE IF NOT EXISTS equipment (
+    id              INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    area_id         INTEGER REFERENCES areas(id) ON DELETE SET NULL,
+    common_name     TEXT,
+    make            TEXT NOT NULL,
+    model           TEXT NOT NULL,
+    serial_number   TEXT UNIQUE NOT NULL,
+    build_date      DATE,
+    status          TEXT NOT NULL DEFAULT 'active'
+                    CHECK (status IN ('active', 'inactive', 'under_repair', 'decommissioned')),
+    schedulable     BOOLEAN DEFAULT FALSE,
+    electrical      JSONB DEFAULT '{}',
+    breaker         JSONB DEFAULT '{}',
+    attributes      JSONB DEFAULT '{}',
+    attachments     JSONB DEFAULT '[]',
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    version         INTEGER DEFAULT 1
+);
+COMMENT ON TABLE equipment IS 'Main equipment inventory. Tracks identity, status, power requirements, and custom attributes. Version column supports optimistic locking.';
+CREATE INDEX idx_equipment_area ON equipment(area_id);
+CREATE INDEX idx_equipment_status ON equipment(status);
+CREATE INDEX idx_equipment_attributes ON equipment USING GIN(attributes);
+
+
+/* =====================================================================
+ * Equipment Groups
+ * =====================================================================
+ * Organize related equipment together (e.g. "All 3D Printers",
+ * "Woodshop Saws"). A junction table links equipment to groups
+ * with an optional sort order.
+ * ===================================================================== */
+
+CREATE TABLE IF NOT EXISTS equipment_groups (
+    id          INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    name        TEXT NOT NULL,
+    description TEXT,
+    area_id     INTEGER REFERENCES areas(id) ON DELETE SET NULL,
+    attachments JSONB DEFAULT '[]',
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+COMMENT ON TABLE equipment_groups IS 'Groups of related equipment for organizational purposes. Equipment can belong to multiple groups.';
+
+CREATE TABLE IF NOT EXISTS equipment_group_members (
+    group_id     INTEGER NOT NULL REFERENCES equipment_groups(id) ON DELETE CASCADE,
+    equipment_id INTEGER NOT NULL REFERENCES equipment(id) ON DELETE CASCADE,
+    sort_order   INTEGER DEFAULT 0,
+    PRIMARY KEY (group_id, equipment_id)
+);
+COMMENT ON TABLE equipment_group_members IS 'Junction table linking equipment to groups with optional sort ordering.';
+
+
+/* =====================================================================
+ * Repair Tickets
+ * =====================================================================
+ * Linked to equipment. Auto-generated ticket numbers (TKT-001000, etc.)
+ * via a sequence. Tracks status workflow, priority, work log entries,
+ * parts used, and file attachments. The opened_by and assigned_to
+ * columns reference DH member IDs.
+ * ===================================================================== */
+
+CREATE SEQUENCE IF NOT EXISTS ticket_seq START 1000;
+
+CREATE OR REPLACE FUNCTION next_ticket_number()
+RETURNS TEXT AS $$
+BEGIN
+    RETURN 'TKT-' || LPAD(nextval('ticket_seq')::TEXT, 6, '0');
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TABLE IF NOT EXISTS repair_tickets (
+    id              INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    equipment_id    INTEGER NOT NULL REFERENCES equipment(id) ON DELETE CASCADE,
+    ticket_number   TEXT UNIQUE NOT NULL DEFAULT next_ticket_number(),
+    opened_by       INTEGER REFERENCES member(id),
+    assigned_to     INTEGER REFERENCES member(id),
+    status          TEXT NOT NULL DEFAULT 'open'
+                    CHECK (status IN ('open', 'in_progress', 'on_hold', 'closed')),
+    priority        TEXT NOT NULL DEFAULT 'normal'
+                    CHECK (priority IN ('low', 'normal', 'high', 'critical')),
+    title           TEXT NOT NULL,
+    description     TEXT,
+    opened_at       TIMESTAMPTZ DEFAULT NOW(),
+    closed_at       TIMESTAMPTZ,
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    work_log        JSONB DEFAULT '[]',
+    parts_used      JSONB DEFAULT '[]',
+    attachments     JSONB DEFAULT '[]',
+    metadata        JSONB DEFAULT '{}',
+    category        TEXT NOT NULL DEFAULT 'repair'
+                    CHECK (category IN ('repair', 'maintenance')),
+    version         INTEGER DEFAULT 1
+);
+COMMENT ON TABLE repair_tickets IS 'Repair and maintenance tickets linked to equipment. Auto-generated ticket numbers, status workflow, work log, and file attachments.';
+CREATE INDEX idx_tickets_equipment ON repair_tickets(equipment_id);
+CREATE INDEX idx_tickets_status ON repair_tickets(status);
+CREATE INDEX idx_tickets_assigned ON repair_tickets(assigned_to);
+
+
+/* =====================================================================
+ * Maintenance Schedules & Events
+ * =====================================================================
+ * maintenance_schedules defines recurring tasks targeting either a
+ * specific piece of equipment or an equipment group. The constraint
+ * ensures at least one target is set.
+ *
+ * maintenance_events are individual instances generated from a schedule.
+ * They track completion status and can optionally link to a repair
+ * ticket if the maintenance work requires one.
+ * ===================================================================== */
+
+CREATE TABLE IF NOT EXISTS maintenance_schedules (
+    id                  INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    title               TEXT NOT NULL,
+    description         TEXT,
+    equipment_id        INTEGER REFERENCES equipment(id) ON DELETE CASCADE,
+    group_id            INTEGER REFERENCES equipment_groups(id) ON DELETE CASCADE,
+    recurrence_type     TEXT NOT NULL DEFAULT 'days'
+                        CHECK (recurrence_type IN ('days', 'weeks', 'months', 'years')),
+    recurrence_interval INTEGER NOT NULL DEFAULT 30,
+    assigned_to         INTEGER REFERENCES member(id) ON DELETE SET NULL,
+    created_by          INTEGER NOT NULL REFERENCES member(id) ON DELETE CASCADE,
+    priority            TEXT NOT NULL DEFAULT 'normal'
+                        CHECK (priority IN ('low', 'normal', 'high', 'critical')),
+    estimated_minutes   INTEGER,
+    checklist           JSONB DEFAULT '[]',
+    notify_roles        TEXT[] DEFAULT '{}',
+    is_active           BOOLEAN DEFAULT TRUE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT maint_sched_target CHECK (equipment_id IS NOT NULL OR group_id IS NOT NULL)
+);
+COMMENT ON TABLE maintenance_schedules IS 'Recurring maintenance task definitions. Each schedule targets either a specific equipment item or an equipment group.';
+
+CREATE TABLE IF NOT EXISTS maintenance_events (
+    id              INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    schedule_id     INTEGER NOT NULL REFERENCES maintenance_schedules(id) ON DELETE CASCADE,
+    equipment_id    INTEGER REFERENCES equipment(id) ON DELETE CASCADE,
+    due_date        TIMESTAMPTZ NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'in_progress', 'completed', 'skipped', 'overdue')),
+    assigned_to     INTEGER REFERENCES member(id) ON DELETE SET NULL,
+    completed_by    INTEGER REFERENCES member(id) ON DELETE SET NULL,
+    completed_at    TIMESTAMPTZ,
+    notes           TEXT,
+    checklist_state JSONB DEFAULT '[]',
+    ticket_id       INTEGER REFERENCES repair_tickets(id) ON DELETE SET NULL,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+COMMENT ON TABLE maintenance_events IS 'Individual maintenance event instances generated from schedules. Tracks completion and can link to repair tickets.';
+CREATE INDEX idx_maint_events_due ON maintenance_events(due_date);
+CREATE INDEX idx_maint_events_status ON maintenance_events(status);
+
+
+/* =====================================================================
+ * Equipment Use Schedules
+ * =====================================================================
+ * Members can book time on schedulable equipment. Double-booking
+ * prevention is handled at the application layer.
+ * ===================================================================== */
+
+CREATE TABLE IF NOT EXISTS equipment_schedules (
+    id              INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    equipment_id    INTEGER NOT NULL REFERENCES equipment(id) ON DELETE CASCADE,
+    member_id       INTEGER NOT NULL REFERENCES member(id) ON DELETE CASCADE,
+    title           TEXT,
+    start_time      TIMESTAMPTZ NOT NULL,
+    end_time        TIMESTAMPTZ NOT NULL,
+    notes           TEXT,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+COMMENT ON TABLE equipment_schedules IS 'Equipment time-slot bookings by members. Double-booking prevention is enforced at the application layer.';
+CREATE INDEX idx_equip_schedules_equipment ON equipment_schedules(equipment_id);
+CREATE INDEX idx_equip_schedules_time ON equipment_schedules(start_time, end_time);
+
+
+/* =====================================================================
+ * Authorization Sessions & Enrollments
+ * =====================================================================
+ * Authorizer-led training sessions for equipment use approval.
+ * equipment_ids is an integer array of equipment IDs covered by
+ * the session. Members enroll via the enrollments table.
+ * ===================================================================== */
+
+CREATE TABLE IF NOT EXISTS equip_auth_sessions (
+    id              INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    equipment_ids   INTEGER[] DEFAULT '{}',
+    authorizer_id   INTEGER NOT NULL REFERENCES member(id) ON DELETE CASCADE,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    start_time      TIMESTAMPTZ NOT NULL,
+    end_time        TIMESTAMPTZ NOT NULL,
+    total_slots     INTEGER NOT NULL DEFAULT 1,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+COMMENT ON TABLE equip_auth_sessions IS 'Authorizer-led equipment training/authorization sessions with enrollment slots.';
+CREATE INDEX idx_equip_auth_sessions_time ON equip_auth_sessions(start_time);
+
+CREATE TABLE IF NOT EXISTS equip_auth_enrollments (
+    id              INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    session_id      INTEGER NOT NULL REFERENCES equip_auth_sessions(id) ON DELETE CASCADE,
+    member_id       INTEGER NOT NULL REFERENCES member(id) ON DELETE CASCADE,
+    enrolled_at     TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(session_id, member_id)
+);
+COMMENT ON TABLE equip_auth_enrollments IS 'Member enrollments in equipment authorization sessions. Unique constraint prevents double enrollment.';
+
+
+/* =====================================================================
+ * Equipment Module Configuration
+ * =====================================================================
+ * Key-value store for equipment module settings: dashboard tiles,
+ * field templates, module toggles, notification config, etc.
+ * ===================================================================== */
+
+CREATE TABLE IF NOT EXISTS equipment_config (
+    key         TEXT PRIMARY KEY,
+    value       JSONB NOT NULL DEFAULT '{}',
+    updated_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_by  INTEGER REFERENCES member(id)
+);
+COMMENT ON TABLE equipment_config IS 'Key-value configuration store for the equipment module (dashboard, templates, notifications, etc.).';
+
+
+/* =====================================================================
+ * Auto-Update Triggers
+ * =====================================================================
+ * Automatically bumps updated_at and increments version on UPDATE
+ * for tables that support optimistic locking.
+ * ===================================================================== */
+
+CREATE OR REPLACE FUNCTION equip_update_version()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    NEW.version = OLD.version + 1;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_equipment_ver BEFORE UPDATE ON equipment
+    FOR EACH ROW EXECUTE FUNCTION equip_update_version();
+CREATE TRIGGER trg_tickets_ver BEFORE UPDATE ON repair_tickets
+    FOR EACH ROW EXECUTE FUNCTION equip_update_version();
+
+
+/* =====================================================================
+ * OAuth2 Client for Equipment Portal
+ * =====================================================================
+ * IMPORTANT: Replace the placeholder secret before deployment!
+ * Generate a real secret with: tools/generate_secret.sh
+ * ===================================================================== */
+
+INSERT INTO oauth2_users (client_name, client_secret, client_description)
+VALUES (
+    'dev-equipment-portal',
+    '$2b$12$qHfcyqUpH2oYE.0UbChDiePnA3C0s75L3mTWzcZoxTzP6tvBUTlOK',
+    'Equipment management portal application'
+);
+
+/* OAuth2 client for the Discord Bot (optional) */
+INSERT INTO oauth2_users (client_name, client_secret, client_description)
+VALUES (
+    'dev-discord-bot',
+    '$2b$12$qHfcyqUpH2oYE.0UbChDiePnA3C0s75L3mTWzcZoxTzP6tvBUTlOK',
+    'Discord bot for equipment ticket management'
+);
+
+
+/* =====================================================================
+ * Equipment Audit Log
+ * =====================================================================
+ * Separate audit log for equipment module tables. The trigger function
+ * is SECURITY DEFINER so the application role cannot write to the
+ * audit log directly — only the trigger can. Session context is set
+ * per-request by the application using set_config().
+ *
+ * This may be merged with a global audit log in the future once RLS
+ * is implemented across all Deep Harbor tables.
+ * ===================================================================== */
+
+CREATE TABLE IF NOT EXISTS equipment_audit_log (
+    id              BIGSERIAL PRIMARY KEY,
+    table_name      TEXT NOT NULL,
+    record_id       TEXT,
+    operation       TEXT NOT NULL CHECK (operation IN ('INSERT', 'UPDATE', 'DELETE')),
+    user_id         TEXT,
+    user_role       TEXT,
+    old_data        JSONB,
+    new_data        JSONB,
+    changed_fields  TEXT[],
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+COMMENT ON TABLE equipment_audit_log IS 'Audit trail for all equipment module data changes. Written by SECURITY DEFINER trigger only.';
+CREATE INDEX idx_equip_audit_table ON equipment_audit_log(table_name);
+CREATE INDEX idx_equip_audit_record ON equipment_audit_log(record_id);
+CREATE INDEX idx_equip_audit_time ON equipment_audit_log(created_at);
+
+-- Audit trigger function (SECURITY DEFINER — app role cannot bypass)
+CREATE OR REPLACE FUNCTION equip_audit_trigger_fn()
+RETURNS TRIGGER
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    _user_id   TEXT;
+    _role      TEXT;
+    _record_id TEXT;
+    _old       JSONB;
+    _new       JSONB;
+    _changed   TEXT[];
+BEGIN
+    -- Read session context (set by the application per-request via set_config)
+    _user_id := current_setting('app.current_user_id', true);
+    _role    := current_setting('app.session_role', true);
+
+    IF TG_OP = 'DELETE' THEN
+        _old := to_jsonb(OLD);
+        _record_id := COALESCE(_old->>'id', '');
+        INSERT INTO equipment_audit_log (table_name, record_id, operation, user_id, user_role, old_data)
+        VALUES (TG_TABLE_NAME, _record_id, 'DELETE', _user_id, _role, _old);
+        RETURN OLD;
+
+    ELSIF TG_OP = 'INSERT' THEN
+        _new := to_jsonb(NEW);
+        _record_id := COALESCE(_new->>'id', '');
+        INSERT INTO equipment_audit_log (table_name, record_id, operation, user_id, user_role, new_data)
+        VALUES (TG_TABLE_NAME, _record_id, 'INSERT', _user_id, _role, _new);
+        RETURN NEW;
+
+    ELSIF TG_OP = 'UPDATE' THEN
+        _old := to_jsonb(OLD);
+        _new := to_jsonb(NEW);
+        _record_id := COALESCE(_new->>'id', '');
+        -- Detect which fields changed
+        _changed := ARRAY(
+            SELECT key FROM jsonb_each(_new)
+            WHERE NOT (_old ? key AND _old->key = _new->key)
+        );
+        -- Skip audit if nothing actually changed
+        IF array_length(_changed, 1) IS NULL THEN RETURN NEW; END IF;
+        INSERT INTO equipment_audit_log (table_name, record_id, operation, user_id, user_role, old_data, new_data, changed_fields)
+        VALUES (TG_TABLE_NAME, _record_id, 'UPDATE', _user_id, _role, _old, _new, _changed);
+        RETURN NEW;
+    END IF;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Attach audit triggers to all equipment module tables
+CREATE TRIGGER audit_areas               AFTER INSERT OR UPDATE OR DELETE ON areas                FOR EACH ROW EXECUTE FUNCTION equip_audit_trigger_fn();
+CREATE TRIGGER audit_equipment           AFTER INSERT OR UPDATE OR DELETE ON equipment            FOR EACH ROW EXECUTE FUNCTION equip_audit_trigger_fn();
+CREATE TRIGGER audit_equipment_groups    AFTER INSERT OR UPDATE OR DELETE ON equipment_groups     FOR EACH ROW EXECUTE FUNCTION equip_audit_trigger_fn();
+CREATE TRIGGER audit_repair_tickets      AFTER INSERT OR UPDATE OR DELETE ON repair_tickets       FOR EACH ROW EXECUTE FUNCTION equip_audit_trigger_fn();
+CREATE TRIGGER audit_maint_schedules     AFTER INSERT OR UPDATE OR DELETE ON maintenance_schedules FOR EACH ROW EXECUTE FUNCTION equip_audit_trigger_fn();
+CREATE TRIGGER audit_maint_events        AFTER INSERT OR UPDATE OR DELETE ON maintenance_events   FOR EACH ROW EXECUTE FUNCTION equip_audit_trigger_fn();
+CREATE TRIGGER audit_equip_schedules     AFTER INSERT OR UPDATE OR DELETE ON equipment_schedules  FOR EACH ROW EXECUTE FUNCTION equip_audit_trigger_fn();
+CREATE TRIGGER audit_equip_auth_sessions AFTER INSERT OR UPDATE OR DELETE ON equip_auth_sessions  FOR EACH ROW EXECUTE FUNCTION equip_audit_trigger_fn();
+CREATE TRIGGER audit_equip_auth_enroll   AFTER INSERT OR UPDATE OR DELETE ON equip_auth_enrollments FOR EACH ROW EXECUTE FUNCTION equip_audit_trigger_fn();
+CREATE TRIGGER audit_equip_config        AFTER INSERT OR UPDATE OR DELETE ON equipment_config     FOR EACH ROW EXECUTE FUNCTION equip_audit_trigger_fn();
+
+
+/* =====================================================================
+ * Least-Privilege Application Role (dh_app)
+ * =====================================================================
+ * This role is used by the DHEquipment service for all database access.
+ * It has DML access to data tables but cannot modify schema, truncate
+ * tables, or write directly to the audit log.
+ *
+ * The password is a placeholder — set via environment variable in the
+ * init-roles script or docker-compose before deployment.
+ *
+ * Existing DH services continue using the 'dh' superuser until they
+ * are individually migrated to dh_app in a later sprint.
+ * ===================================================================== */
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dh_app') THEN
+        CREATE ROLE dh_app LOGIN PASSWORD 'changeme_in_env';
+    END IF;
+END $$;
+
+-- Existing DH tables: full DML
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+    member, member_audit, oauth2_users,
+    roles, member_to_role, user_activity_logs,
+    rfid_board_sync, waivers, subscriptions, products,
+    email_templates, email_template_parameters,
+    service_endpoints, membership_types_lookup,
+    available_authorizations, member_changes,
+    member_changes_processing_log, member_access_log
+TO dh_app;
+
+-- Equipment module tables: full DML
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+    areas, equipment, equipment_groups, equipment_group_members,
+    repair_tickets, maintenance_schedules, maintenance_events,
+    equipment_schedules, equip_auth_sessions, equip_auth_enrollments,
+    equipment_config
+TO dh_app;
+
+-- Audit log: read-only (writes happen via SECURITY DEFINER trigger)
+GRANT SELECT ON equipment_audit_log TO dh_app;
+
+-- Sequences
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO dh_app;
+
+
+/* =====================================================================
+ * Row Level Security — Equipment Module
+ * =====================================================================
+ * Starting permissive: open reads, open writes for dh_app.
+ * The equipment_config table is gated by session role — only
+ * Administrator, SuperAdmin, and Area Host can modify it.
+ *
+ * These policies will be tightened in a future sprint.
+ * ===================================================================== */
+
+-- Equipment config: role-gated writes
+ALTER TABLE equipment_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE equipment_config FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY equip_config_select ON equipment_config
+    FOR SELECT USING (true);
+
+CREATE POLICY equip_config_insert ON equipment_config
+    FOR INSERT WITH CHECK (
+        current_setting('app.session_role', true) IN ('Administrator', 'SuperAdmin', 'Area Host')
+        OR COALESCE(current_setting('app.session_role', true), '') = ''
+    );
+
+CREATE POLICY equip_config_update ON equipment_config
+    FOR UPDATE USING (
+        current_setting('app.session_role', true) IN ('Administrator', 'SuperAdmin', 'Area Host')
+        OR COALESCE(current_setting('app.session_role', true), '') = ''
+    );
+
+-- All other equipment tables: permissive (tighten later)
+ALTER TABLE areas ENABLE ROW LEVEL SECURITY;
+CREATE POLICY areas_all ON areas FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE equipment ENABLE ROW LEVEL SECURITY;
+CREATE POLICY equipment_all ON equipment FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE equipment_groups ENABLE ROW LEVEL SECURITY;
+CREATE POLICY equip_groups_all ON equipment_groups FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE equipment_group_members ENABLE ROW LEVEL SECURITY;
+CREATE POLICY equip_group_members_all ON equipment_group_members FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE repair_tickets ENABLE ROW LEVEL SECURITY;
+CREATE POLICY repair_tickets_all ON repair_tickets FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE maintenance_schedules ENABLE ROW LEVEL SECURITY;
+CREATE POLICY maint_schedules_all ON maintenance_schedules FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE maintenance_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY maint_events_all ON maintenance_events FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE equipment_schedules ENABLE ROW LEVEL SECURITY;
+CREATE POLICY equip_schedules_all ON equipment_schedules FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE equip_auth_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY equip_auth_sessions_all ON equip_auth_sessions FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE equip_auth_enrollments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY equip_auth_enroll_all ON equip_auth_enrollments FOR ALL USING (true) WITH CHECK (true);

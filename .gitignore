@@ -1,4 +1,4 @@
-config.ini
+*.ini
 .env
 __pycache__/
 *.pyc
@@ -19,3 +19,5 @@ pg/sql/seed_data.sql
 .env.*.production
 /backlog.config.yml
 /backlog/
+pa1-index.html
+CLAUDE.md

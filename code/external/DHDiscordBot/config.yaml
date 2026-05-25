@@ -1,0 +1,85 @@
+# ─────────────────────────────────────────────────────────────────
+# Deep Harbor Equipment Discord Bot — Configuration
+# ─────────────────────────────────────────────────────────────────
+# Adapted from PurpleAssetOne Discord bot for Deep Harbor.
+# All slash command names, descriptions, and bot behavior can be
+# customized here. Changes require a bot restart to take effect.
+# ─────────────────────────────────────────────────────────────────
+
+commands:
+  create_ticket:
+    name: repair-ticket
+    description: Create a new repair ticket for a piece of equipment
+    equipment_param: Search and select the equipment
+
+  add_note:
+    name: addnote
+    description: Add a work log note to an existing repair ticket
+    ticket_param: "Ticket number (e.g. TKT-001000)"
+    note_param: The note to add to the work log
+
+  list_tickets:
+    name: tickets
+    description: List recent open repair tickets
+    status_param: "Filter by status (open, in_progress, on_hold, closed)"
+    default_status: open
+
+  ticket_info:
+    name: ticketinfo
+    description: View full details for a specific ticket
+    ticket_param: "Ticket number (e.g. TKT-001000)"
+
+  search_equipment:
+    name: equipment
+    description: Search equipment by name, make, model, or serial number
+    query_param: Search by name, make, model, or serial number
+
+modal:
+  title: Create Repair Ticket
+  field_title_label: Title
+  field_title_placeholder: Brief description of the issue
+  field_description_label: Description
+  field_description_placeholder: "Detailed description (optional)"
+  field_priority_label: "Priority (low / normal / high / critical)"
+  field_priority_default: normal
+
+thread_sync:
+  enabled: true
+  min_message_length: 2
+  confirm_reaction: "📝"
+  error_reaction: "❌"
+  welcome_message: >
+    🎫 **Ticket {ticket_number}** is now linked to this thread.
+    Messages posted here will be automatically added as work log entries.
+    Use `/{addnote_cmd}` to add structured notes from any channel.
+
+auto_thread:
+  enabled: true
+  archive_duration: 4320
+
+equipment_cache:
+  refresh_interval_minutes: 10
+  max_items: 200
+
+embeds:
+  footer_text: Deep Harbor Equipment
+  priority_colors:
+    critical: DC3545
+    high: FFC107
+    normal: 6F42C1
+    low: 6C757D
+  priority_emoji:
+    critical: "🚨"
+    high: "⚠️"
+    normal: "🔵"
+    low: "⬇️"
+  status_colors:
+    open: 6F42C1
+    in_progress: FFC107
+    on_hold: 6C757D
+    closed: 198754
+  equipment_status_emoji:
+    active: "🟢"
+    under_repair: "🟡"
+    inactive: "⚪"
+    decommissioned: "🔴"

@@ -1,8 +1,0 @@
-[dh_services]
-client_name =
-client_secret =
-api_base_url = http://gateway/dh/service
-
-[stripe]
-api_key =
-signing_secret =

@@ -572,6 +572,35 @@
     </div>
 </div>
 
+<!-- Equipment Module Section -->
+<div id="equipmentModuleSection" style="display:none;">
+    <div style="max-width:960px;margin:0 auto">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h3 class="mb-0"><i class="fa-solid fa-wrench me-2"></i>Equipment Module</h3>
+            <a href="http://{{ request.host.split(':')[0] }}:5003/" target="_blank"
+               class="btn btn-outline-secondary btn-sm">
+                <i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Open Equipment Portal
+            </a>
+        </div>
+        <ul class="nav nav-tabs mb-3" id="equip-module-tabs">
+            <li class="nav-item">
+                <button class="nav-link active" onclick="showEquipTab('notifications',this)">
+                    <i class="fa-solid fa-bell me-1"></i>Notifications
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" onclick="showEquipTab('modules',this)">
+                    <i class="fa-solid fa-toggle-on me-1"></i>Module Toggles
+                </button>
+            </li>
+        </ul>
+        <div id="equip-module-tab-body">
+            <div class="text-muted small p-2">
+                <span class="spinner-border spinner-border-sm me-2"></span>Loading&hellip;
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
 // CSRF token for AJAX requests
@@ -3095,12 +3124,13 @@ document.getElementById('assignRoleMemberSearch').addEventListener('keypress', f
 // Section navigation
 // ============================================================================
 
-const SECTIONS = ['member', 'accessLogs', 'roles', 'assignRoles'];
+const SECTIONS = ['member', 'accessLogs', 'roles', 'assignRoles', 'equipmentModule'];
 const SECTION_EL_IDS = {
     member: 'memberSection',
     accessLogs: 'accessLogsSection',
     roles: 'rolesSection',
     assignRoles: 'assignRolesSection',
+    equipmentModule: 'equipmentModuleSection',
 };
 
 let accessLogsAutoRefreshTimer = null;
@@ -3108,9 +3138,10 @@ let accessLogsAutoRefreshTimer = null;
 // Map section names to the permission key required to view them.
 // Member section has no entry — it's controlled by tab-level permissions.
 const SECTION_PERM_MAP = {
-    accessLogs:  'space.access_logs',
-    roles:       'systems.roles',
-    assignRoles: 'systems.assign_roles',
+    accessLogs:      'space.access_logs',
+    roles:           'systems.roles',
+    assignRoles:     'systems.assign_roles',
+    equipmentModule: 'equipment.config',
 };
 
 function showSection(name) {
@@ -3147,6 +3178,8 @@ function showSection(name) {
         loadRoles();
     } else if (name === 'assignRoles') {
         initAssignRoles();
+    } else if (name === 'equipmentModule') {
+        loadEquipmentModule();
     }
 }
 
@@ -3588,6 +3621,625 @@ function searchAssignRoleMembers() {
             document.getElementById('assignRoleMemberResults').style.display = '';
         })
         .catch(err => alert('Search error: ' + err));
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// EQUIPMENT MODULE
+// ════════════════════════════════════════════════════════════════════════
+
+// Shims for ported notification JS (DHEquipmentPortal uses escHtml / api / toast)
+const escHtml = escapeHtml;
+
+function toast(msg, type) {
+    const el  = document.getElementById('adminToast');
+    const msgEl = document.getElementById('adminToastMsg');
+    if (!el || !msgEl) return;
+    el.className = `toast align-items-center border-0 text-bg-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'dark'}`;
+    msgEl.textContent = msg;
+    bootstrap.Toast.getOrCreateInstance(el, { delay: 3000 }).show();
+}
+
+function equipApi(method, path, body) {
+    const opts = {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+        },
+    };
+    if (body && method !== 'GET') opts.body = JSON.stringify(body);
+    return fetch(path, opts).then(r => {
+        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+        if (r.status === 204) return null;
+        return r.json();
+    });
+}
+
+// Alias used by notification functions (they call api() — remap to equipApi)
+function api(method, path, body) {
+    // Remap Equipment Portal paths → DHAdmin Equipment proxy paths
+    const remapped = path
+        .replace(/^\/api\/config\//, '/api/equipment/config/')
+        .replace(/^\/api\/webhook-test$/, '/api/equipment/webhook-test');
+    return equipApi(method, remapped, body);
+}
+
+let _notifData = null;
+
+function loadEquipmentModule() {
+    showEquipTab('notifications', document.querySelector('#equip-module-tabs .nav-link'));
+}
+
+function showEquipTab(tab, btn) {
+    document.querySelectorAll('#equip-module-tabs .nav-link').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    const body = document.getElementById('equip-module-tab-body');
+    if (!body) return;
+    if (tab === 'notifications') renderEquipNotifications(body);
+    else if (tab === 'modules')  renderEquipModuleToggles(body);
+}
+
+// ── Notifications panel (ported from DHEquipmentPortal) ──────────────────
+
+const NOTIF_CHANNEL_DEFS = {
+    email: {
+        label: 'Email',
+        fields: [
+            { key: 'smtp_host',     label: 'SMTP Host',          type: 'text',     hint: 'e.g. smtp.mailgun.org', required: true },
+            { key: 'smtp_port',     label: 'SMTP Port',          type: 'text',     hint: '587' },
+            { key: 'smtp_user',     label: 'SMTP Username',      type: 'text',     hint: 'postmaster@...' },
+            { key: 'smtp_password', label: 'SMTP Password',      type: 'password', hint: '' },
+            { key: 'from_address',  label: 'From Address',       type: 'text',     hint: 'equipment@yourdomain.com' },
+            { key: 'to_address',    label: 'Default To Address', type: 'text',     hint: 'admin@yourdomain.com' },
+        ]
+    }
+};
+
+const NOTIF_EVENT_DEFS = {
+    ticket_opened:            { label: 'Ticket Opened',            group: 'Tickets' },
+    ticket_closed:            { label: 'Ticket Closed',            group: 'Tickets' },
+    ticket_status_changed:    { label: 'Ticket Status Changed',    group: 'Tickets' },
+    equipment_status_changed: { label: 'Equipment Status Changed', group: 'Equipment' },
+    maintenance_due:          { label: 'Maintenance Due',          group: 'Maintenance' },
+    maintenance_started:      { label: 'Maintenance Started',      group: 'Maintenance' },
+    maintenance_completed:    { label: 'Maintenance Completed',    group: 'Maintenance' },
+    maintenance_overdue:      { label: 'Maintenance Overdue',      group: 'Maintenance' },
+};
+
+async function renderEquipNotifications(container) {
+    container.innerHTML = '<div class="text-muted small p-2"><span class="spinner-border spinner-border-sm me-2"></span>Loading&hellip;</div>';
+    try {
+        const raw = await api('GET', '/api/config/notifications');
+        _notifData = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+    } catch(e) {
+        _notifData = {};
+    }
+    _notifData.channels = _notifData.channels || {};
+    _notifData.events   = _notifData.events   || {};
+    _notifData.webhooks = _notifData.webhooks  || [];
+    _renderNotifTabs(container, 'channels');
+}
+
+function _renderNotifTabs(container, activeTab) {
+    container.innerHTML = `
+    <div style="max-width:900px">
+        <div class="alert alert-info small mb-3">
+            <i class="fa-solid fa-bell me-2"></i>
+            <strong>Notifications</strong> — Configure delivery channels, per-event triggers, and webhook endpoints.
+        </div>
+        <ul class="nav nav-tabs mb-3" id="notif-tabs">
+            <li class="nav-item"><button class="nav-link ${activeTab==='channels'?'active':''}"
+                onclick="_renderNotifTabs(this.closest('.notif-panel-wrap'),'channels')">
+                Channels</button></li>
+            <li class="nav-item"><button class="nav-link ${activeTab==='events'?'active':''}"
+                onclick="_renderNotifTabs(this.closest('.notif-panel-wrap'),'events')">
+                Events</button></li>
+        </ul>
+        <div id="notif-tab-body"></div>
+    </div>`;
+    container.firstElementChild.classList.add('notif-panel-wrap');
+    if (activeTab === 'channels')    _renderNotifChannels();
+    else if (activeTab === 'events') _renderNotifEvents();
+}
+
+function _renderNotifChannels() {
+    const body = document.getElementById('notif-tab-body');
+    if (!body || !_notifData) return;
+    const channels = _notifData.channels || {};
+    body.innerHTML = `
+        <p class="text-muted small">Enable and configure delivery channels.</p>
+        ${['email'].map(chKey => {
+            const def = NOTIF_CHANNEL_DEFS[chKey];
+            const ch  = channels[chKey] || {enabled: false, config: {}};
+            const cfg = ch.config || {};
+            return `
+            <div class="card mb-3">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <span>${escHtml(def.label)}</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" id="nch-enable-${chKey}" ${ch.enabled?'checked':''}>
+                        <label class="form-check-label small" for="nch-enable-${chKey}">${ch.enabled?'Enabled':'Disabled'}</label>
+                    </div>
+                </div>
+                <div class="card-body">
+                    ${def.fields.map(f => {
+                        const val = cfg[f.key] || '';
+                        const req = f.required ? '<span class="text-danger ms-1">*</span>' : '';
+                        return `<div class="mb-2">
+                            <label class="form-label small fw-semibold mb-1">${escHtml(f.label)}${req}</label>
+                            <input type="${f.type==='password'?'password':'text'}" class="form-control form-control-sm"
+                                id="nch-${chKey}-${f.key}"
+                                value="${escHtml(f.type!=='password'?String(val):'')}"
+                                placeholder="${f.hint?escHtml(f.hint):''}">
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>`;
+        }).join('')}
+        <button class="btn btn-primary btn-sm" onclick="_saveNotifChannels()">Save Channels</button>
+        <div class="mt-2 small" id="notif-ch-msg"></div>
+        <hr class="my-4">
+        <h6 class="fw-semibold mb-3">Webhooks</h6>
+        <div id="notif-webhooks-container"></div>`;
+    ['email'].forEach(chKey => {
+        const el = document.getElementById(`nch-enable-${chKey}`);
+        if (el) el.addEventListener('change', () => {
+            el.nextElementSibling.textContent = el.checked ? 'Enabled' : 'Disabled';
+        });
+    });
+    _renderNotifWebhooks();
+}
+
+async function _saveNotifChannels() {
+    const newChannels = JSON.parse(JSON.stringify(_notifData.channels || {}));
+    ['email'].forEach(chKey => {
+        const def = NOTIF_CHANNEL_DEFS[chKey];
+        const enableEl = document.getElementById(`nch-enable-${chKey}`);
+        newChannels[chKey] = newChannels[chKey] || {};
+        newChannels[chKey].enabled = enableEl ? enableEl.checked : false;
+        const cfg = {};
+        def.fields.forEach(f => {
+            const el = document.getElementById(`nch-${chKey}-${f.key}`);
+            if (!el) return;
+            cfg[f.key] = f.type === 'boolean' ? el.checked : el.value.trim();
+        });
+        newChannels[chKey].config = cfg;
+    });
+    const payload = { channels: newChannels, events: _notifData.events || {}, webhooks: _notifData.webhooks || [] };
+    const msgEl = document.getElementById('notif-ch-msg');
+    if (msgEl) msgEl.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Saving…</span>';
+    try {
+        await api('PUT', '/api/config/notifications', payload);
+        _notifData.channels = newChannels;
+        if (msgEl) msgEl.innerHTML = '<span class="text-success">Channels saved.</span>';
+        toast('Notification channels saved', 'success');
+    } catch(e) {
+        if (msgEl) msgEl.innerHTML = `<span class="text-danger">${escHtml(e.message)}</span>`;
+        toast(e.message, 'error');
+    }
+}
+
+function _renderNotifEvents() {
+    const body = document.getElementById('notif-tab-body');
+    if (!body || !_notifData) return;
+    const events   = _notifData.events || {};
+    const channels = ['email', 'webhook'];
+    const groups = {};
+    Object.entries(NOTIF_EVENT_DEFS).forEach(([key, def]) => {
+        const g = def.group || 'Other';
+        if (!groups[g]) groups[g] = [];
+        groups[g].push({key, ...def});
+    });
+    const colHeads = channels.map(ch => `<th style="min-width:70px;text-align:center">${ch}</th>`).join('');
+    let rows = '';
+    Object.entries(groups).forEach(([group, evts]) => {
+        rows += `<tr><td colspan="${channels.length+1}" class="py-1 px-2 fw-semibold small bg-light">${escHtml(group)}</td></tr>`;
+        evts.forEach(evt => {
+            const evtCfg = events[evt.key] || {};
+            const cells  = channels.map(ch => {
+                const checked = evtCfg[ch] ? 'checked' : '';
+                return `<td style="text-align:center"><input type="checkbox" class="notif-evt-check" data-event="${evt.key}" data-channel="${ch}" ${checked}></td>`;
+            }).join('');
+            rows += `<tr><td style="font-size:.82rem">${escHtml(evt.label)}</td>${cells}</tr>`;
+        });
+    });
+    body.innerHTML = `
+        <p class="text-muted small">Toggle which channels fire for each notification event.</p>
+        <div class="table-responsive mb-3">
+            <table class="table table-sm table-bordered" style="font-size:.8rem">
+                <thead><tr><th style="min-width:200px">Event</th>${colHeads}</tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="_saveNotifEvents()">Save Event Config</button>
+        <div class="mt-2 small" id="notif-evt-msg"></div>`;
+}
+
+async function _saveNotifEvents() {
+    const newEvents = {};
+    document.querySelectorAll('.notif-evt-check').forEach(cb => {
+        const evt = cb.dataset.event;
+        const ch  = cb.dataset.channel;
+        if (!newEvents[evt]) newEvents[evt] = {};
+        newEvents[evt][ch] = cb.checked;
+    });
+    const payload = { channels: _notifData.channels || {}, events: newEvents, webhooks: _notifData.webhooks || [] };
+    const msgEl = document.getElementById('notif-evt-msg');
+    if (msgEl) msgEl.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Saving…</span>';
+    try {
+        await api('PUT', '/api/config/notifications', payload);
+        _notifData.events = newEvents;
+        if (msgEl) msgEl.innerHTML = '<span class="text-success">Events saved.</span>';
+        toast('Event config saved', 'success');
+    } catch(e) {
+        if (msgEl) msgEl.innerHTML = `<span class="text-danger">${escHtml(e.message)}</span>`;
+        toast(e.message, 'error');
+    }
+}
+
+function _renderNotifWebhooks() {
+    const body = document.getElementById('notif-webhooks-container') || document.getElementById('notif-tab-body');
+    if (!body || !_notifData) return;
+    const webhooks  = _notifData.webhooks || [];
+    const allEvents = Object.keys(NOTIF_EVENT_DEFS);
+    const whCards = webhooks.map((wh, idx) => {
+        const isDiscord = wh.type === 'discord';
+        return `
+        <div class="card mb-3 wh-card" data-idx="${idx}">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <input type="text" class="form-control form-control-sm wh-name border-0 bg-transparent fw-semibold" data-idx="${idx}"
+                        value="${escHtml(wh.name||'')}" placeholder="${isDiscord?'My Discord Channel':'My Webhook'}" style="max-width:200px">
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input wh-enabled" type="checkbox" data-idx="${idx}" ${wh.enabled!==false?'checked':''}>
+                        <label class="form-check-label small">${wh.enabled!==false?'Active':'Off'}</label>
+                    </div>
+                    <button class="btn btn-outline-primary btn-sm py-0 px-2" onclick="_testWebhook(${idx})" title="Send test">Test</button>
+                    <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="_removeWebhook(${idx})" title="Remove">Remove</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-2 mb-2">
+                    <div class="col-auto">
+                        <label class="form-label small fw-semibold mb-1">Type</label>
+                        <select class="form-select form-select-sm wh-type" data-idx="${idx}" onchange="_whTypeChanged(${idx},this.value)">
+                            <option value="generic" ${!isDiscord?'selected':''}>Generic</option>
+                            <option value="discord" ${isDiscord?'selected':''}>Discord</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label class="form-label small fw-semibold mb-1">Webhook URL <span class="text-danger">*</span></label>
+                        <input type="url" class="form-control form-control-sm wh-url" data-idx="${idx}"
+                            value="${escHtml(wh.url||'')}"
+                            placeholder="${isDiscord?'https://discord.com/api/webhooks/...':'https://example.com/webhook'}">
+                    </div>
+                </div>
+                <div class="wh-discord-fields" data-idx="${idx}" style="${isDiscord?'':'display:none'}">
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold mb-1">Bot Username</label>
+                            <input type="text" class="form-control form-control-sm wh-discord-username" data-idx="${idx}"
+                                value="${escHtml(wh.discord_username||'')}" placeholder="Deep Harbor Bot">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold mb-1">Avatar URL</label>
+                            <input type="url" class="form-control form-control-sm wh-discord-avatar" data-idx="${idx}"
+                                value="${escHtml(wh.discord_avatar_url||'')}" placeholder="https://...">
+                        </div>
+                    </div>
+                    <details class="mb-2">
+                        <summary class="small fw-semibold text-primary" style="cursor:pointer">Message Style</summary>
+                        <div class="pt-2">
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold mb-1">Content</label>
+                                <input type="text" class="form-control form-control-sm wh-discord-content" data-idx="${idx}"
+                                    value="${escHtml((wh.discord_style||{}).content||'')}" placeholder="e.g. 🔔 New equipment event">
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold mb-1">Title Prefix</label>
+                                    <input type="text" class="form-control form-control-sm wh-discord-title-prefix" data-idx="${idx}"
+                                        value="${escHtml((wh.discord_style||{}).title_prefix||'')}" placeholder="e.g. 🎫">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold mb-1">
+                                        Embed Color
+                                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 wh-discord-color-clear" data-idx="${idx}"
+                                            style="font-size:.7rem;vertical-align:baseline">reset</button>
+                                    </label>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <input type="color" class="form-control form-control-color form-control-sm wh-discord-color" data-idx="${idx}"
+                                            value="${(wh.discord_style||{}).color||'#5865F2'}" style="width:3rem;height:2rem;padding:.1rem">
+                                        <span class="small text-muted wh-discord-color-hint" data-idx="${idx}">${(wh.discord_style||{}).color?'custom':'per-event defaults'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold mb-1">Footer Text</label>
+                                <input type="text" class="form-control form-control-sm wh-discord-footer" data-idx="${idx}"
+                                    value="${escHtml((wh.discord_style||{}).footer||'')}" placeholder="Deep Harbor Equipment">
+                            </div>
+                            <div class="mb-1">
+                                <label class="form-label small fw-semibold mb-1">Description Template</label>
+                                <textarea class="form-control form-control-sm wh-discord-desc-template" data-idx="${idx}"
+                                    rows="3" placeholder="e.g. **{title}** changed to {status}"
+                                    style="font-size:.8rem;font-family:monospace">${escHtml((wh.discord_style||{}).description_template||'')}</textarea>
+                                <div class="form-text" style="font-size:.7rem">Variables: <code>{title}</code> <code>{status}</code> <code>{priority}</code> <code>{common_name}</code></div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+                <div class="wh-generic-fields" data-idx="${idx}" style="${isDiscord?'display:none':''}">
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold mb-1">Secret (HMAC-SHA256)</label>
+                        <input type="password" class="form-control form-control-sm wh-secret" data-idx="${idx}"
+                            value="" placeholder="${wh.secret?'(saved — leave blank to keep)':'optional signing secret'}">
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label small fw-semibold mb-1">Event Filter</label>
+                    <select class="form-select form-select-sm wh-events" data-idx="${idx}" multiple size="4" style="font-size:.75rem">
+                        <option value="*" ${(!wh.events||!wh.events.length||wh.events.includes('*'))?'selected':''}>All Events (*)</option>
+                        ${allEvents.map(e => `<option value="${e}" ${wh.events?.includes(e)?'selected':''}>${escHtml(NOTIF_EVENT_DEFS[e]?.label||e)}</option>`).join('')}
+                    </select>
+                    <div class="form-text" style="font-size:.7rem">Hold Ctrl/Cmd to select specific events.</div>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    body.innerHTML = `
+        <p class="text-muted small">Configure webhook endpoints for equipment notifications.</p>
+        <div id="wh-cards-container">${whCards || '<div class="text-muted small mb-3">No webhooks configured.</div>'}</div>
+        <div class="d-flex gap-2 flex-wrap mb-2">
+            <button class="btn btn-outline-primary btn-sm" onclick="_addWebhook('generic')">Add Webhook</button>
+            <button class="btn btn-outline-primary btn-sm" style="border-color:#5865F2;color:#5865F2" onclick="_addWebhook('discord')">Add Discord Webhook</button>
+            <button class="btn btn-primary btn-sm" onclick="_saveNotifWebhooks()">Save Webhooks</button>
+        </div>
+        <div class="mt-2 small" id="notif-wh-msg"></div>`;
+
+    webhooks.forEach((wh, idx) => {
+        const enabledEl = document.querySelector(`.wh-enabled[data-idx="${idx}"]`);
+        if (enabledEl) enabledEl.addEventListener('change', () => {
+            enabledEl.nextElementSibling.textContent = enabledEl.checked ? 'Active' : 'Off';
+        });
+        const colorEl   = document.querySelector(`.wh-discord-color[data-idx="${idx}"]`);
+        const colorHint = document.querySelector(`.wh-discord-color-hint[data-idx="${idx}"]`);
+        const clearBtn  = document.querySelector(`.wh-discord-color-clear[data-idx="${idx}"]`);
+        if (colorEl && colorHint) {
+            const hasCustom = !!(wh.discord_style?.color);
+            colorEl.disabled = !hasCustom;
+            colorHint.dataset.custom = hasCustom ? '1' : '0';
+            colorHint.textContent    = hasCustom ? wh.discord_style.color : 'per-event defaults';
+            colorEl.addEventListener('input', () => {
+                colorEl.disabled = false;
+                colorHint.dataset.custom = '1';
+                colorHint.textContent = colorEl.value;
+            });
+            colorEl.addEventListener('click', () => {
+                colorEl.disabled = false;
+                colorHint.dataset.custom = '1';
+                colorHint.textContent = colorEl.value;
+            });
+        }
+        if (clearBtn && colorEl && colorHint) {
+            clearBtn.addEventListener('click', () => {
+                colorEl.disabled = true;
+                colorHint.dataset.custom = '0';
+                colorHint.textContent = 'per-event defaults';
+                colorEl.value = '#5865F2';
+            });
+        }
+    });
+}
+
+function _whTypeChanged(idx, newType) {
+    const discordFields = document.querySelector(`.wh-discord-fields[data-idx="${idx}"]`);
+    const genericFields = document.querySelector(`.wh-generic-fields[data-idx="${idx}"]`);
+    const urlInput      = document.querySelector(`.wh-url[data-idx="${idx}"]`);
+    const nameInput     = document.querySelector(`.wh-name[data-idx="${idx}"]`);
+    if (discordFields) discordFields.style.display = newType === 'discord' ? '' : 'none';
+    if (genericFields) genericFields.style.display = newType === 'discord' ? 'none' : '';
+    if (urlInput)  urlInput.placeholder  = newType === 'discord' ? 'https://discord.com/api/webhooks/...' : 'https://example.com/webhook';
+    if (nameInput) nameInput.placeholder = newType === 'discord' ? 'My Discord Channel' : 'My Webhook';
+}
+
+function _addWebhook(type) {
+    _notifData.webhooks = _notifData.webhooks || [];
+    const wh = { name: '', url: '', secret: '', enabled: true, events: ['*'], type: type || 'generic' };
+    if (type === 'discord') {
+        wh.discord_username   = 'Deep Harbor Bot';
+        wh.discord_avatar_url = '';
+        wh.discord_style      = { content: '', title_prefix: '', color: '', footer: '', description_template: '' };
+    }
+    _notifData.webhooks.push(wh);
+    _renderNotifWebhooks();
+    setTimeout(() => {
+        const cards = document.querySelectorAll('.wh-card');
+        if (cards.length) cards[cards.length-1].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+}
+
+function _removeWebhook(idx) {
+    if (!confirm('Remove this webhook?')) return;
+    _notifData.webhooks.splice(idx, 1);
+    _renderNotifWebhooks();
+}
+
+async function _testWebhook(idx) {
+    const card       = document.querySelector(`.wh-card[data-idx="${idx}"]`);
+    const urlEl      = card?.querySelector('.wh-url');
+    const typeEl     = card?.querySelector('.wh-type');
+    const secretEl   = card?.querySelector('.wh-secret');
+    const discUserEl = card?.querySelector('.wh-discord-username');
+    const discAvEl   = card?.querySelector('.wh-discord-avatar');
+    const url        = urlEl ? urlEl.value.trim() : '';
+    if (!url) { toast('Enter a webhook URL first', 'error'); return; }
+    const whType   = typeEl ? typeEl.value : 'generic';
+    const btn      = card?.querySelector(`button[onclick="_testWebhook(${idx})"]`);
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) btn.innerHTML = '…';
+    const colorHint = card?.querySelector('.wh-discord-color-hint');
+    const colorEl   = card?.querySelector('.wh-discord-color');
+    const discordStyle = {
+        content:              (card?.querySelector('.wh-discord-content')?.value      || '').trim(),
+        title_prefix:         (card?.querySelector('.wh-discord-title-prefix')?.value || '').trim(),
+        color:                colorHint?.dataset.custom === '1' ? (colorEl?.value || '') : '',
+        footer:               (card?.querySelector('.wh-discord-footer')?.value       || '').trim(),
+        description_template: (card?.querySelector('.wh-discord-desc-template')?.value || '').trim(),
+    };
+    try {
+        const res = await fetch('/api/equipment/webhook-test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({
+                url, type: whType,
+                secret:             secretEl   ? secretEl.value.trim()   : '',
+                discord_username:   discUserEl ? discUserEl.value.trim() : '',
+                discord_avatar_url: discAvEl   ? discAvEl.value.trim()   : '',
+                discord_style:      discordStyle,
+            }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        toast(data.ok ? `Test sent — webhook responded ${data.status}` : `Webhook responded ${data.status}`,
+              data.ok ? 'success' : 'error');
+    } catch(e) {
+        toast('Test failed: ' + e.message, 'error');
+    } finally {
+        if (btn) btn.innerHTML = origHtml;
+    }
+}
+
+function _collectWebhooks() {
+    const result = [];
+    document.querySelectorAll('.wh-card').forEach(card => {
+        const idx        = parseInt(card.dataset.idx);
+        const nameEl     = card.querySelector('.wh-name');
+        const urlEl      = card.querySelector('.wh-url');
+        const typeEl     = card.querySelector('.wh-type');
+        const secretEl   = card.querySelector('.wh-secret');
+        const enabledEl  = card.querySelector('.wh-enabled');
+        const eventsEl   = card.querySelector('.wh-events');
+        const discUserEl = card.querySelector('.wh-discord-username');
+        const discAvEl   = card.querySelector('.wh-discord-avatar');
+        const oldWh      = (_notifData.webhooks || [])[idx] || {};
+        const whType     = typeEl ? typeEl.value : (oldWh.type || 'generic');
+        const entry = {
+            name:    nameEl   ? nameEl.value.trim()  : '',
+            url:     urlEl    ? urlEl.value.trim()   : '',
+            type:    whType,
+            enabled: enabledEl ? enabledEl.checked   : true,
+            events:  eventsEl  ? Array.from(eventsEl.selectedOptions).map(o => o.value) : ['*'],
+        };
+        if (whType === 'discord') {
+            entry.discord_username   = discUserEl ? discUserEl.value.trim() : '';
+            entry.discord_avatar_url = discAvEl   ? discAvEl.value.trim()   : '';
+            const colorEl   = card.querySelector('.wh-discord-color');
+            const colorHint = card.querySelector('.wh-discord-color-hint');
+            entry.discord_style = {
+                content:              (card.querySelector('.wh-discord-content')?.value      || '').trim(),
+                title_prefix:         (card.querySelector('.wh-discord-title-prefix')?.value || '').trim(),
+                color:                colorHint?.dataset.custom === '1' ? (colorEl?.value || '') : '',
+                footer:               (card.querySelector('.wh-discord-footer')?.value       || '').trim(),
+                description_template: (card.querySelector('.wh-discord-desc-template')?.value || '').trim(),
+            };
+        } else {
+            entry.secret = (secretEl && secretEl.value) ? secretEl.value : (oldWh.secret || '');
+        }
+        result.push(entry);
+    });
+    return result;
+}
+
+async function _saveNotifWebhooks() {
+    const webhooks = _collectWebhooks();
+    const channels = JSON.parse(JSON.stringify(_notifData.channels || {}));
+    channels.webhook = channels.webhook || {};
+    channels.webhook.enabled = webhooks.some(w => w.enabled && w.url);
+    const payload = { channels, events: _notifData.events || {}, webhooks };
+    const msgEl = document.getElementById('notif-wh-msg');
+    if (msgEl) msgEl.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Saving…</span>';
+    try {
+        await api('PUT', '/api/config/notifications', payload);
+        _notifData.webhooks = webhooks;
+        _notifData.channels = channels;
+        if (msgEl) msgEl.innerHTML = '<span class="text-success">Webhooks saved.</span>';
+        toast('Webhooks saved', 'success');
+    } catch(e) {
+        if (msgEl) msgEl.innerHTML = `<span class="text-danger">${escHtml(e.message)}</span>`;
+        toast(e.message, 'error');
+    }
+}
+
+// ── Module Toggles panel ─────────────────────────────────────────────────────
+
+const MODULE_TOGGLES = [
+    { key: 'module.maintenance',    label: 'Maintenance',    desc: 'Maintenance schedules and recurring event tracking.' },
+    { key: 'module.scheduling',     label: 'Scheduling',     desc: 'Equipment booking / use scheduling calendar.' },
+    { key: 'module.authorizations', label: 'Authorizations', desc: 'Equipment authorization sessions and enrollments.' },
+];
+
+async function renderEquipModuleToggles(container) {
+    container.innerHTML = '<div class="text-muted small p-2"><span class="spinner-border spinner-border-sm me-2"></span>Loading&hellip;</div>';
+    const states = {};
+    await Promise.all(MODULE_TOGGLES.map(async m => {
+        try {
+            const r = await api('GET', `/api/config/${m.key}`);
+            states[m.key] = r?.value !== false;
+        } catch { states[m.key] = true; }
+    }));
+
+    container.innerHTML = `
+        <div style="max-width:600px">
+            <p class="text-muted small mb-3">
+                Disabled modules are hidden from all users in the Equipment Portal.
+                Changes take effect on the next page load.
+            </p>
+            <div class="card">
+                <div class="card-body p-0">
+                    ${MODULE_TOGGLES.map(m => `
+                    <div class="d-flex align-items-center justify-content-between p-3 border-bottom">
+                        <div>
+                            <div class="fw-semibold">${escHtml(m.label)}</div>
+                            <div class="text-muted small">${escHtml(m.desc)}</div>
+                        </div>
+                        <div class="form-check form-switch mb-0 ms-3">
+                            <input class="form-check-input module-toggle" type="checkbox" id="mod-${m.key}"
+                                data-key="${m.key}" ${states[m.key] ? 'checked' : ''} style="width:2.5em;height:1.25em">
+                            <label class="form-check-label ms-1" for="mod-${m.key}">${states[m.key] ? 'On' : 'Off'}</label>
+                        </div>
+                    </div>`).join('')}
+                </div>
+            </div>
+            <button class="btn btn-primary btn-sm mt-3" onclick="_saveModuleToggles()">Save Toggles</button>
+            <div class="mt-2 small" id="module-toggle-msg"></div>
+        </div>`;
+
+    document.querySelectorAll('.module-toggle').forEach(cb => {
+        cb.addEventListener('change', () => {
+            cb.nextElementSibling.textContent = cb.checked ? 'On' : 'Off';
+        });
+    });
+}
+
+async function _saveModuleToggles() {
+    const msgEl = document.getElementById('module-toggle-msg');
+    if (msgEl) msgEl.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Saving…</span>';
+    try {
+        await Promise.all(
+            Array.from(document.querySelectorAll('.module-toggle')).map(cb =>
+                api('PUT', `/api/config/${cb.dataset.key}`, { value: cb.checked })
+            )
+        );
+        if (msgEl) msgEl.innerHTML = '<span class="text-success">Module toggles saved.</span>';
+        toast('Module toggles saved', 'success');
+    } catch(e) {
+        if (msgEl) msgEl.innerHTML = `<span class="text-danger">${escHtml(e.message)}</span>`;
+        toast(e.message, 'error');
+    }
 }
 </script>
 

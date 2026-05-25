@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Dev Login — Deep Harbor Equipment{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow-sm mt-5">
+            <div class="card-body p-4">
+                <h4 class="text-center mb-4"><i class="bi bi-tsunami me-2"></i>Equipment Portal</h4>
+                <p class="text-center text-muted mb-4">Dev Mode Login</p>
+                <form method="POST" action="{{ url_for('dev_login') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email" name="email"
+                               value="dev@example.com" required>
+                        <div class="form-text">Use any email that exists in your DH member table.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Sign In</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

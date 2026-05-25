@@ -16,10 +16,90 @@ DH_API_BASE_URL = config.get("dh_services", "api_base_url")
 DH_CLIENT_ID = config.get("dh_services", "client_name")
 DH_CLIENT_SECRET = config.get("dh_services", "client_secret")
 
+###############################################################################
+## DHEquipment API configuration
+###############################################################################
+
+EQUIP_API_BASE_URL = config.get("dh_equipment", "api_base_url", fallback="http://localhost/dh/equipment")
+EQUIP_CLIENT_ID = config.get("dh_equipment", "client_name", fallback="dev-admin-portal")
+EQUIP_CLIENT_SECRET = config.get("dh_equipment", "client_secret", fallback="secret")
+
+_equip_tokens = {}
+
+
+def _get_equip_token() -> str:
+    """Get a cached OAuth2 token for the DHEquipment service."""
+    import time
+    if EQUIP_API_BASE_URL in _equip_tokens:
+        return _equip_tokens[EQUIP_API_BASE_URL]
+    for attempt in range(2):
+        try:
+            resp = requests.post(
+                f"{EQUIP_API_BASE_URL}/token",
+                data={"username": EQUIP_CLIENT_ID, "password": EQUIP_CLIENT_SECRET},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            token = resp.json()["access_token"]
+            _equip_tokens[EQUIP_API_BASE_URL] = token
+            return token
+        except requests.exceptions.ConnectionError:
+            if attempt == 0:
+                time.sleep(1)
+    raise RuntimeError("Could not connect to DHEquipment token endpoint")
+
+
+def _equip_headers(token: str, member_id=None, permissions=None, role=None) -> dict:
+    import json as _json
+    h = {"Authorization": f"Bearer {token}"}
+    if member_id:
+        h["X-Member-ID"] = str(member_id)
+    if permissions:
+        h["X-Member-Permissions"] = _json.dumps(permissions)
+    if role:
+        h["X-Member-Role"] = role
+    return h
+
+
+def equip_get(path: str, member_id=None, permissions=None, role=None, params=None):
+    """GET from DHEquipment API with retry on 401."""
+    for attempt in range(2):
+        if attempt == 1:
+            _equip_tokens.pop(EQUIP_API_BASE_URL, None)
+        token = _get_equip_token()
+        resp = requests.get(
+            f"{EQUIP_API_BASE_URL}{path}",
+            headers=_equip_headers(token, member_id, permissions, role),
+            params=params, timeout=15,
+        )
+        if resp.status_code == 401 and attempt == 0:
+            _equip_tokens.pop(EQUIP_API_BASE_URL, None)
+            continue
+        resp.raise_for_status()
+        return resp.json()
+
+
+def equip_put(path: str, body: dict, member_id=None, permissions=None, role=None):
+    """PUT to DHEquipment API with retry on 401."""
+    for attempt in range(2):
+        if attempt == 1:
+            _equip_tokens.pop(EQUIP_API_BASE_URL, None)
+        token = _get_equip_token()
+        resp = requests.put(
+            f"{EQUIP_API_BASE_URL}{path}",
+            headers=_equip_headers(token, member_id, permissions, role),
+            json=body, timeout=15,
+        )
+        if resp.status_code == 401 and attempt == 0:
+            _equip_tokens.pop(EQUIP_API_BASE_URL, None)
+            continue
+        resp.raise_for_status()
+        return resp.json()
+
 
 ###############################################################################
 # Service functions to call Deep Harbor API endpoints
-############################################################################### 
+###############################################################################
 
 
 # Our function to get an access token from DHService using oauth2 client 

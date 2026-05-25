@@ -1,7 +1,0 @@
-[shared]
-SHARED_VOLUME_PATH=/app/shared
-
-[rfid_board]
-BOARD_IP=
-BOARD_PORT=60000
-BOARD_SERIAL_NUMBER_AS_INT=

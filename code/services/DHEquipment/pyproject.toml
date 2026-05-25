@@ -1,0 +1,18 @@
+[project]
+name = "dhequipment"
+version = "0.1.0"
+description = "Deep Harbor Equipment Management Service"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "bcrypt>=5.0.0",
+    "boto3>=1.34.0",
+    "configparser>=7.2.0",
+    "fastapi[standard]>=0.121.3",
+    "httpx>=0.27.0",
+    "psycopg2-binary>=2.9.11",
+    "pyjwt>=2.10.1",
+    "python-dateutil>=2.9.0",
+    "python-multipart>=0.0.20",
+    "uvicorn>=0.38.0",
+]

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Authorization Error — Deep Harbor Equipment{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm mt-5 border-danger">
+            <div class="card-body p-4 text-center">
+                <h4 class="text-danger mb-3"><i class="fa-solid fa-circle-exclamation me-2"></i>{{ result.get("error", "Authorization Error") }}</h4>
+                <p class="text-muted">{{ result.get("error_description", "An unknown error occurred during authentication.") }}</p>
+                <a href="{{ url_for('index') }}" class="btn btn-primary mt-3">Return to Login</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

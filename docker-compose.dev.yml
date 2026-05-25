@@ -58,10 +58,28 @@ services:
       - "5001:5001"
     environment:
       DH_API_BASE_URL: "http://gateway/dh/service"
+      DH_EQUIP_API_BASE_URL: "http://gateway/dh/equipment"
+      DH_EQUIP_CLIENT_ID: "dev-equipment-portal"
+      DH_EQUIP_CLIENT_SECRET: "secret"
       AUTH_MODE: dev
       DEV_BANNER: "true"
       DH_CLIENT_ID: "dev-admin-portal"
       DH_CLIENT_SECRET: "ikactyRLicKoI8VHiD9KZEwTrOIhtYjfzm1h6YUjj7M"
+      DH_SECRET_KEY: "dev-csrf-secret-key-do-not-use-in-production"
+
+  dhequipmentportal:
+    network_mode: !reset ""
+    networks:
+      - dh_network
+    ports:
+      - "5003:5003"
+    environment:
+      DH_API_BASE_URL: "http://gateway/dh/service"
+      DH_EQUIP_API_BASE_URL: "http://gateway/dh/equipment"
+      AUTH_MODE: dev
+      DEV_BANNER: "true"
+      DH_CLIENT_ID: "dev-equipment-portal"
+      DH_CLIENT_SECRET: "secret"
       DH_SECRET_KEY: "dev-csrf-secret-key-do-not-use-in-production"
 
   #########################################################

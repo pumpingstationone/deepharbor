@@ -61,12 +61,11 @@ services:
   
   # Member Portal Service
   dhmemberportal:
-    build: 
+    build:
       context: ./code/DHMemberPortal
       args:
         GIT_VERSION: "${GIT_VERSION}"
     restart: unless-stopped
-    network_mode: host
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
       interval: 30s
@@ -75,21 +74,23 @@ services:
     environment:
       TZ: "America/Chicago"
       DH_SECRET_KEY: "${DH_SECRET_KEY}"
+      DH_API_BASE_URL: "http://gateway/dh/service"
     ports:
       - "5002:5002"
     depends_on:
       dhservice:
         condition: service_healthy
     container_name: dh_member_portal
+    networks:
+      - dh_network
 
   # The admin portal service
   dhadminportal:
-    build: 
+    build:
       context: ./code/DHAdminPortal
       args:
         GIT_VERSION: "${GIT_VERSION}"
     restart: unless-stopped
-    network_mode: host
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
       interval: 30s
@@ -104,6 +105,12 @@ services:
     environment:
       TZ: "America/Chicago"
       DH_SECRET_KEY: "${DH_SECRET_KEY}"
+      DH_API_BASE_URL: "http://gateway/dh/service"
+      DH_EQUIP_API_BASE_URL: "http://gateway/dh/equipment"
+      DH_EQUIP_CLIENT_ID: "${DH_EQUIP_CLIENT_ID:-dev-admin-portal}"
+      DH_EQUIP_CLIENT_SECRET: "${DH_EQUIP_CLIENT_SECRET:-secret}"
+    networks:
+      - dh_network
     
 
   #########################################################
@@ -411,6 +418,7 @@ services:
         - dh2rfid
         - dhaccess
         - dhstatus
+        - dhequipment
       container_name: dh_gateway
       networks:
         - dh_network
@@ -554,15 +562,121 @@ services:
     networks:
       - dh_network
 
+  #########################################################
+  # Equipment Management Module
+  #########################################################
+
+  # Equipment Management Service (backend API)
+  dhequipment:
+    build: ./code/services/DHEquipment
+    restart: unless-stopped
+    environment:
+      TZ: "America/Chicago"
+      SERVICE_NAME: DH_EQUIPMENT
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: deepharbor
+      DATABASE_USER: dh_app
+      DATABASE_PASSWORD: ${DH_APP_PASSWORD:-changeme_in_env}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    container_name: dh_equipment
+    networks:
+      - dh_network
+
+  # Equipment Portal (frontend)
+  dhequipmentportal:
+    build:
+      context: ./code/DHEquipmentPortal
+      args:
+        GIT_VERSION: "${GIT_VERSION}"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    ports:
+      - "5003:5003"
+    depends_on:
+      dhequipment:
+        condition: service_healthy
+      dhservice:
+        condition: service_healthy
+    container_name: dh_equipment_portal
+    environment:
+      TZ: "America/Chicago"
+      DH_SECRET_KEY: "${DH_SECRET_KEY}"
+      DH_API_BASE_URL: "http://gateway/dh/service"
+      DH_EQUIP_API_BASE_URL: "http://gateway/dh/equipment"
+      DH_ADMIN_BASE_URL: "${DH_ADMIN_BASE_URL:-http://localhost:5001}"
+      AUTH_MODE: "${AUTH_MODE:-}"
+    networks:
+      - dh_network
+
+  #########################################################
+  # S3-Compatible Object Storage (RustFS)
+  #########################################################
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-deepharbor}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-changeme_in_env}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - rustfs_data:/data
+    container_name: dh_rustfs
+    networks:
+      - dh_network
+
+  #########################################################
+  # Discord Bot (optional — requires DISCORD_BOT_TOKEN)
+  #########################################################
+
+  dhdiscordbot:
+    build: ./code/external/DHDiscordBot
+    restart: unless-stopped
+    depends_on:
+      dhequipment:
+        condition: service_healthy
+    environment:
+      TZ: "America/Chicago"
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_GUILD_IDS: 1484014218037559298
+      DH_EQUIP_API_URL: http://gateway/dh/equipment
+      DH_BOT_CLIENT_NAME: ${DH_BOT_CLIENT_NAME:-dev-discord-bot}
+      DH_BOT_CLIENT_SECRET: ${DH_BOT_CLIENT_SECRET:-}
+      DH_BOT_MEMBER_ID: ${DH_BOT_MEMBER_ID:-0}
+    volumes:
+      - ${BOT_DATA_DIR:-./data/discord-bot}:/data
+    container_name: dh_discord_bot
+    networks:
+      - dh_network
+
 ##########################################################
 # Volumes and Networks
 ##########################################################
 
 # Persistent volume for PostgreSQL data
 volumes:
-  dhpgdata:
-  rfid_shared:
+  dhpgdata: 
+  rfid_shared: 
   ad_shared:
+  rustfs_data: 
 
 # Custom network for DeepHarbor services to communicate
 # internally. All services are attached to this network.

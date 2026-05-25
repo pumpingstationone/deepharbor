@@ -78,6 +78,12 @@
                             <li><a class="dropdown-item" id="nav-access-logs" href="#" onclick="showSection('accessLogs'); return false;">Access Logs</a></li>
                         </ul>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="nav-equipment"
+                           onclick="showSection('equipmentModule'); return false;">
+                            <i class="fa-solid fa-wrench me-1"></i>Equipment
+                        </a>
+                    </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="systemsDropdown"
                            role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -140,6 +146,16 @@
         </div>
     </footer>
     {% endblock %}
+
+    <!-- Toast notification container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:9999">
+        <div id="adminToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body" id="adminToastMsg"></div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"

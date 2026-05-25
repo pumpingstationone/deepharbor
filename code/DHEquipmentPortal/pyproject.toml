@@ -1,0 +1,14 @@
+[project]
+name = "dhequipmentportal"
+version = "0.1.0"
+description = "Deep Harbor Equipment Management Portal"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "flask>=3.1.0",
+    "flask-session>=0.8.0",
+    "flask-wtf>=1.2.0",
+    "msal>=1.31.0",
+    "requests>=2.32.0",
+    "configparser>=7.2.0",
+]

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="{{ equip_theme }}">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com; font-src 'self' cdn.jsdelivr.net cdnjs.cloudflare.com; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' *.b2clogin.com;">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon-ps1-admin.svg') }}">
+    <meta name="theme-color" content="#6f42c1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <!-- Theme init — read cookie before paint to prevent FOUC -->
+    <script>
+    (function() {
+        var m = document.cookie.match(/(?:^|;\s*)dh_equip_theme=(\w+)/);
+        var theme = m ? m[1] : '{{ equip_theme }}';
+        var valid = ['bubblegum','light','dark','midnight','hacker','clean'];
+        if (valid.indexOf(theme) === -1) theme = 'clean';
+        document.documentElement.setAttribute('data-theme', theme);
+    })();
+    </script>
+    {% block metadata %}{% endblock %}
+    <title>{% block title %}Deep Harbor Equipment{% endblock %}</title>
+    <!-- Bootstrap 5.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+          integrity="sha384-nRgPTkuX86pH8yjPJUAFuASXQSSl2/bBUiNV47vSYpKFxHJhbcrGnmlYpYJMeD7a" crossorigin="anonymous">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body class="d-flex flex-column min-vh-100">
+    {% if dev_banner %}
+    <div class="dev-banner">DEV MODE — {{ git_version }}</div>
+    {% endif %}
+
+    {% if user %}
+    <nav class="navbar navbar-expand-lg dh-navbar">
+        <div class="container">
+            <span class="navbar-brand"><i class="bi bi-tsunami me-2"></i>Deep Harbor Equipment</span>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                data-bs-target="#equipNavbar" aria-controls="equipNavbar" aria-expanded="false"
+                aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="equipNavbar">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <!-- Navigation items are managed by the SPA in index.html -->
+                </ul>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <span class="nav-link text-muted">{{ user.email }}{% if user_role %} · {{ user_role }}{% endif %}</span>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link" href="#" id="themeDropdown" role="button"
+                           data-bs-toggle="dropdown" aria-expanded="false" title="Switch theme">
+                            <i class="fa-solid fa-palette"></i>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="themeDropdown">
+                            <li><a class="dropdown-item" href="#" onclick="setTheme('clean'); return false;">
+                                <i class="bi bi-circle me-2"></i>Clean</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="setTheme('light'); return false;">
+                                <i class="fa-solid fa-sun me-2"></i>Light</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="setTheme('bubblegum'); return false;">
+                                <i class="fa-solid fa-candy-cane me-2"></i>Bubblegum</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="setTheme('dark'); return false;">
+                                <i class="fa-solid fa-moon me-2"></i>Dark</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="setTheme('midnight'); return false;">
+                                <i class="fa-solid fa-star me-2"></i>Midnight</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="setTheme('hacker'); return false;">
+                                <i class="fa-solid fa-terminal me-2"></i>Hacker</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}"><i class="fa-solid fa-sign-out-alt"></i></a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <main class="container body-content my-4 flex-grow-1">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    {% block footer %}
+    <footer class="footer mt-auto py-3">
+        <div class="footer-content">
+            <a href="https://pumpingstationone.org"><img src="{{ url_for('static', filename='images/ps1-logo-square.svg') }}" alt="Pumping Station: One" class="footer-logo" onerror="this.style.display='none'"></a>
+            <div class="footer-text">
+                <p>&copy; {{ now().year }} Pumping Station: One NFP</p>
+                <p class="footer-build"><a href="https://github.com/pumpingstationone/deepharbor"><i class="fa-brands fa-github"></i></a> {{ git_version }}</p>
+            </div>
+        </div>
+    </footer>
+    {% endblock %}
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+    <!-- Theme switcher -->
+    <script>
+    function setTheme(theme) {
+        var valid = ['bubblegum','light','dark','midnight','hacker','clean'];
+        if (valid.indexOf(theme) === -1) theme = 'clean';
+        document.documentElement.setAttribute('data-theme', theme);
+        document.cookie = 'dh_equip_theme=' + theme + ';path=/;max-age=31536000;SameSite=Lax';
+    }
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>
