@@ -2,7 +2,7 @@
 # docker build -t dhservice:latest .
 #
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # Install uv.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
