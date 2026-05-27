@@ -64,7 +64,7 @@ def update_membership(member):
         
         # For sanity checking, let's convert the current membership status to lowercase so we can 
         # compare it more easily, and also log it for debugging purposes.
-        membership_status = current_status["membership_status"].lower()
+        membership_status = (current_status.get("membership_status") or "").lower()
         logger.debug(f"Member ID: {member.id} current membership status (lowercase): {membership_status}")
          
         logger.debug(f"Determining how to update membership status for member ID: {member.id} based on current status: {membership_status} and Stripe event membership status: {member.membership_status}")

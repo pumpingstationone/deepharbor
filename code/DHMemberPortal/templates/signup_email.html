@@ -12,6 +12,17 @@
                         <p>Step 1: Review <a href="https://wiki.pumpingstationone.org/wiki/Membership_agreement" target="_blank" rel="noopener noreferrer">the membership agreement</a>.</p>
                         <p>Step 2: Enter your email address to begin your membership application.</p>
 
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                        {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                        {% endwith %}
+
                         {% if error %}
                         <div class="alert alert-danger">{{ error }}</div>
                         {% endif %}

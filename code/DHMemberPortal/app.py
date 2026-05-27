@@ -81,8 +81,11 @@ def index():
 @app.route('/signup')
 def signup_start():
     """First step of signup - email entry"""
-    # Clear any existing session data to prevent showing previous data from any login or signup attempts
-    session.clear()
+    # Drop only the signup-scoped session key. Don't session.clear() — that
+    # logs out any signed-in user who visits /signup (weaponizable as a
+    # logout link, GET so no CSRF) and wipes the flash queue, so error
+    # redirects from signup_submit lose their flash message before render.
+    session.pop('signup_email', None)
     return render_template('signup_email.html')
 
 @app.route('/signup/check-email', methods=['POST'])
@@ -220,57 +223,74 @@ def signup_submit():
     logger.debug(f"Access data to be sent for signup: {access_data}")
     logger.debug(f"Authorizations data to be sent for signup: {authorizations_data}")
     logger.debug(f"Extras data to be sent for signup: {extras_data}")
+    # The member-row creation (add_member) is the only step that MUST succeed
+    # before we can hand the user off to Stripe. The scaffolding writes below
+    # are best-effort: any one failing leaves a half-populated row that admin
+    # tooling can address later, but the user still gets a Stripe checkout.
+    # See #283.
     try:
-        # Get access token for DHService
         access_token = dhservices.get_access_token(
-            dhservices.DH_CLIENT_ID, 
+            dhservices.DH_CLIENT_ID,
             dhservices.DH_CLIENT_SECRET
         )
         logger.debug("Obtained access token for DHService")
-    
-        # First we need to get/create the member ID for the email provided
-        member_id = dhservices.get_member_id(access_token, email).get("member_id")
-        # If member_id is None, it means the member does not exist and needs to be created
-        # otherwise the member exists with the email address and we gotta stop them from
-        # signing up again
-        if member_id is None:
-            member_id = dhservices.add_member(access_token, identity_data).get("member_id")
-            logger.info(f"Created new member with ID: {member_id}")
-        else:
+
+        # If the email is already taken, bail before creating anything.
+        existing_member_id = dhservices.get_member_id(access_token, email).get("member_id")
+        if existing_member_id is not None:
             flash('A member with this email already exists', 'error')
             return redirect(url_for('signup_start'))
-        
-        # Now we can send the connections data to the service to create 
-        # the phone number and discord handle entries
-        dhservices.update_member_connections(access_token, member_id, connections_data)
-        logger.info(f"Updated member {member_id} with connections data")
-        
-        # Now, we set the status data for the new member
-        dhservices.update_member_status(access_token, member_id, status_data)
-        logger.info(f"Updated member {member_id} with status data")
-        
-        # Finally, we log the waiver form submission
-        dhservices.update_member_forms(access_token, member_id, forms_data)
-        logger.info(f"Logged waiver form submission for member {member_id}")
-        
-        # And we add a note about the new signup
-        dhservices.update_member_notes(access_token, member_id, notes_data)
-        logger.info(f"Added note for new signup for member {member_id}")
-        
-        # These are empty but we want the record to show everything on
-        # first pass so that the admins can make changes as the fields
-        # would be null otherwise.
-        dhservices.update_member_access(access_token, member_id, access_data)
-        logger.info(f"Set initial access data for member {member_id}")
-        dhservices.update_member_authorizations(access_token, member_id, authorizations_data)
-        logger.info(f"Set initial authorizations data for member {member_id}")
-        dhservices.update_member_extras(access_token, member_id, extras_data)
-        logger.info(f"Set initial extras data for member {member_id}")
+
+        # Server-side username uniqueness gate. /api/check-username is only
+        # the AJAX UX hint — without this, the form happily creates a second
+        # row with a duplicate active_directory_username, which collides in
+        # AD/B2C downstream. Case-insensitive (matches is_username_available
+        # in DHService, PR #252). Skip when no username was provided; the
+        # broader required-field enforcement is tracked separately.
+        username = (request.form.get("username") or "").strip()
+        if username and dhservices.is_username_taken(access_token, username):
+            flash('That username is already taken. Please choose another.', 'error')
+            return redirect(url_for('signup_start'))
+
+        member_id = dhservices.add_member(access_token, identity_data).get("member_id")
     except Exception as e:
         logger.error(f"Error creating new member: {str(e)}")
         flash('Error creating new member', 'error')
         return redirect(url_for('signup_start'))
-    
+
+    # DHService returns 200 with `member_id: null` on internal INSERT failure
+    # (see add_update_identity in DHService/db.py). Guard explicitly so we
+    # don't proceed with a null id into the scaffolding loop.
+    if not member_id:
+        logger.error(f"Signup add_member returned no member_id for email={email}")
+        flash('Error creating new member', 'error')
+        return redirect(url_for('signup_start'))
+
+    logger.info(f"Created new member with ID: {member_id}")
+
+    # Best-effort scaffolding initialization. We pre-populate these JSONB
+    # columns so admin tooling sees a complete record on first pass instead of
+    # nulls. Any single failure is logged and skipped — we still proceed to
+    # Stripe, and ST2DH will fill in stripe_product_id on the status row when
+    # payment lands. Admin can backfill any remaining blanks.
+    scaffolding_steps = [
+        ("connections",    dhservices.update_member_connections,    connections_data),
+        ("status",         dhservices.update_member_status,         status_data),
+        ("forms",          dhservices.update_member_forms,          forms_data),
+        ("notes",          dhservices.update_member_notes,          notes_data),
+        ("access",         dhservices.update_member_access,         access_data),
+        ("authorizations", dhservices.update_member_authorizations, authorizations_data),
+        ("extras",         dhservices.update_member_extras,         extras_data),
+    ]
+    for label, fn, payload in scaffolding_steps:
+        try:
+            fn(access_token, member_id, payload)
+            logger.info(f"Signup member {member_id}: {label} initialized")
+        except Exception as e:
+            logger.error(
+                f"Signup member {member_id}: {label} init failed (continuing): {str(e)}"
+            )
+
     flash('Sign up successful! Please complete payment.', 'success')
     return redirect(url_for('signup_payment', email=email))
 
@@ -363,7 +383,7 @@ def authorized():
             # very first post-login request, not just after the first dashboard hit.
             try:
                 full_info = dhservices.get_full_member_info(access_token, member_id) or {}
-                session['membership_status'] = (full_info.get('status', {}) or {}).get('membership_status', '').lower()
+                session['membership_status'] = ((full_info.get('status') or {}).get('membership_status') or '').lower()
             except Exception as e:
                 logger.warning(f"Could not fetch status at B2C login for member_id={member_id}: {e}")
                 session['membership_status'] = ''
@@ -405,7 +425,7 @@ def _get_authenticated_member_info():
         # Refresh cached membership_status so the before_request gate catches
         # mid-session admin status flips (e.g. active → banned) on the next page.
         if isinstance(member_info, dict):
-            session['membership_status'] = (member_info.get('status', {}) or {}).get('membership_status', '').lower()
+            session['membership_status'] = ((member_info.get('status') or {}).get('membership_status') or '').lower()
         return member_info, None
     except Exception as e:
         logger.error(f"Error fetching member data: {str(e)}", exc_info=True)
@@ -614,7 +634,7 @@ def member_update_profile():
     if 'rfid_tags' in request.form:
         try:
             current_member_info = dhservices.get_full_member_info(access_token, member_id) or {}
-            current_status = (current_member_info.get('status') or {}).get('membership_status', '')
+            current_status = (current_member_info.get('status') or {}).get('membership_status') or ''
         except Exception as e:
             logger.error(f"Error fetching member status for RFID gate: {str(e)}", exc_info=True)
             current_status = ''
@@ -816,7 +836,7 @@ def dev_login_select():
         # very first post-login request, not just after the first dashboard hit.
         try:
             full_info = dhservices.get_full_member_info(access_token, member_id) or {}
-            session['membership_status'] = (full_info.get('status', {}) or {}).get('membership_status', '').lower()
+            session['membership_status'] = ((full_info.get('status') or {}).get('membership_status') or '').lower()
         except Exception as e:
             logger.warning(f"Could not fetch status at dev login for member_id={member_id}: {e}")
             session['membership_status'] = ''

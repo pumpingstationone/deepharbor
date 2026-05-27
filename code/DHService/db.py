@@ -522,19 +522,49 @@ def add_update_identity(identity_dict, member_id=None):
         logger.error(error_message)
         return prepare_return_payload(None, error_message)
 
+    # Signup-fallback path: the caller doesn't yet have a member_id, so we
+    # derive it from the primary email. We extract the email here but defer
+    # the lookup itself into the transaction below — see the advisory-lock
+    # comment in the `with` block for why.
+    email_address = None
     if not caller_provided_member_id:
         email_address = get_primary_email(identity_dict)
         if not email_address:
             error_message = "No primary email address found in payload and no member_id provided."
             logger.error(error_message)
             return prepare_return_payload(None, error_message)
-        member_id = get_member_id_from_email(email_address)
 
     error_message = "OK"
 
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
+                if not caller_provided_member_id:
+                    # Concurrent signups for the same email used to both
+                    # see no existing row and both INSERT, producing two
+                    # member rows with the same primary email. Downstream
+                    # scaffolding writes that re-resolve by email then
+                    # silently overwrote the loser's data. Serialize
+                    # those concurrent INSERTs with a transaction-scoped
+                    # advisory lock keyed on the lowercased email. The
+                    # lock auto-releases on commit/rollback; signups for
+                    # different emails don't interact.
+                    cur.execute(
+                        "SELECT pg_advisory_xact_lock(hashtext(LOWER(%s)))",
+                        (email_address,),
+                    )
+                    cur.execute(
+                        """SELECT id FROM member
+                           WHERE EXISTS (
+                               SELECT 1 FROM jsonb_array_elements(identity->'emails') AS e
+                               WHERE LOWER(e->>'email_address') = LOWER(%s)
+                                 AND e->>'type' = 'primary')""",
+                        (email_address,),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        member_id = row[0]
+
                 if member_id is not None:
                     # Shallow JSONB merge so a partial POST (e.g. just
                     # `{"birthday": ...}`) doesn't wipe other identity

@@ -201,7 +201,7 @@ def update_member_status(access_token: str, member_id: str, status_data: dict):
     headers = {"Authorization": f"Bearer {access_token}"}
     headers["X-Member-ID"] = str(member_id)
     params = {"member_id": member_id}
-    response = requests.post(url, headers=headers, params=params, json=status_data, timeout=10)
+    response = requests.post(url, headers=headers, params=params, json=status_data, timeout=20)
     response.raise_for_status()
     return response.json()
 
@@ -228,7 +228,7 @@ def update_member_extras(access_token: str, member_id: str, extras_data: dict):
     headers = {"Authorization": f"Bearer {access_token}"}
     headers["X-Member-ID"] = str(member_id)
     params = {"member_id": member_id}
-    response = requests.post(url, headers=headers, params=params, json=extras_data, timeout=10)
+    response = requests.post(url, headers=headers, params=params, json=extras_data, timeout=20)
     response.raise_for_status()
     return response.json()
 
@@ -239,7 +239,7 @@ def update_member_authorizations(access_token: str, member_id: str, auth_data: d
         "X-Member-ID": str(member_id)  # FastAPI expects dashes, not underscores, which came as a big surprise
     }
     logger.debug(f"Sending authorization update - member_id: {member_id}, data: {auth_data}")
-    response = requests.post(url, headers=headers, json=auth_data, timeout=10)
+    response = requests.post(url, headers=headers, json=auth_data, timeout=20)
     logger.debug(f"Response status: {response.status_code}")
     if not response.ok:
         logger.error(f"Error response: {response.text}")
@@ -251,7 +251,7 @@ def update_member_notes(access_token: str, member_id: str, notes_data: dict):
     headers = {"Authorization": f"Bearer {access_token}"}
     headers["X-Member-ID"] = str(member_id)
     params = {"member_id": member_id}
-    response = requests.post(url, headers=headers, params=params, json=notes_data, timeout=10)
+    response = requests.post(url, headers=headers, params=params, json=notes_data, timeout=20)
     response.raise_for_status()
     return response.json()
 
@@ -260,7 +260,7 @@ def update_member_access(access_token: str, member_id: str, access_data: dict):
     headers = {"Authorization": f"Bearer {access_token}"}
     headers["X-Member-ID"] = str(member_id)
     params = {"member_id": member_id}
-    response = requests.post(url, headers=headers, params=params, json=access_data, timeout=10)
+    response = requests.post(url, headers=headers, params=params, json=access_data, timeout=20)
     response.raise_for_status()
     return response.json()
 
@@ -269,7 +269,7 @@ def update_member_forms(access_token: str, member_id: str, forms_data: dict):
     headers = {"Authorization": f"Bearer {access_token}"}
     headers["X-Member-ID"] = str(member_id)
     params = {"member_id": member_id}
-    response = requests.post(url, headers=headers, params=params, json=forms_data, timeout=10)
+    response = requests.post(url, headers=headers, params=params, json=forms_data, timeout=20)
     response.raise_for_status()
     return response.json()
 
@@ -278,7 +278,7 @@ def update_member_connections(access_token: str, member_id: str, connections_dat
     headers = {"Authorization": f"Bearer {access_token}"}
     headers["X-Member-ID"] = str(member_id)
     params = {"member_id": member_id}
-    response = requests.post(url, headers=headers, params=params, json=connections_data, timeout=10)
+    response = requests.post(url, headers=headers, params=params, json=connections_data, timeout=20)
     response.raise_for_status()
     return response.json()
 
