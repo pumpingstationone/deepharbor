@@ -62,6 +62,14 @@ FIELD_VALIDATORS = {
     "birthday": (r'^\d{4}-\d{2}-\d{2}$', 10, "Birthday must be in YYYY-MM-DD format"),
     "id_check_date": (r'^\d{4}-\d{2}-\d{2}$', 10, "ID check date must be in YYYY-MM-DD format"),
     "id_check_by": (r'^[1-9]\d*$', 10, "Onboarder must be a valid member"),
+    # These three reach v_member_info's date casts. Unlike birthday/id_check_date
+    # they are prod-populated as datetime strings ("YYYY-MM-DD HH:MM:SS[+TZ]") on the
+    # WA-migration cohort, so the pattern is PREFIX-anchored (no $) and max_len is
+    # generous — it rejects the crash-causing formats ("03/15/2026", "N/A") without
+    # rejecting legitimate ISO date OR datetime values. Mirrors the view guard.
+    "member_since": (r'^\d{4}-\d{2}-\d{2}', 32, "member_since must start with an ISO date (YYYY-MM-DD)"),
+    "waiver_signed_date": (r'^\d{4}-\d{2}-\d{2}', 32, "waiver_signed_date must start with an ISO date (YYYY-MM-DD)"),
+    "orientation_completed_date": (r'^\d{4}-\d{2}-\d{2}', 32, "orientation_completed_date must start with an ISO date (YYYY-MM-DD)"),
 }
 
 ###############################################################################
@@ -1144,9 +1152,12 @@ def api_update_member_status():
         member_data = dhservices.get_member_id(access_token, user_email)
         logged_in_member_id = member_data.get("member_id")
         
-        data = request.get_json()
-        data["modified_by"] = logged_in_member_id
-        result = dhservices.update_member_status(access_token, member_id, data)
+        data = request.get_json() or {}
+        sanitized, error = validate_update_data(data, "status")
+        if error:
+            return {"error": error}, 400
+        sanitized["modified_by"] = logged_in_member_id
+        result = dhservices.update_member_status(access_token, member_id, sanitized)
         
         # Log update activity
         try:

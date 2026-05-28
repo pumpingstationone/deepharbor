@@ -166,13 +166,27 @@ json_build_object(
         'id_check_by',   CASE WHEN m.forms ->> 'id_check_by' ~ '^[0-9]+$'
                               THEN (m.forms ->> 'id_check_by')::INT
                               ELSE NULL END,
-        'waiver_signed_date', to_date(m.forms ->> 'waiver_signed_date'::TEXT, 'YYYY-MM-DD' ),
+        -- Same poison-the-whole-row hazard as id_check_date/birthday: a
+        -- malformed non-empty string (e.g. "03/15/2026", "N/A") makes to_date
+        -- raise and 500s every read of the view. These three are prod-populated
+        -- as datetime strings ("YYYY-MM-DD HH:MM:SS[+TZ]") on the WA-migration
+        -- cohort, so the guard is PREFIX-anchored (no trailing $) — it keeps the
+        -- date prefix parseable (to_date ignores the trailing time) while NULLing
+        -- anything that isn't year-prefixed ISO. Do NOT tighten to ^...$ or the
+        -- ~2766 datetime-format rows would all go NULL.
+        'waiver_signed_date', CASE WHEN m.forms ->> 'waiver_signed_date' ~ '^\d{4}-\d{2}-\d{2}'
+                                   THEN to_date(m.forms ->> 'waiver_signed_date', 'YYYY-MM-DD')
+                                   ELSE NULL END,
         'terms_of_use_accepted', m.forms ->> 'terms_of_use_accepted'::TEXT,
         'essentials_form', m.forms ->> 'essentials_form'::TEXT,
-        'orientation_completed_date', to_date(m.forms ->> 'orientation_completed_date'::TEXT, 'YYYY-MM-DD' )
+        'orientation_completed_date', CASE WHEN m.forms ->> 'orientation_completed_date' ~ '^\d{4}-\d{2}-\d{2}'
+                                           THEN to_date(m.forms ->> 'orientation_completed_date', 'YYYY-MM-DD')
+                                           ELSE NULL END
     ),
     'status', json_build_object(
-        'member_since', to_date(m.status ->> 'member_since'::TEXT, 'YYYY-MM-DD'), 
+        'member_since', CASE WHEN m.status ->> 'member_since' ~ '^\d{4}-\d{2}-\d{2}'
+                             THEN to_date(m.status ->> 'member_since', 'YYYY-MM-DD')
+                             ELSE NULL END,
         'membership_status', m.status ->> 'membership_status'::TEXT,
         'membership_level', m.status ->> 'membership_level'::TEXT
     ),
