@@ -9,7 +9,7 @@ import dhservices
 from dhs_logging import logger
 from config import config
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, abort
 
 app = Flask(__name__)
 
@@ -371,19 +371,22 @@ def health():
 def webhook():
     event = None
     payload = request.data
-    sig_header = request.headers["STRIPE_SIGNATURE"]
+    sig_header = request.headers.get("Stripe-Signature")
+    if sig_header is None:
+        logger.warning("Webhook called without a Stripe-Signature header; rejecting.")
+        abort(400, "Missing Stripe-Signature header")
 
     # Did we get a valid event from Stripe?
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, config["stripe"]["signing_secret"])
     except ValueError as e:
         # Invalid payload
-        logger.error(f"Invalid payload: {e}")        
-        raise e
+        logger.error(f"Invalid payload: {e}")
+        abort(400, "Invalid payload")
     except stripe.error.SignatureVerificationError as e:
         # Invalid signature
-        logger.error(f"Invalid signature: {e}")        
-        raise e
+        logger.error(f"Invalid signature: {e}")
+        abort(400, "Invalid signature")
 
     # Send the event data to our DHService API to save it in our database
     try:
