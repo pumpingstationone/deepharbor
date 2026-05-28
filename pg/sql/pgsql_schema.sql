@@ -128,6 +128,30 @@ SELECT id,
 FROM   member;
 COMMENT ON VIEW v_member_name_email_status IS 'This view provides a list of member IDs along with their first name, last name, primary email address, and membership status from the member table.';
 
+-- Defensive date coercion for v_member_info. Member-data date strings arrive
+-- from many eras/sources (WA import, Stripe, signup, admin edits) in mixed
+-- shapes: 10-char ISO date, 19/25-char ISO datetime, empty string, or free text.
+-- A bare to_date() RAISES on any non-ISO or out-of-range value (e.g.
+-- "03/15/2026", "2026-02-30", "N/A") and 500s EVERY read of the view — which
+-- backs /v1/member/full_info/, the member dashboard, and the banned-gate. A
+-- regex alone can't validate the calendar (leap years, 30- vs 31-day months),
+-- so we require an ISO date prefix (rules out empty/"N/A"/"MM/DD/YYYY", and the
+-- to_date('') -> 0001-01-01 BC quirk) and let the EXCEPTION block NULL anything
+-- to_date still rejects (Feb 30, day 31 of a 30-day month, etc.).
+CREATE OR REPLACE FUNCTION safe_to_date(p_text text) RETURNS date
+    LANGUAGE plpgsql IMMUTABLE
+AS $$
+BEGIN
+    IF p_text !~ '^\d{4}-\d{2}-\d{2}' THEN
+        RETURN NULL;
+    END IF;
+    RETURN to_date(p_text, 'YYYY-MM-DD');
+EXCEPTION WHEN others THEN
+    RETURN NULL;
+END;
+$$;
+COMMENT ON FUNCTION safe_to_date(text) IS 'Parses the leading YYYY-MM-DD of a string to a date, returning NULL for empty/malformed/calendar-invalid input instead of raising. Used by v_member_info so one bad member-data string cannot 500 the whole view.';
+
 -- This view wraps most of the member data for easier querying
 -- and displaying on the member portal
 CREATE OR REPLACE VIEW v_member_info as
@@ -139,12 +163,7 @@ json_build_object(
         'last_name', m.identity ->> 'last_name'::TEXT,
         'primary_email', jsonb_path_query_first( m.identity, '$.emails[*] ? (@.type == "primary").email_address' )#>>'{}',
         'nickname', m.identity ->> 'nickname'::TEXT,
-        -- Same shape-check pattern as id_check_date below: a malformed
-        -- birthday string (anything not YYYY-MM-DD) would otherwise raise
-        -- "invalid value for YYYY" and poison the entire v_member_info row.
-        'birthday', CASE WHEN m.identity ->> 'birthday' ~ '^\d{4}-\d{2}-\d{2}$'
-                         THEN to_date(m.identity ->> 'birthday', 'YYYY-MM-DD')
-                         ELSE NULL END,
+        'birthday', safe_to_date(m.identity ->> 'birthday'),
         'active_directory_username', m.identity ->> 'active_directory_username'::TEXT,
         'pronouns', m.identity ->> 'pronouns'::TEXT,
         'nametag_subtitle', m.identity ->> 'nametag_subtitle'::TEXT,
@@ -157,36 +176,17 @@ json_build_object(
     'forms', json_build_object(
         'id_check_1', m.forms ->> 'id_check_1'::TEXT,
         'id_check_2', m.forms ->> 'id_check_2'::TEXT,
-        -- Bad/empty values in id_check_date / id_check_by would otherwise
-        -- poison the entire v_member_info read (issue #75 territory). The
-        -- regex shape-checks here gracefully NULL them instead.
-        'id_check_date', CASE WHEN m.forms ->> 'id_check_date' ~ '^\d{4}-\d{2}-\d{2}$'
-                              THEN to_date(m.forms ->> 'id_check_date', 'YYYY-MM-DD')
-                              ELSE NULL END,
+        'id_check_date', safe_to_date(m.forms ->> 'id_check_date'),
         'id_check_by',   CASE WHEN m.forms ->> 'id_check_by' ~ '^[0-9]+$'
                               THEN (m.forms ->> 'id_check_by')::INT
                               ELSE NULL END,
-        -- Same poison-the-whole-row hazard as id_check_date/birthday: a
-        -- malformed non-empty string (e.g. "03/15/2026", "N/A") makes to_date
-        -- raise and 500s every read of the view. These three are prod-populated
-        -- as datetime strings ("YYYY-MM-DD HH:MM:SS[+TZ]") on the WA-migration
-        -- cohort, so the guard is PREFIX-anchored (no trailing $) — it keeps the
-        -- date prefix parseable (to_date ignores the trailing time) while NULLing
-        -- anything that isn't year-prefixed ISO. Do NOT tighten to ^...$ or the
-        -- ~2766 datetime-format rows would all go NULL.
-        'waiver_signed_date', CASE WHEN m.forms ->> 'waiver_signed_date' ~ '^\d{4}-\d{2}-\d{2}'
-                                   THEN to_date(m.forms ->> 'waiver_signed_date', 'YYYY-MM-DD')
-                                   ELSE NULL END,
+        'waiver_signed_date', safe_to_date(m.forms ->> 'waiver_signed_date'),
         'terms_of_use_accepted', m.forms ->> 'terms_of_use_accepted'::TEXT,
         'essentials_form', m.forms ->> 'essentials_form'::TEXT,
-        'orientation_completed_date', CASE WHEN m.forms ->> 'orientation_completed_date' ~ '^\d{4}-\d{2}-\d{2}'
-                                           THEN to_date(m.forms ->> 'orientation_completed_date', 'YYYY-MM-DD')
-                                           ELSE NULL END
+        'orientation_completed_date', safe_to_date(m.forms ->> 'orientation_completed_date')
     ),
     'status', json_build_object(
-        'member_since', CASE WHEN m.status ->> 'member_since' ~ '^\d{4}-\d{2}-\d{2}'
-                             THEN to_date(m.status ->> 'member_since', 'YYYY-MM-DD')
-                             ELSE NULL END,
+        'member_since', safe_to_date(m.status ->> 'member_since'),
         'membership_status', m.status ->> 'membership_status'::TEXT,
         'membership_level', m.status ->> 'membership_level'::TEXT
     ),

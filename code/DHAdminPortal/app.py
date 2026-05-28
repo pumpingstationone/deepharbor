@@ -62,11 +62,12 @@ FIELD_VALIDATORS = {
     "birthday": (r'^\d{4}-\d{2}-\d{2}$', 10, "Birthday must be in YYYY-MM-DD format"),
     "id_check_date": (r'^\d{4}-\d{2}-\d{2}$', 10, "ID check date must be in YYYY-MM-DD format"),
     "id_check_by": (r'^[1-9]\d*$', 10, "Onboarder must be a valid member"),
-    # These three reach v_member_info's date casts. Unlike birthday/id_check_date
-    # they are prod-populated as datetime strings ("YYYY-MM-DD HH:MM:SS[+TZ]") on the
-    # WA-migration cohort, so the pattern is PREFIX-anchored (no $) and max_len is
-    # generous — it rejects the crash-causing formats ("03/15/2026", "N/A") without
-    # rejecting legitimate ISO date OR datetime values. Mirrors the view guard.
+    # These three feed v_member_info's date casts (now hardened with safe_to_date,
+    # which is the authoritative crash guard). This is a friendly early 400 for the
+    # common bad formats ("03/15/2026", "N/A"): PREFIX-anchored (no $) with a generous
+    # max_len so it accepts the prod datetime strings ("YYYY-MM-DD HH:MM:SS[+TZ]") and
+    # plain ISO dates alike. It does NOT calendar-validate (Feb 30 etc.) — safe_to_date
+    # in the view backstops that.
     "member_since": (r'^\d{4}-\d{2}-\d{2}', 32, "member_since must start with an ISO date (YYYY-MM-DD)"),
     "waiver_signed_date": (r'^\d{4}-\d{2}-\d{2}', 32, "waiver_signed_date must start with an ISO date (YYYY-MM-DD)"),
     "orientation_completed_date": (r'^\d{4}-\d{2}-\d{2}', 32, "orientation_completed_date must start with an ISO date (YYYY-MM-DD)"),
