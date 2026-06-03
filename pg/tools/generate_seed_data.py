@@ -871,7 +871,10 @@ def generate_forms(fake: Faker, cohort_b: bool) -> dict:
 
 
 def generate_unique_rfid_tags(count: int, used_tags: set) -> list[str]:
-    """Generate ~10-char hex RFID tags, unique, with occasional empties/longer."""
+    """Generate ~10-digit numeric RFID tags, unique, with occasional empties/longer.
+
+    Tags are digit-only: the access reader stores them as numbers and lpads to
+    10 digits on read (never hex)."""
     tags = []
     for _ in range(count):
         if random.random() < 0.005:
@@ -879,7 +882,7 @@ def generate_unique_rfid_tags(count: int, used_tags: set) -> list[str]:
             continue
         for _attempt in range(1000):
             length = 10 if random.random() > 0.03 else random.randint(20, 38)
-            tag = "".join(random.choice("0123456789abcdef") for _ in range(length))
+            tag = "".join(random.choice("0123456789") for _ in range(length))
             if tag and tag not in used_tags:
                 used_tags.add(tag)
                 tags.append(tag)
