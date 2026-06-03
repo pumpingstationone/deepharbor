@@ -13,6 +13,31 @@
     box-sizing: border-box;
 }
 
+/* ===================================================================
+   ANIMATION PAUSING (CPU saver)
+   The theme animations (header glow/flicker, bubblegum boxes, hacker CRT)
+   run `infinite` and burn CPU continuously. base.html toggles the
+   .dh-anim-paused class on <html> after 60s idle and while the tab is
+   hidden; resume on interaction. `animation-play-state` freezes-and-
+   continues (no restart-from-zero), affects only animations (not
+   transitions), and the wildcard match runs once per class toggle.
+   =================================================================== */
+
+html.dh-anim-paused *,
+html.dh-anim-paused *::before,
+html.dh-anim-paused *::after {
+    animation-play-state: paused !important;
+}
+
+/* Honor the OS reduced-motion setting: never run the continuous animations */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-play-state: paused !important;
+    }
+}
+
 /* Custom fonts — self-hosted for instant rendering (no pop-in) */
 
 @font-face {
@@ -2842,6 +2867,7 @@ body.sidebar-resizing .details-sidebar {
     pointer-events: none;
     z-index: 9999;
     animation: hacker-scanline-roll 8s linear infinite;
+    will-change: transform; /* promote to GPU layer so the translateY composites instead of repainting the viewport each frame */
 }
 
 @keyframes hacker-scanline-roll {
@@ -2861,6 +2887,7 @@ body.sidebar-resizing .details-sidebar {
     pointer-events: none;
     z-index: 9998;
     animation: hacker-crt-flicker 3s ease-in-out infinite;
+    will-change: opacity; /* compositor-only opacity flicker */
 }
 
 @keyframes hacker-crt-flicker {
