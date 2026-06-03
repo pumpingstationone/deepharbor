@@ -3604,6 +3604,22 @@ body.sidebar-resizing .details-sidebar {
     overflow-y: auto;
 }
 
+/* WA Legacy ID Check read-only value boxes (Forms tab). Replaces Bootstrap's
+   `.bg-body-secondary` utility, which forces a light-gray background that no
+   theme overrides — illegible under the light foreground text of dark/midnight/
+   hacker. These rules mirror each theme's `.form-control[readonly]` surface so
+   the boxes stay readable and read as muted/non-editable in every theme.
+   The compound `.form-control.dh-legacy-value` selector is intentional: it
+   raises specificity above the bare per-theme `.form-control` rules (and the
+   trailing `.form-control { background-color:#fff }` reset) so these win. */
+.form-control.dh-legacy-value {
+    background-color: #e9ecef;          /* preserve current light/bubblegum look */
+    border-color: #dee2e6;
+}
+[data-theme="dark"]     .form-control.dh-legacy-value { background-color: #09090b; color: var(--text-color);      border-color: #3f3f46; }
+[data-theme="midnight"] .form-control.dh-legacy-value { background-color: #080c18; color: var(--text-color);      border-color: #243356; }
+[data-theme="hacker"]   .form-control.dh-legacy-value { background-color: #0a0a0a; color: var(--secondary-color); border-color: #1a3a1a; }
+
 /* Unchecked checkbox/radio: bump border contrast across all themes.
    Higher specificity than the per-theme `.form-check-input` rules above,
    so :checked and :focus states are unaffected. */
