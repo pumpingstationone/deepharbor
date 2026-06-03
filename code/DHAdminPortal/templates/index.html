@@ -81,8 +81,8 @@
                         <option value="50">50</option>
                         <option value="100">100</option>
                     </select>
-                    <button class="btn btn-sm btn-primary" id="prevPageBtn" onclick="loadMembers(currentPage - 1)" disabled>Previous</button>
-                    <button class="btn btn-sm btn-primary" id="nextPageBtn" onclick="loadMembers(currentPage + 1)" disabled>Next</button>
+                    <button class="btn btn-sm btn-primary" id="prevPageBtn" onclick="paginateTo(currentPage - 1)" disabled>Previous</button>
+                    <button class="btn btn-sm btn-primary" id="nextPageBtn" onclick="paginateTo(currentPage + 1)" disabled>Next</button>
                 </div>
             </div>
         </div>
@@ -1511,7 +1511,25 @@ function updatePaginationControls() {
 function changePerPage(value) {
     perPage = parseInt(value, 10) || 20;
     localStorage.setItem('dh-per-page', perPage);
-    loadMembers(1);
+    loadMembers(1).then(scrollToSearchBar);
+}
+
+// Pagination helpers: after a page change, bring the search bar to the top of
+// the viewport so the user starts at row one (the prev/next controls sit at the
+// bottom). We anchor on the search bar rather than the very top of the page so
+// the navbar/logging notice don't need to scroll back into view.
+function scrollToSearchBar() {
+    // behavior:'instant' overrides the global `html { scroll-behavior: smooth }`
+    // so pagination snaps into place instead of animating up the whole list.
+    // Land 8px above the search bar so it isn't flush against the viewport edge.
+    const anchor = document.getElementById('memberSection');
+    if (!anchor) return;
+    const top = anchor.getBoundingClientRect().top + window.scrollY - 8;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'instant' });
+}
+
+function paginateTo(page) {
+    loadMembers(page).then(scrollToSearchBar);
 }
 
 // Details sidebar
