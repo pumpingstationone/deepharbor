@@ -323,6 +323,17 @@ body {
     margin-bottom: 0;
 }
 
+/* Logging-notice banner dismiss (x): Bootstrap's default 1.25rem padding makes
+   the hit-area taller than this thin py-2 alert and pins it to the top corner.
+   Shrink it and vertically center it so it sits neatly in the band. */
+#loggingNoticeRow .btn-close {
+    top: 50%;
+    right: 0.5rem;
+    transform: translateY(-50%);
+    padding: 0.5rem;
+    background-size: 0.75em;
+}
+
 [data-theme="bubblegum"] .dh-member-bar + .dh-suspended-warning {
     border-left: 4px solid #ff1493;
     border-right: 1px solid #ff69b4;

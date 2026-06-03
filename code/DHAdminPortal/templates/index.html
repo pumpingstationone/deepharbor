@@ -16,11 +16,12 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
 <!-- Logging notice -->
-<div class="row justify-content-center">
+<div class="row justify-content-center" id="loggingNoticeRow" style="display: none;">
     <div class="col-md-8">
-        <div class="alert alert-warning text-center py-2 mb-4" role="alert">
+        <div class="alert alert-warning alert-dismissible fade show text-center py-2 mb-4" role="alert">
             <i class="bi bi-exclamation-triangle-fill"></i>
             <strong>HEY!</strong> All changes you make will get logged!
+            <button type="button" class="btn-close" aria-label="Close" onclick="dismissLoggingNotice()"></button>
         </div>
     </div>
 </div>
@@ -1355,6 +1356,21 @@ let currentSort = 'id';
 let currentOrder = 'desc';
 let perPage = parseInt(localStorage.getItem('dh-per-page'), 10) || 20;
 let selectedMemberId = null;
+
+// Logging-notice banner: dismissible, remembered per-browser in localStorage
+
+function dismissLoggingNotice() {
+    localStorage.setItem('dh-logging-notice-dismissed', '1');
+    const row = document.getElementById('loggingNoticeRow');
+    if (row) row.style.display = 'none';
+}
+
+function restoreLoggingNotice() {
+    const row = document.getElementById('loggingNoticeRow');
+    if (row && localStorage.getItem('dh-logging-notice-dismissed') !== '1') {
+        row.style.display = '';  // not dismissed -> show
+    }
+}
 
 // Core data loading
 
@@ -3155,6 +3171,9 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
+
+    // Restore dismissed state of the logging-notice banner
+    restoreLoggingNotice();
 
     // Apply navbar visibility based on permissions
     filterNavbarByPermissions();
