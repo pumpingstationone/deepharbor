@@ -199,9 +199,9 @@ Each entry notes the **target** distribution. "current →" notes where today's 
 ### access
 
 - **rfid_tags** — JSONB array of strings. Zero-inflated: per-member avg ~0.9, **~20% of key-holders
-  have `[]`**, p95 = 2, long tail to ~10. Tags are **~10-char**, unique, occasional longer formats
-  (up to ~38 chars), and **~0.5% empty-string** entries (dirty — preserve). *current → 10-digit
-  numeric tags; broaden to ~10-char hex + occasional long + rare empty.*
+  have `[]`**, p95 = 2, long tail to ~10. Tags are **digit-only** (the access reader stores them as
+  numbers and lpads to 10 digits on read — never hex), **~10 chars**, unique, with an occasional
+  longer numeric tail (up to ~38 chars) and **~0.5% empty-string** entries (dirty — preserve).
 
 ### authorizations
 
