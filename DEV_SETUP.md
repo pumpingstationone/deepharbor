@@ -78,19 +78,23 @@ ID manually.
 
 **Admin Portal** (http://localhost:5001):
 
-| Name            | ID | Role          |
-|-----------------|----|---------------|
-| Ada Lovelace    | 1  | Administrator |
-| Nikola Tesla    | 3  | Authorizer    |
-| Grace Hopper    | 5  | Board         |
+| Name              | ID | Role          |
+|-------------------|----|---------------|
+| Ada Lovelace      | 1  | Administrator |
+| Laika Sputnik     | 2  | CTO           |
+| Grace Hopper      | 3  | Board         |
+| Marie Curie       | 4  | Authorizer    |
+| Rosalind Franklin | 5  | ID Check      |
+| Margaret Hamilton | 6  | Treasurer     |
+| Hedy Lamarr       | 7  | Area Host     |
 
 **Member Portal** (http://localhost:5002):
 
-| Name               | ID | Description                   |
-|--------------------|----|-------------------------------|
-| Rosalind Franklin  | 7  | Active member with full data  |
-| Dorothy Vaughan    | 16 | Brand new member, minimal data |
-| Marie Curie        | 9  | Inactive member               |
+The member picker is a dropdown of members **1-20**. IDs 1-11 are the stable
+fixtures (same names/roles as the admin table above, plus): 8 Katherine Johnson
+(active), 9 Dorothy Vaughan (pending), 10 Charles Babbage (suspended),
+11 Nikola Tesla (banned). IDs 12-20 are random seed members. Use the manual
+field for any other ID.
 
 Authorization still works normally — the portals make real API calls
 to DHService to check roles and permissions. Only the Azure B2C

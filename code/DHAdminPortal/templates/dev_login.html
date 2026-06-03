@@ -19,23 +19,15 @@
     <div class="col-md-8">
         <h3 class="text-center mb-4">Select a Dev User</h3>
 
-        <div class="row g-3 mb-4">
-            {% for user in preset_users %}
-            <div class="col-md-4">
-                <form method="POST" action="{{ url_for('dev_login_select') }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="member_id" value="{{ user.member_id }}">
-                    <div class="card dev-user-card" onclick="this.closest('form').submit()">
-                        <div class="card-body text-center">
-                            <h5 class="card-title">{{ user.name }}</h5>
-                            <span class="dev-role-badge role-{{ user.role|lower }}">{{ user.role }}</span>
-                            <p class="card-text mt-2"><small class="text-muted">ID: {{ user.member_id }}</small></p>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            {% endfor %}
-        </div>
+        <form method="POST" action="{{ url_for('dev_login_select') }}" class="d-flex justify-content-center gap-2 mb-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select name="member_id" class="form-select" style="max-width: 360px;" required>
+                {% for user in preset_users %}
+                <option value="{{ user.member_id }}">{{ user.member_id }} — {{ user.name }} ({{ user.role }})</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary">Log In</button>
+        </form>
 
         <hr>
 

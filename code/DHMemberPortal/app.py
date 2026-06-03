@@ -783,12 +783,26 @@ app.jinja_env.globals.update(dev_banner=DEV_BANNER)  # Used in dev banner
 # that lets developers quickly log in as preset seed-data users.
 ###############################################################################
 
-# Preset users for the dev login page. These match the seed data in
-# pg/sql/seed_data.sql.example — don't change the IDs without updating the SQL.
+# Preset users for the dev login page — members 1-20 from the seed data.
+# IDs 1-11 are the stable dev fixtures (one per status/role archetype); 12-20
+# are random seed members. The picker resolves by member_id, so labels are
+# cosmetic. See pg/tools/generate_seed_data.py DEV_USERS for the fixtures.
+_MEMBER_DEV_LABELS = {
+    1: "Ada Lovelace (Administrator)",
+    2: "Laika Sputnik (CTO)",
+    3: "Grace Hopper (Board)",
+    4: "Marie Curie (Authorizer)",
+    5: "Rosalind Franklin (ID Check)",
+    6: "Margaret Hamilton (Treasurer)",
+    7: "Hedy Lamarr (Area Host)",
+    8: "Katherine Johnson (active)",
+    9: "Dorothy Vaughan (pending)",
+    10: "Charles Babbage (suspended)",
+    11: "Nikola Tesla (banned)",
+}
 MEMBER_DEV_USERS = [
-    {"member_id": 7, "name": "Rosalind Franklin", "email": "rosalind.franklin@example.com", "description": "Active member with full data"},
-    {"member_id": 16, "name": "Dorothy Vaughan", "email": "dorothy.vaughan@example.com", "description": "Brand new member, minimal data"},
-    {"member_id": 9, "name": "Marie Curie", "email": "marie.curie@example.com", "description": "Inactive member"},
+    {"member_id": i, "name": _MEMBER_DEV_LABELS.get(i, f"Member {i}")}
+    for i in range(1, 21)
 ]
 
 @app.route("/dev-login/select", methods=["POST"])
