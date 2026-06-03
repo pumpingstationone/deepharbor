@@ -25,10 +25,9 @@
    so unrelated keyframe animations (e.g. Bootstrap `.spinner-border` loaders)
    keep spinning. Keep this list in sync when adding a themed animation.
    The selectors cover every theme's `@keyframes` target:
-     body::before/::after  — bubblegum bubble, hacker scanline + CRT flicker
-     .body-content h1       — bg-bounce / dark-fire-flicker / hacker-text-flicker
+     body::before/::after  — bubblegum bubble, hacker scanline + CRT flicker, midnight starfield
+     .body-content h1       — bg-bounce / dark-fire-flicker / hacker-text-flicker / midnight twinkle
      .body-content h1/p ::before/::after — bubblegum sparkles, hacker cursor
-     .midnight-char / .midnight-sparkle  — midnight twinkle + sparkle particles
    =================================================================== */
 
 html.dh-anim-paused body::before,
@@ -37,9 +36,7 @@ html.dh-anim-paused .body-content h1,
 html.dh-anim-paused .body-content h1::before,
 html.dh-anim-paused .body-content h1::after,
 html.dh-anim-paused .body-content p::before,
-html.dh-anim-paused .body-content p::after,
-html.dh-anim-paused .midnight-char,
-html.dh-anim-paused .midnight-sparkle {
+html.dh-anim-paused .body-content p::after {
     animation-play-state: paused !important;
 }
 
@@ -58,9 +55,7 @@ html.dh-anim-paused body::after {
     .body-content h1::before,
     .body-content h1::after,
     .body-content p::before,
-    .body-content p::after,
-    .midnight-char,
-    .midnight-sparkle {
+    .body-content p::after {
         animation: none !important;
         will-change: auto !important;
     }
@@ -321,6 +316,17 @@ body {
 #memberDetailsSection .alert {
     border-radius: 0;
     margin-bottom: 0;
+}
+
+/* Logging-notice banner dismiss (x): Bootstrap's default 1.25rem padding makes
+   the hit-area taller than this thin py-2 alert and pins it to the top corner.
+   Shrink it and vertically center it so it sits neatly in the band. */
+#loggingNoticeRow .btn-close {
+    top: 50%;
+    right: 0.5rem;
+    transform: translateY(-50%);
+    padding: 0.5rem;
+    background-size: 0.75em;
 }
 
 [data-theme="bubblegum"] .dh-member-bar + .dh-suspended-warning {
@@ -2207,14 +2213,22 @@ body.sidebar-resizing .details-sidebar {
     color: var(--text-color);
 }
 
-/* Midnight — suppress bubblegum pseudo-elements */
+/* Midnight — keep the bubblegum body pseudo-elements suppressed. The starfield
+   lives on the title instead (h1::after below), so it stays behind the header
+   rather than scattering across the whole page. */
 
 [data-theme="midnight"] body::before,
 [data-theme="midnight"] body::after {
     display: none;
 }
 
-/* Midnight title — starry twinkle with sparkles */
+@keyframes midnight-starfield {
+    0%, 100% { opacity: 0.35; }
+    50%      { opacity: 0.95; }
+}
+
+/* Midnight title — gradient shimmer that sweeps across the letters + a small
+   sparkle field localized to the header. Both pure CSS, no JS. */
 
 [data-theme="midnight"] .body-content h1 {
     font-family: 'Nothing You Could Do', cursive;
@@ -2223,62 +2237,58 @@ body.sidebar-resizing .details-sidebar {
     text-align: center;
     margin-bottom: 1.5rem;
     padding: 0.5rem 0;
-    color: #fbbf24;
-    text-shadow: 0 0 8px rgba(251, 191, 36, 0.3);
-    background: none;
     border-radius: 0;
     border: none;
     box-shadow: none;
-    animation: none;
     position: relative;
     z-index: 1;
+    /* Shimmer: a bright band travels through a gold base, clipped to the glyphs,
+       so each letter lights up in turn as the highlight passes over it (a moving
+       sheen rather than the whole title pulsing together). */
+    background: linear-gradient(100deg,
+        #a8740a 0%, #c8910f 30%,
+        #ffffff 50%,
+        #c8910f 70%, #a8740a 100%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.25));
+    animation: midnight-shimmer 4.5s linear infinite;
 }
 
-/* Individual letter twinkle */
-[data-theme="midnight"] .body-content h1 .midnight-char {
-    display: inline-block;
-    animation: midnight-twinkle var(--twinkle-duration, 3s) ease-in-out infinite;
-    animation-delay: var(--twinkle-delay, 0s);
+@keyframes midnight-shimmer {
+    0%   { background-position: 150% 0; }
+    100% { background-position: -50% 0; }
 }
 
-@keyframes midnight-twinkle {
-    0%, 100% {
-        color: #b8860b;
-        text-shadow: 0 0 2px rgba(251, 191, 36, 0.1);
-        opacity: 0.7;
-    }
-    50% {
-        color: #ffffff;
-        text-shadow: 0 0 12px rgba(255, 255, 255, 0.6), 0 0 25px rgba(251, 191, 36, 0.4);
-        opacity: 1;
-    }
-}
-
-/* Sparkle particles */
-[data-theme="midnight"] .body-content h1 .midnight-sparkle {
+/* Sparkle field — scattered twinkling dots confined to the header box (behind
+   the title text via z-index:-1, showing through the gaps between letters). */
+[data-theme="midnight"] .body-content h1::after {
+    content: "";
     position: absolute;
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: #ffffff;
-    box-shadow: 0 0 6px 2px rgba(255, 255, 255, 0.8), 0 0 12px 4px rgba(251, 191, 36, 0.4);
+    left: 0;
+    right: 0;
+    top: -0.6em;
+    bottom: -0.6em;
+    z-index: -1;
     pointer-events: none;
-    animation: midnight-sparkle-pop var(--sparkle-duration, 2s) ease-in-out infinite;
-    animation-delay: var(--sparkle-delay, 0s);
-    opacity: 0;
-}
-
-@keyframes midnight-sparkle-pop {
-    0%, 100% { opacity: 0; transform: scale(0); }
-    10% { opacity: 1; transform: scale(1.5); }
-    20% { opacity: 1; transform: scale(0.8); }
-    35% { opacity: 0.8; transform: scale(1.2); }
-    50% { opacity: 0.4; transform: scale(0.6); }
-    65% { opacity: 0; transform: scale(0); }
+    background-repeat: no-repeat;
+    /* Each dot: a solid bright core (to 35%) fading to a soft glow (to 75%). */
+    background-image:
+        radial-gradient(4px 4px at 8% 30%, #ffffff 35%, transparent 75%),
+        radial-gradient(4px 4px at 22% 78%, rgba(251, 191, 36, 0.95) 35%, transparent 75%),
+        radial-gradient(3px 3px at 37% 18%, #ffffff 35%, transparent 75%),
+        radial-gradient(4.5px 4.5px at 50% 88%, #ffffff 35%, transparent 75%),
+        radial-gradient(3px 3px at 63% 22%, rgba(251, 191, 36, 0.9) 35%, transparent 75%),
+        radial-gradient(4px 4px at 78% 72%, #ffffff 35%, transparent 75%),
+        radial-gradient(3px 3px at 92% 33%, #ffffff 35%, transparent 75%),
+        radial-gradient(4px 4px at 96% 82%, rgba(251, 191, 36, 0.85) 35%, transparent 75%);
+    animation: midnight-starfield 4s ease-in-out infinite;
 }
 
 [data-theme="midnight"] .body-content h1::before,
-[data-theme="midnight"] .body-content h1::after,
 [data-theme="midnight"] .body-content p::before,
 [data-theme="midnight"] .body-content p::after {
     content: none;
@@ -3603,6 +3613,22 @@ body.sidebar-resizing .details-sidebar {
     max-height: 240px;
     overflow-y: auto;
 }
+
+/* WA Legacy ID Check read-only value boxes (Forms tab). Replaces Bootstrap's
+   `.bg-body-secondary` utility, which forces a light-gray background that no
+   theme overrides — illegible under the light foreground text of dark/midnight/
+   hacker. These rules mirror each theme's `.form-control[readonly]` surface so
+   the boxes stay readable and read as muted/non-editable in every theme.
+   The compound `.form-control.dh-legacy-value` selector is intentional: it
+   raises specificity above the bare per-theme `.form-control` rules (and the
+   trailing `.form-control { background-color:#fff }` reset) so these win. */
+.form-control.dh-legacy-value {
+    background-color: #e9ecef;          /* preserve current light/bubblegum look */
+    border-color: #dee2e6;
+}
+[data-theme="dark"]     .form-control.dh-legacy-value { background-color: #09090b; color: var(--text-color);      border-color: #3f3f46; }
+[data-theme="midnight"] .form-control.dh-legacy-value { background-color: #080c18; color: var(--text-color);      border-color: #243356; }
+[data-theme="hacker"]   .form-control.dh-legacy-value { background-color: #0a0a0a; color: var(--secondary-color); border-color: #1a3a1a; }
 
 /* Unchecked checkbox/radio: bump border contrast across all themes.
    Higher specificity than the per-theme `.form-check-input` rules above,

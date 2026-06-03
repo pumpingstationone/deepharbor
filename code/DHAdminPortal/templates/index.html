@@ -16,11 +16,12 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
 <!-- Logging notice -->
-<div class="row justify-content-center">
+<div class="row justify-content-center" id="loggingNoticeRow">
     <div class="col-md-8">
-        <div class="alert alert-warning text-center py-2 mb-4" role="alert">
+        <div class="alert alert-warning alert-dismissible fade show text-center py-2 mb-4" role="alert">
             <i class="bi bi-exclamation-triangle-fill"></i>
             <strong>HEY!</strong> All changes you make will get logged!
+            <button type="button" class="btn-close" aria-label="Close" onclick="dismissLoggingNotice()"></button>
         </div>
     </div>
 </div>
@@ -81,8 +82,8 @@
                         <option value="50">50</option>
                         <option value="100">100</option>
                     </select>
-                    <button class="btn btn-sm btn-primary" id="prevPageBtn" onclick="loadMembers(currentPage - 1)" disabled>Previous</button>
-                    <button class="btn btn-sm btn-primary" id="nextPageBtn" onclick="loadMembers(currentPage + 1)" disabled>Next</button>
+                    <button class="btn btn-sm btn-primary" id="prevPageBtn" onclick="paginateTo(currentPage - 1)" disabled>Previous</button>
+                    <button class="btn btn-sm btn-primary" id="nextPageBtn" onclick="paginateTo(currentPage + 1)" disabled>Next</button>
                 </div>
             </div>
         </div>
@@ -1356,6 +1357,23 @@ let currentOrder = 'desc';
 let perPage = parseInt(localStorage.getItem('dh-per-page'), 10) || 20;
 let selectedMemberId = null;
 
+// Logging-notice banner: dismissible, remembered per-browser in localStorage
+
+function dismissLoggingNotice() {
+    localStorage.setItem('dh-logging-notice-dismissed', '1');
+    const row = document.getElementById('loggingNoticeRow');
+    if (row) row.style.display = 'none';
+}
+
+function restoreLoggingNotice() {
+    // Banner renders visible by default in the server-side HTML, so the logging
+    // notice is fail-safe even if this script never runs (JS error, CSP, etc.).
+    // Only hide it if the user previously dismissed it on this browser.
+    if (localStorage.getItem('dh-logging-notice-dismissed') !== '1') return;
+    const row = document.getElementById('loggingNoticeRow');
+    if (row) row.style.display = 'none';
+}
+
 // Core data loading
 
 function loadMembers(page) {
@@ -1511,7 +1529,25 @@ function updatePaginationControls() {
 function changePerPage(value) {
     perPage = parseInt(value, 10) || 20;
     localStorage.setItem('dh-per-page', perPage);
-    loadMembers(1);
+    paginateTo(1);
+}
+
+// Pagination helpers: after a page change, bring the search bar to the top of
+// the viewport so the user starts at row one (the prev/next controls sit at the
+// bottom). We anchor on the search bar rather than the very top of the page so
+// the navbar/logging notice don't need to scroll back into view.
+function scrollToSearchBar() {
+    // behavior:'instant' overrides the global `html { scroll-behavior: smooth }`
+    // so pagination snaps into place instead of animating up the whole list.
+    // Land 8px above the search bar so it isn't flush against the viewport edge.
+    const anchor = document.getElementById('memberSection');
+    if (!anchor) return;
+    const top = anchor.getBoundingClientRect().top + window.scrollY - 8;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'instant' });
+}
+
+function paginateTo(page) {
+    loadMembers(page).then(scrollToSearchBar);
 }
 
 // Details sidebar
@@ -1960,11 +1996,11 @@ function formatFormsData(data) {
         <div class="row g-2">
             <div class="col-md-4">
                 <label class="form-label small text-muted">ID Check 1</label>
-                <div class="form-control form-control-sm bg-body-secondary">${escapeHtml(legacy1) || '<span class="text-muted">—</span>'}</div>
+                <div class="form-control form-control-sm dh-legacy-value">${escapeHtml(legacy1) || '<span class="text-muted">—</span>'}</div>
             </div>
             <div class="col-md-8">
                 <label class="form-label small text-muted">ID Check 2</label>
-                <div class="form-control form-control-sm bg-body-secondary">${escapeHtml(legacy2) || '<span class="text-muted">—</span>'}</div>
+                <div class="form-control form-control-sm dh-legacy-value">${escapeHtml(legacy2) || '<span class="text-muted">—</span>'}</div>
             </div>
         </div>`;
 
@@ -3137,6 +3173,9 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
+
+    // Restore dismissed state of the logging-notice banner
+    restoreLoggingNotice();
 
     // Apply navbar visibility based on permissions
     filterNavbarByPermissions();

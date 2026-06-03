@@ -278,43 +278,6 @@
         });
     })();
     </script>
-    <!-- Midnight theme: starry twinkle letters + sparkle particles -->
-    <script>
-    (function() {
-        if (document.documentElement.getAttribute('data-theme') !== 'midnight') return;
-        var h1 = document.querySelector('.body-content h1');
-        if (!h1) return;
-
-        // Wrap each character in a span with random twinkle timing
-        var text = h1.textContent;
-        var html = '';
-        for (var i = 0; i < text.length; i++) {
-            var ch = text[i];
-            if (ch === ' ') {
-                html += ' ';
-            } else {
-                var dur = (2 + Math.random() * 3).toFixed(1);
-                var del = (Math.random() * 4).toFixed(1);
-                html += '<span class="midnight-char" style="--twinkle-duration:' + dur + 's;--twinkle-delay:' + del + 's;">' + ch + '</span>';
-            }
-        }
-        h1.innerHTML = html;
-
-        // Spawn sparkle particles around the title
-        var rect = h1.getBoundingClientRect();
-        var sparkleCount = 12;
-        for (var j = 0; j < sparkleCount; j++) {
-            var spark = document.createElement('span');
-            spark.className = 'midnight-sparkle';
-            var x = Math.random() * 100;
-            var y = -5 + Math.random() * 110;
-            var sDur = (1.5 + Math.random() * 2.5).toFixed(1);
-            var sDel = (Math.random() * 4).toFixed(1);
-            spark.style.cssText = 'left:' + x + '%;top:' + y + '%;--sparkle-duration:' + sDur + 's;--sparkle-delay:' + sDel + 's;';
-            h1.appendChild(spark);
-        }
-    })();
-    </script>
     <!-- Animation CPU saver: pause theme animations after 60s idle + while tab hidden -->
     <script>
     (function () {
