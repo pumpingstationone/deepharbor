@@ -16,7 +16,7 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
 <!-- Logging notice -->
-<div class="row justify-content-center" id="loggingNoticeRow" style="display: none;">
+<div class="row justify-content-center" id="loggingNoticeRow">
     <div class="col-md-8">
         <div class="alert alert-warning alert-dismissible fade show text-center py-2 mb-4" role="alert">
             <i class="bi bi-exclamation-triangle-fill"></i>
@@ -1366,10 +1366,12 @@ function dismissLoggingNotice() {
 }
 
 function restoreLoggingNotice() {
+    // Banner renders visible by default in the server-side HTML, so the logging
+    // notice is fail-safe even if this script never runs (JS error, CSP, etc.).
+    // Only hide it if the user previously dismissed it on this browser.
+    if (localStorage.getItem('dh-logging-notice-dismissed') !== '1') return;
     const row = document.getElementById('loggingNoticeRow');
-    if (row && localStorage.getItem('dh-logging-notice-dismissed') !== '1') {
-        row.style.display = '';  // not dismissed -> show
-    }
+    if (row) row.style.display = 'none';
 }
 
 // Core data loading
@@ -1527,7 +1529,7 @@ function updatePaginationControls() {
 function changePerPage(value) {
     perPage = parseInt(value, 10) || 20;
     localStorage.setItem('dh-per-page', perPage);
-    loadMembers(1).then(scrollToSearchBar);
+    paginateTo(1);
 }
 
 // Pagination helpers: after a page change, bring the search bar to the top of
