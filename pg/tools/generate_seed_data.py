@@ -9,7 +9,7 @@ Generate seed data SQL for the Deep Harbor CRM database.
 
 Produces INSERT statements for the member table with realistic
 fictional data. Always includes 10 hardcoded "dev bypass" users
-(IDs 1-10) first, then generates additional random members.
+(IDs 1-11) first, then generates additional random members.
 
 The random members mirror the distributions/quirks documented in
 pg/tools/SEED_DATA_SPEC.md so local dev/testing exercises the same
@@ -163,13 +163,14 @@ PRONOUN_VALUES = ["she/her", "he/him", "they/them", "she/they", "he/they", "any/
 NOTE_AUTHORS = ["System", "Board", "Admin"]
 
 
-### Dev bypass users — these are always the same, always first.
-### Stable login fixtures (issue #13). Identities/profiles intentionally clean;
-### the realistic quirks live on the random members. notes are bare JSONB arrays
-### of {timestamp, from, note} objects to match the dev schema.
+### Dev bypass users — fixed login fixtures, always emitted first (IDs 1-11).
+### They span every member status and all 7 roles (one login per role) so the
+### dev-login pages cover the full range of account types. Profiles are clean and
+### recognizable; the realistic quirks live on the random members. notes are bare
+### JSONB arrays of {timestamp, from, note} to match the dev schema.
 
 DEV_USERS = [
-    # ID 1 - Ada Lovelace
+    # ID 1 - Ada Lovelace — active, Administrator (full admin incl. API Clients)
     {
         "identity": {
             "first_name": "Ada",
@@ -179,7 +180,7 @@ DEV_USERS = [
             "emails": [{"type": "primary", "email_address": "ada.lovelace@example.com"}],
             "birthday": "1985-12-10",
         },
-        "connections": {"discord_handle": "ada_admin"},
+        "connections": {"discord_handle": "ada_admin", "phone": "3125550101"},
         "status": {
             "membership_status": "active",
             "membership_level": "Membership",
@@ -205,144 +206,48 @@ DEV_USERS = [
                 "ShopBot Authorized Users",
             ],
         },
-        "extras": {"storage_id": "A-01", "storage_area": "North Wall"},
+        "extras": {"storage_area": "A01"},
         "notes": [
             {"timestamp": "2020-01-22", "from": "System", "note": "Completed orientation and safety training"},
             {"timestamp": "2023-06-10", "from": "Board", "note": "Granted administrator access to the admin portal"},
         ],
     },
-    # ID 2 - Charles Babbage
+    # ID 2 - Laika Sputnik — active, CTO (full admin incl. API Clients)
     {
         "identity": {
-            "first_name": "Charles",
-            "last_name": "Babbage",
-            "nickname": "difference_engine",
-            "active_directory_username": "cbabbage",
-            "emails": [{"type": "primary", "email_address": "charles.babbage@example.com"}],
-            "birthday": "1978-04-22",
+            "first_name": "Laika",
+            "last_name": "Sputnik",
+            "nickname": "good_dog",
+            "active_directory_username": "lsputnik",
+            "emails": [{"type": "primary", "email_address": "laika.sputnik@example.com"}],
+            "birthday": "1988-11-03",
         },
-        "connections": {"discord_handle": "cbabbage"},
+        "connections": {"discord_handle": "cto_laika", "phone": "3125550102"},
         "status": {
             "membership_status": "active",
-            "membership_level": "Membership",
-            "member_since": "2019-03-10",
+            "membership_level": "Stripe Member - $65",
+            "member_since": "2019-02-01",
         },
         "forms": {
             "id_check_1": "IL",
-            "id_check_2": "DL-5678",
-            "waiver_signed_date": "2019-03-10",
+            "id_check_2": "DL-2002",
+            "waiver_signed_date": "2019-02-01",
             "terms_of_use_accepted": True,
             "essentials_form": "completed",
-            "orientation_completed_date": "2019-03-17",
+            "orientation_completed_date": "2019-02-08",
         },
         "access": {"rfid_tags": ["1023456789"]},
         "authorizations": {
-            "authorizations": [
-                "Table Saw", "Band Saw", "Metal Band Saw",
-                "Metal Drill Press", "Bridgeport Mill", "Clausing Lathe",
-            ],
-            "computer_authorizations": [
-                "Boss Authorized Users", "CNC Plasma Authorized Users",
-            ],
+            "authorizations": ["Table Saw", "Band Saw", "Ender 3D Printers"],
+            "computer_authorizations": ["Epilog Authorized Users", "Tormach Authorized Users"],
         },
         "extras": None,
         "notes": [
-            {"timestamp": "2019-03-17", "from": "System", "note": "Orientation completed"},
-            {"timestamp": "2024-01-15", "from": "Board", "note": "Added as administrator"},
+            {"timestamp": "2019-02-08", "from": "System", "note": "Completed orientation"},
+            {"timestamp": "2022-05-01", "from": "Board", "note": "Appointed CTO"},
         ],
     },
-    # ID 3 - Nikola Tesla
-    {
-        "identity": {
-            "first_name": "Nikola",
-            "last_name": "Tesla",
-            "nickname": "spark_lord",
-            "active_directory_username": "ntesla",
-            "emails": [{"type": "primary", "email_address": "nikola.tesla@example.com"}],
-            "birthday": "1992-07-09",
-        },
-        "connections": {"discord_handle": "spark_lord"},
-        "status": {
-            "membership_status": "active",
-            "membership_level": "Volunteer",
-            "member_since": "2018-06-01",
-        },
-        "forms": {
-            "id_check_1": "IL",
-            "id_check_2": "PP-9012",
-            "waiver_signed_date": "2018-06-01",
-            "terms_of_use_accepted": True,
-            "essentials_form": "completed",
-            "orientation_completed_date": "2018-06-08",
-        },
-        "access": {"rfid_tags": ["1011223344"]},
-        "authorizations": {
-            "authorizations": [
-                "Table Saw", "Band Saw", "Mig Welders", "Tig Welders",
-                "Jointer", "Planer", "Mitre Saw", "Sanders",
-                "Wood Drill Press", "Router Table", "Metal Band Saw",
-                "Metal Drill Press", "Bridgeport Mill", "Clausing Lathe",
-                "LeBlond Lathe", "Surface Grinder", "Hand held plasma cutter",
-                "Pneumatic Power Tools", "Powder Coating Equipment",
-                "Tube Bending Equipment",
-            ],
-            "computer_authorizations": [
-                "Epilog Authorized Users", "Tormach Authorized Users",
-                "Universal Authorized Users", "Boss Authorized Users",
-                "CNC Plasma Authorized Users", "ShopBot Authorized Users",
-            ],
-        },
-        "extras": None,
-        "notes": [
-            {"timestamp": "2018-06-08", "from": "System", "note": "Completed orientation"},
-            {"timestamp": "2019-02-14", "from": "Board", "note": "Approved as equipment authorizer for metalworking and CNC areas"},
-        ],
-    },
-    # ID 4 - Hedy Lamarr
-    {
-        "identity": {
-            "first_name": "Hedy",
-            "last_name": "Lamarr",
-            "nickname": "frequency_hopper",
-            "active_directory_username": "hlamarr",
-            "emails": [{"type": "primary", "email_address": "hedy.lamarr@example.com"}],
-            "birthday": "1980-11-09",
-        },
-        "connections": {"discord_handle": "hedy_builds"},
-        "status": {
-            "membership_status": "active",
-            "membership_level": "Volunteer w/ Free Storage",
-            "member_since": "2019-09-15",
-        },
-        "forms": {
-            "id_check_1": "IL",
-            "id_check_2": "DL-3456",
-            "waiver_signed_date": "2019-09-15",
-            "terms_of_use_accepted": True,
-            "essentials_form": "completed",
-            "orientation_completed_date": "2019-09-22",
-        },
-        "access": {"rfid_tags": ["1044556677", "1055667788"]},
-        "authorizations": {
-            "authorizations": [
-                "Table Saw", "Band Saw", "Wood Lathe", "Wood Mini Lathe",
-                "Drum Sander", "Panel Saw", "Saw Dado",
-                "Square Chisel Morticer", "Jointer", "Planer",
-                "Ender 3D Printers", "Prusa 3D printers",
-                "Formlabs Form 3 printer",
-            ],
-            "computer_authorizations": [
-                "Epilog Authorized Users", "Universal Authorized Users",
-                "Vinyl Cutter Authorized Users", "Mimaki CJV30 printer Users",
-            ],
-        },
-        "extras": {"storage_id": "C-05", "storage_area": "Woodshop Corner"},
-        "notes": [
-            {"timestamp": "2019-09-22", "from": "System", "note": "Completed orientation and all woodshop authorizations"},
-            {"timestamp": "2020-04-01", "from": "Board", "note": "Approved as authorizer for woodshop, 3D printing, and laser areas"},
-        ],
-    },
-    # ID 5 - Grace Hopper
+    # ID 3 - Grace Hopper — active, Board (broad admin, no API Clients)
     {
         "identity": {
             "first_name": "Grace",
@@ -352,10 +257,10 @@ DEV_USERS = [
             "emails": [{"type": "primary", "email_address": "grace.hopper@example.com"}],
             "birthday": "1972-12-09",
         },
-        "connections": {"discord_handle": "admiral_grace"},
+        "connections": {"discord_handle": "admiral_grace", "phone": "3125550103"},
         "status": {
             "membership_status": "active",
-            "membership_level": "Officer",
+            "membership_level": "Board Member / Officer",
             "member_since": "2017-11-01",
         },
         "forms": {
@@ -377,42 +282,45 @@ DEV_USERS = [
             {"timestamp": "2022-01-01", "from": "Board", "note": "Elected to board of directors"},
         ],
     },
-    # ID 6 - Margaret Hamilton
+    # ID 4 - Marie Curie — active, Authorizer (narrow: authorizations/notes)
     {
         "identity": {
-            "first_name": "Margaret",
-            "last_name": "Hamilton",
-            "nickname": "stack_overflow",
-            "active_directory_username": "mhamilton",
-            "emails": [{"type": "primary", "email_address": "margaret.hamilton@example.com"}],
-            "birthday": "1986-08-17",
+            "first_name": "Marie",
+            "last_name": "Curie",
+            "nickname": "glow_girl",
+            "active_directory_username": "mcurie",
+            "emails": [{"type": "primary", "email_address": "marie.curie@example.com"}],
+            "birthday": "1981-11-07",
         },
-        "connections": {"discord_handle": "mhamilton_apollo"},
+        "connections": {"discord_handle": "mcurie_rad", "phone": "3125550104"},
         "status": {
             "membership_status": "active",
-            "membership_level": "Board Member",
-            "member_since": "2018-03-15",
+            "membership_level": "Volunteer",
+            "member_since": "2018-06-01",
         },
         "forms": {
             "id_check_1": "IL",
-            "id_check_2": "DL-2345",
-            "waiver_signed_date": "2018-03-15",
+            "id_check_2": "DL-4567",
+            "waiver_signed_date": "2018-06-01",
             "terms_of_use_accepted": True,
             "essentials_form": "completed",
-            "orientation_completed_date": "2018-03-22",
+            "orientation_completed_date": "2018-06-08",
         },
-        "access": {"rfid_tags": ["1077665544"]},
+        "access": {"rfid_tags": ["1033445566"]},
         "authorizations": {
-            "authorizations": ["Table Saw", "Mitre Saw", "Sanders", "Ender 3D Printers"],
-            "computer_authorizations": ["Epilog Authorized Users"],
+            "authorizations": [
+                "Table Saw", "Band Saw", "Mig Welders", "Tig Welders",
+                "Cold Metals Basic", "Metal Band Saw", "Surface Grinder",
+            ],
+            "computer_authorizations": ["CNC Plasma Authorized Users"],
         },
         "extras": None,
         "notes": [
-            {"timestamp": "2018-03-22", "from": "System", "note": "Completed orientation"},
-            {"timestamp": "2023-01-01", "from": "Board", "note": "Elected to board"},
+            {"timestamp": "2018-06-08", "from": "System", "note": "Completed orientation"},
+            {"timestamp": "2019-02-14", "from": "Board", "note": "Approved as equipment authorizer for metalworking"},
         ],
     },
-    # ID 7 - Rosalind Franklin
+    # ID 5 - Rosalind Franklin — active, ID Check (onboarder workflow)
     {
         "identity": {
             "first_name": "Rosalind",
@@ -422,7 +330,7 @@ DEV_USERS = [
             "emails": [{"type": "primary", "email_address": "rosalind.franklin@example.com"}],
             "birthday": "1995-07-25",
         },
-        "connections": {"discord_handle": "xray_rosalind"},
+        "connections": {"discord_handle": "xray_rosalind", "phone": "3125550105"},
         "status": {
             "membership_status": "active",
             "membership_level": "Membership with Storage",
@@ -446,12 +354,90 @@ DEV_USERS = [
                 "Epilog Authorized Users", "Tormach Authorized Users",
             ],
         },
-        "extras": {"storage_id": "B-12", "storage_area": "South Wall"},
+        "extras": {"storage_area": "B12"},
         "notes": [
             {"timestamp": "2021-04-08", "from": "System", "note": "Completed orientation and basic woodshop training"},
+            {"timestamp": "2022-08-19", "from": "Board", "note": "Approved as ID-check onboarder"},
         ],
     },
-    # ID 8 - Katherine Johnson
+    # ID 6 - Margaret Hamilton — active, Treasurer (narrow: identity/status/roles)
+    {
+        "identity": {
+            "first_name": "Margaret",
+            "last_name": "Hamilton",
+            "nickname": "stack_overflow",
+            "active_directory_username": "mhamilton",
+            "emails": [{"type": "primary", "email_address": "margaret.hamilton@example.com"}],
+            "birthday": "1986-08-17",
+        },
+        "connections": {"discord_handle": "mhamilton_apollo", "phone": "3125550106"},
+        "status": {
+            "membership_status": "active",
+            "membership_level": "Membership",
+            "member_since": "2018-03-15",
+        },
+        "forms": {
+            "id_check_1": "IL",
+            "id_check_2": "DL-2345",
+            "waiver_signed_date": "2018-03-15",
+            "terms_of_use_accepted": True,
+            "essentials_form": "completed",
+            "orientation_completed_date": "2018-03-22",
+        },
+        "access": {"rfid_tags": ["1077665544"]},
+        "authorizations": {
+            "authorizations": ["Table Saw", "Mitre Saw", "Sanders", "Ender 3D Printers"],
+            "computer_authorizations": ["Epilog Authorized Users"],
+        },
+        "extras": None,
+        "notes": [
+            {"timestamp": "2018-03-22", "from": "System", "note": "Completed orientation"},
+            {"timestamp": "2023-01-01", "from": "Board", "note": "Appointed treasurer"},
+        ],
+    },
+    # ID 7 - Hedy Lamarr — active, Area Host
+    {
+        "identity": {
+            "first_name": "Hedy",
+            "last_name": "Lamarr",
+            "nickname": "frequency_hopper",
+            "active_directory_username": "hlamarr",
+            "emails": [{"type": "primary", "email_address": "hedy.lamarr@example.com"}],
+            "birthday": "1980-11-09",
+        },
+        "connections": {"discord_handle": "hedy_builds", "phone": "3125550107"},
+        "status": {
+            "membership_status": "active",
+            "membership_level": "Area Host",
+            "member_since": "2019-09-15",
+        },
+        "forms": {
+            "id_check_1": "IL",
+            "id_check_2": "DL-3456",
+            "waiver_signed_date": "2019-09-15",
+            "terms_of_use_accepted": True,
+            "essentials_form": "completed",
+            "orientation_completed_date": "2019-09-22",
+        },
+        "access": {"rfid_tags": ["1044556677", "1055667788"]},
+        "authorizations": {
+            "authorizations": [
+                "Table Saw", "Band Saw", "Wood Lathe", "Drum Sander",
+                "Panel Saw", "Jointer", "Planer", "Ender 3D Printers",
+                "Prusa 3D printers", "Formlabs Form 3 printer",
+            ],
+            "computer_authorizations": [
+                "Epilog Authorized Users", "Vinyl Cutter Authorized Users",
+                "Mimaki CJV30 printer Users",
+            ],
+        },
+        "extras": {"storage_area": "C05"},
+        "notes": [
+            {"timestamp": "2019-09-22", "from": "System", "note": "Completed orientation and all woodshop authorizations"},
+            {"timestamp": "2020-04-01", "from": "Board", "note": "Approved as area host for woodshop and 3D printing"},
+        ],
+    },
+    # ID 8 - Katherine Johnson — active, no role (cohort B forms; admin lockout test)
     {
         "identity": {
             "first_name": "Katherine",
@@ -461,19 +447,21 @@ DEV_USERS = [
             "emails": [{"type": "primary", "email_address": "katherine.johnson@example.com"}],
             "birthday": "1990-08-26",
         },
-        "connections": {"discord_handle": "kjohnson_math"},
+        "connections": {"discord_handle": "kjohnson_math", "phone": "3125550108"},
         "status": {
             "membership_status": "active",
-            "membership_level": "Membership with Storage",
-            "member_since": "2022-02-14",
+            "membership_level": "Stripe Member - $65",
+            "member_since": "2024-02-14",
+            "waiver_signed": True,
         },
         "forms": {
-            "id_check_1": "IL",
-            "id_check_2": "DL-0123",
-            "waiver_signed_date": "2022-02-14",
+            "id_check_date": "2024-02-14",
+            "id_check_by": 5,
+            "is_21_or_older": True,
             "terms_of_use_accepted": True,
             "essentials_form": "completed",
-            "orientation_completed_date": "2022-02-21",
+            "essentials_forms_completed_date": "",
+            "waiver_signed_at": "",
         },
         "access": {"rfid_tags": ["1066778899"]},
         "authorizations": {
@@ -486,79 +474,104 @@ DEV_USERS = [
                 "Epilog Authorized Users", "Vinyl Cutter Authorized Users",
             ],
         },
-        "extras": None,
+        "extras": {"storage_area": ""},
         "notes": [
-            {"timestamp": "2022-02-21", "from": "System", "note": "Completed orientation, focused on textiles and 3D printing"},
+            {"timestamp": "2024-02-21", "from": "System", "note": "Completed orientation, focused on textiles and 3D printing"},
         ],
     },
-    # ID 9 - Marie Curie
+    # ID 9 - Dorothy Vaughan — pending, minimal data (onboard flow, cohort B)
     {
         "identity": {
-            "first_name": "Marie",
-            "last_name": "Curie",
-            "nickname": "glow_girl",
-            "active_directory_username": "mcurie",
-            "emails": [{"type": "primary", "email_address": "marie.curie@example.com"}],
-            "birthday": "1968-11-07",
+            "first_name": "Dorothy",
+            "last_name": "Vaughan",
+            "nickname": None,
+            "active_directory_username": "dvaughan",
+            "emails": [{"type": "primary", "email_address": "dorothy.vaughan@example.com"}],
+            "birthday": "1999-09-20",
         },
-        "connections": {"discord_handle": "mcurie_rad"},
+        "connections": {"discord_handle": "", "phone": ""},
+        "status": {
+            "membership_status": "pending",
+            "membership_level": "New Member",
+            "member_since": "2026-05-28",
+        },
+        "forms": None,
+        "access": None,
+        "authorizations": None,
+        "extras": None,
+        "notes": None,
+    },
+    # ID 10 - Charles Babbage — suspended (zDEFUNCT level; locked keys card)
+    {
+        "identity": {
+            "first_name": "Charles",
+            "last_name": "Babbage",
+            "nickname": "difference_engine",
+            "active_directory_username": "cbabbage",
+            "emails": [{"type": "primary", "email_address": "charles.babbage@example.com"}],
+            "birthday": "1978-04-22",
+        },
+        "connections": {"discord_handle": "cbabbage", "phone": "3125550110"},
         "status": {
             "membership_status": "suspended",
+            "membership_level": "zDEFUNCT - Member",
+            "member_since": "2019-03-10",
+        },
+        "forms": {
+            "id_check_1": "IL",
+            "id_check_2": "DL-5678",
+            "waiver_signed_date": "2019-03-10",
+            "terms_of_use_accepted": True,
+            "essentials_form": "completed",
+            "orientation_completed_date": "2019-03-17",
+        },
+        "access": {"rfid_tags": ["1011223344"]},
+        "authorizations": {
+            "authorizations": [
+                "Table Saw", "Band Saw", "Metal Band Saw",
+                "Metal Drill Press", "Bridgeport Mill", "Clausing Lathe",
+            ],
+            "computer_authorizations": ["Boss Authorized Users"],
+        },
+        "extras": None,
+        "notes": [
+            {"timestamp": "2019-03-17", "from": "System", "note": "Orientation completed"},
+            {"timestamp": "2024-03-01", "from": "System", "note": "Membership lapsed — moved to suspended"},
+        ],
+    },
+    # ID 11 - Nikola Tesla — banned (/dashboard/locked lockout)
+    {
+        "identity": {
+            "first_name": "Nikola",
+            "last_name": "Tesla",
+            "nickname": "spark_lord",
+            "active_directory_username": "ntesla",
+            "emails": [{"type": "primary", "email_address": "nikola.tesla@example.com"}],
+            "birthday": "1992-07-09",
+        },
+        "connections": {"discord_handle": "spark_lord", "phone": "3125550111"},
+        "status": {
+            "membership_status": "banned",
             "membership_level": "Membership",
             "member_since": "2018-06-01",
         },
         "forms": {
             "id_check_1": "IL",
-            "id_check_2": "DL-4567",
+            "id_check_2": "PP-9012",
             "waiver_signed_date": "2018-06-01",
             "terms_of_use_accepted": True,
             "essentials_form": "completed",
             "orientation_completed_date": "2018-06-08",
         },
-        "access": {"rfid_tags": ["1033445566"]},
+        "access": {"rfid_tags": ["1055667799"]},
         "authorizations": {
-            "authorizations": ["Table Saw", "Band Saw", "Mig Welders", "Cold Metals Basic"],
+            "authorizations": ["Table Saw", "Band Saw", "Tig Welders"],
             "computer_authorizations": [],
         },
         "extras": None,
         "notes": [
             {"timestamp": "2018-06-08", "from": "System", "note": "Completed orientation"},
-            {"timestamp": "2024-03-01", "from": "System", "note": "Membership lapsed — moved to suspended"},
-        ],
-    },
-    # ID 10 - Laika Sputnik
-    {
-        "identity": {
-            "first_name": "Laika",
-            "last_name": "Sputnik",
-            "nickname": "good_dog",
-            "active_directory_username": "lsputnik",
-            "emails": [{"type": "primary", "email_address": "laika.sputnik@example.com"}],
-            "birthday": "2002-11-03",
-        },
-        "connections": None,
-        "status": {
-            "membership_status": "suspended",
-            "membership_level": "Area Host",
-            "member_since": "2023-09-01",
-        },
-        "forms": {
-            "id_check_1": "IL",
-            "id_check_2": "DL-8901",
-            "waiver_signed_date": "2023-09-01",
-            "terms_of_use_accepted": True,
-            "essentials_form": "completed",
-            "orientation_completed_date": "2023-09-08",
-        },
-        "access": None,
-        "authorizations": {
-            "authorizations": ["Band Saw", "Ender 3D Printers"],
-            "computer_authorizations": [],
-        },
-        "extras": None,
-        "notes": [
-            {"timestamp": "2023-09-08", "from": "System", "note": "Completed orientation"},
-            {"timestamp": "2024-06-01", "from": "System", "note": "Membership lapsed after 9 months"},
+            {"timestamp": "2024-09-12", "from": "Board", "note": "Banned — repeated code of conduct violations"},
         ],
     },
 ]
@@ -760,8 +773,8 @@ ID_CHECK_CELL_WEIGHTS = {
 # Member IDs holding a role that grants `member.forms` change (per ROLE_ASSIGNMENTS).
 # id_check_by picks bias toward these onboarders, but occasionally select a
 # non-onboarder so the post-save soft-warning render path gets exercised.
-_ONBOARDER_IDS = (1, 5, 7)   # Ada (CTO), Grace (Board), Rosalind (ID Check)
-_NON_ONBOARDER_IDS = (3, 4)  # Nikola/Hedy (Authorizer — no forms change)
+_ONBOARDER_IDS = (1, 2, 3, 5, 7)  # Administrator/CTO/Board/ID Check/Area Host (grant member.forms change)
+_NON_ONBOARDER_IDS = (4, 6)       # Authorizer/Treasurer (no forms change)
 
 
 def _pick_id_check_by() -> int:
@@ -1226,13 +1239,13 @@ def ensure_coverage(members: list, fake: Faker) -> None:
 # pgsql_schema.sql: 1 Authorizer, 2 Administrator, 3 Board, 4 ID Check, 5 CTO,
 # 6 Treasurer, 7 Area Host.
 ROLE_ASSIGNMENTS = [
-    (5, 1, "Ada Lovelace", "CTO"),
-    (2, 2, "Charles Babbage", "Administrator"),
-    (1, 3, "Nikola Tesla", "Authorizer"),
-    (1, 4, "Hedy Lamarr", "Authorizer"),
-    (3, 5, "Grace Hopper", "Board"),
-    (3, 6, "Margaret Hamilton", "Board"),
-    (4, 7, "Rosalind Franklin", "ID Check"),
+    (2, 1, "Ada Lovelace", "Administrator"),
+    (5, 2, "Laika Sputnik", "CTO"),
+    (3, 3, "Grace Hopper", "Board"),
+    (1, 4, "Marie Curie", "Authorizer"),
+    (4, 5, "Rosalind Franklin", "ID Check"),
+    (6, 6, "Margaret Hamilton", "Treasurer"),
+    (7, 7, "Hedy Lamarr", "Area Host"),
 ]
 
 # Skew for random role-holders (role_id -> weight). Treasurer (6) unassigned.
@@ -1410,7 +1423,7 @@ def main():
     )
     parser.add_argument(
         "--count", type=int, default=15,
-        help="Number of ADDITIONAL random members beyond the 10 dev users (default: 15, for 25 total).",
+        help="Number of ADDITIONAL random members beyond the 11 dev users (default: 15, for 26 total).",
     )
     parser.add_argument(
         "--output", type=str, default=None,

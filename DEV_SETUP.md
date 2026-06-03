@@ -78,19 +78,24 @@ ID manually.
 
 **Admin Portal** (http://localhost:5001):
 
-| Name            | ID | Role          |
-|-----------------|----|---------------|
-| Ada Lovelace    | 1  | Administrator |
-| Nikola Tesla    | 3  | Authorizer    |
-| Grace Hopper    | 5  | Board         |
+| Name              | ID | Role          |
+|-------------------|----|---------------|
+| Ada Lovelace      | 1  | Administrator |
+| Laika Sputnik     | 2  | CTO           |
+| Grace Hopper      | 3  | Board         |
+| Marie Curie       | 4  | Authorizer    |
+| Rosalind Franklin | 5  | ID Check      |
+| Margaret Hamilton | 6  | Treasurer     |
+| Hedy Lamarr       | 7  | Area Host     |
 
 **Member Portal** (http://localhost:5002):
 
-| Name               | ID | Description                   |
-|--------------------|----|-------------------------------|
-| Rosalind Franklin  | 7  | Active member with full data  |
-| Dorothy Vaughan    | 16 | Brand new member, minimal data |
-| Marie Curie        | 9  | Inactive member               |
+| Name              | ID | Description                       |
+|-------------------|----|-----------------------------------|
+| Katherine Johnson | 8  | Active member with full data      |
+| Dorothy Vaughan   | 9  | Brand new member, pending / minimal |
+| Charles Babbage   | 10 | Suspended member                  |
+| Nikola Tesla      | 11 | Banned member                     |
 
 Authorization still works normally — the portals make real API calls
 to DHService to check roles and permissions. Only the Azure B2C

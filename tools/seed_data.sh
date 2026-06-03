@@ -11,8 +11,8 @@
 #
 # Usage:
 #   tools/seed_data.sh static          Copy the template over the working copy
-#   tools/seed_data.sh generate        Generate random seed data (25 members by default)
-#   tools/seed_data.sh generate 100    Generate 110 members (100 random + 10 dev users)
+#   tools/seed_data.sh generate        Generate random seed data (26 members by default)
+#   tools/seed_data.sh generate 100    Generate 111 members (100 random + 11 dev users)
 #   tools/seed_data.sh generate 50 abc Generate with specific seed for reproducibility
 #   tools/seed_data.sh status          Show what's currently in the working copy
 #
@@ -84,7 +84,7 @@ cmd_generate() {
         seed_args=(--seed "$seed")
     fi
 
-    echo "Generating seed data: $count random + 10 dev users = $((count + 10)) total..."
+    echo "Generating seed data: $count random + 11 dev users = $((count + 11)) total..."
     uv run "$GENERATOR" --count "$count" "${seed_args[@]}" --output "$SEED_DATA_FILE"
     echo "Wrote $SEED_DATA_FILE"
     echo ""

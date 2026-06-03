@@ -548,8 +548,12 @@ def requires_view_permission(tab_name):
 # pg/sql/seed_data.sql.example — don't change the IDs without updating the SQL.
 ADMIN_DEV_USERS = [
     {"member_id": 1, "name": "Ada Lovelace", "email": "ada.lovelace@example.com", "role": "Administrator"},
-    {"member_id": 3, "name": "Nikola Tesla", "email": "nikola.tesla@example.com", "role": "Authorizer"},
-    {"member_id": 5, "name": "Grace Hopper", "email": "grace.hopper@example.com", "role": "Board"},
+    {"member_id": 2, "name": "Laika Sputnik", "email": "laika.sputnik@example.com", "role": "CTO"},
+    {"member_id": 3, "name": "Grace Hopper", "email": "grace.hopper@example.com", "role": "Board"},
+    {"member_id": 4, "name": "Marie Curie", "email": "marie.curie@example.com", "role": "Authorizer"},
+    {"member_id": 5, "name": "Rosalind Franklin", "email": "rosalind.franklin@example.com", "role": "ID Check"},
+    {"member_id": 6, "name": "Margaret Hamilton", "email": "margaret.hamilton@example.com", "role": "Treasurer"},
+    {"member_id": 7, "name": "Hedy Lamarr", "email": "hedy.lamarr@example.com", "role": "Area Host"},
 ]
 
 @app.route("/dev-login")

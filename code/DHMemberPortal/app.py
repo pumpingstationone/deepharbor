@@ -786,9 +786,10 @@ app.jinja_env.globals.update(dev_banner=DEV_BANNER)  # Used in dev banner
 # Preset users for the dev login page. These match the seed data in
 # pg/sql/seed_data.sql.example — don't change the IDs without updating the SQL.
 MEMBER_DEV_USERS = [
-    {"member_id": 7, "name": "Rosalind Franklin", "email": "rosalind.franklin@example.com", "description": "Active member with full data"},
-    {"member_id": 16, "name": "Dorothy Vaughan", "email": "dorothy.vaughan@example.com", "description": "Brand new member, minimal data"},
-    {"member_id": 9, "name": "Marie Curie", "email": "marie.curie@example.com", "description": "Inactive member"},
+    {"member_id": 8, "name": "Katherine Johnson", "email": "katherine.johnson@example.com", "description": "Active member with full data"},
+    {"member_id": 9, "name": "Dorothy Vaughan", "email": "dorothy.vaughan@example.com", "description": "Brand new member, pending / minimal data"},
+    {"member_id": 10, "name": "Charles Babbage", "email": "charles.babbage@example.com", "description": "Suspended member"},
+    {"member_id": 11, "name": "Nikola Tesla", "email": "nikola.tesla@example.com", "description": "Banned member"},
 ]
 
 @app.route("/dev-login/select", methods=["POST"])
