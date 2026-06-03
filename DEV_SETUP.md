@@ -90,12 +90,11 @@ ID manually.
 
 **Member Portal** (http://localhost:5002):
 
-| Name              | ID | Description                       |
-|-------------------|----|-----------------------------------|
-| Katherine Johnson | 8  | Active member with full data      |
-| Dorothy Vaughan   | 9  | Brand new member, pending / minimal |
-| Charles Babbage   | 10 | Suspended member                  |
-| Nikola Tesla      | 11 | Banned member                     |
+The member picker is a dropdown of members **1-20**. IDs 1-11 are the stable
+fixtures (same names/roles as the admin table above, plus): 8 Katherine Johnson
+(active), 9 Dorothy Vaughan (pending), 10 Charles Babbage (suspended),
+11 Nikola Tesla (banned). IDs 12-20 are random seed members. Use the manual
+field for any other ID.
 
 Authorization still works normally — the portals make real API calls
 to DHService to check roles and permissions. Only the Azure B2C

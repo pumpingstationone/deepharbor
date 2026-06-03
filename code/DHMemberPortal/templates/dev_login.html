@@ -19,12 +19,16 @@
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
                         <h2 class="card-title">Already a Member?</h2>
-                        <p class="card-text text-muted flex-grow-1">Access your member dashboard and manage your account.</p>
+                        <p class="card-text text-muted flex-grow-1">Pick a seed member to log in as their dashboard.</p>
                         <small class="text-warning mb-2"><i class="fa-solid fa-triangle-exclamation"></i> B2C login does not work in dev mode.</small>
-                        <form method="POST" action="{{ url_for('dev_login_select') }}">
+                        <form method="POST" action="{{ url_for('dev_login_select') }}" class="d-flex gap-2">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="member_id" value="{{ preset_users[0].member_id }}">
-                            <button type="submit" class="btn btn-primary w-100">Log In as {{ preset_users[0].name.split()[0] }}</button>
+                            <select name="member_id" class="form-select" required>
+                                {% for user in preset_users %}
+                                <option value="{{ user.member_id }}">{{ user.member_id }} — {{ user.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-primary">Log In</button>
                         </form>
                     </div>
                 </div>
@@ -40,25 +44,6 @@
                     </div>
                 </div>
             </div>
-        </div>
-
-        <div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
-            {% for user in preset_users %}
-            <div class="col">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h2 class="card-title h5">{{ user.name }}</h2>
-                        <p class="card-text text-muted flex-grow-1">{{ user.description }}</p>
-                        <p class="text-muted small mb-2">ID: {{ user.member_id }} | {{ user.email }}</p>
-                        <form method="POST" action="{{ url_for('dev_login_select') }}">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="member_id" value="{{ user.member_id }}">
-                            <button type="submit" class="btn btn-primary w-100">Log In as {{ user.name.split()[0] }}</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
         </div>
 
         <div class="row justify-content-center">
