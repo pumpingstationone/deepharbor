@@ -315,6 +315,30 @@
         }
     })();
     </script>
+    <!-- Animation CPU saver: pause theme animations after 60s idle + while tab hidden -->
+    <script>
+    (function () {
+        var root = document.documentElement;
+        // Reduced-motion users have the decoration animations disabled by the CSS
+        // @media (prefers-reduced-motion) block — nothing to pause, so skip the idle timers.
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+        var IDLE_MS = 60000, timer = null, paused = false;
+        function pause()  { if (!paused) { paused = true;  root.classList.add('dh-anim-paused'); } }
+        function arm()    { if (timer) { clearTimeout(timer); } timer = setTimeout(pause, IDLE_MS); }
+        function resume() { if (paused) { paused = false; root.classList.remove('dh-anim-paused'); } arm(); }
+
+        // Low-frequency events only — NO mousemove (would reintroduce per-frame cost). Passive listeners.
+        ['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'].forEach(function (ev) {
+            window.addEventListener(ev, function () { paused ? resume() : arm(); }, { passive: true });
+        });
+        document.addEventListener('visibilitychange', function () {
+            document.hidden ? pause() : resume();
+        });
+        arm(); // start the initial 60s countdown
+    })();
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 
