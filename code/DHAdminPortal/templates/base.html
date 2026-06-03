@@ -319,9 +319,9 @@
     <script>
     (function () {
         var root = document.documentElement;
-        // Honor the OS reduced-motion setting: keep animations off, no timers needed (CSS covers it too).
+        // Reduced-motion users have the decoration animations disabled by the CSS
+        // @media (prefers-reduced-motion) block — nothing to pause, so skip the idle timers.
         if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-            root.classList.add('dh-anim-paused');
             return;
         }
         var IDLE_MS = 60000, timer = null, paused = false;

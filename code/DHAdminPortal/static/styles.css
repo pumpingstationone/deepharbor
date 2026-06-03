@@ -15,26 +15,54 @@
 
 /* ===================================================================
    ANIMATION PAUSING (CPU saver)
-   The theme animations (header glow/flicker, bubblegum boxes, hacker CRT)
-   run `infinite` and burn CPU continuously. base.html toggles the
-   .dh-anim-paused class on <html> after 60s idle and while the tab is
-   hidden; resume on interaction. `animation-play-state` freezes-and-
-   continues (no restart-from-zero), affects only animations (not
-   transitions), and the wildcard match runs once per class toggle.
+   The theme decoration animations (header glow/flicker, bubblegum boxes,
+   hacker CRT, midnight twinkle) run `infinite` and burn CPU continuously.
+   base.html toggles the .dh-anim-paused class on <html> after 60s idle and
+   while the tab is hidden; resume on interaction. `animation-play-state`
+   freezes-and-continues (no restart-from-zero).
+
+   Scoped to the specific decoration selectors below — NOT a universal `*` —
+   so unrelated keyframe animations (e.g. Bootstrap `.spinner-border` loaders)
+   keep spinning. Keep this list in sync when adding a themed animation.
+   The selectors cover every theme's `@keyframes` target:
+     body::before/::after  — bubblegum bubble, hacker scanline + CRT flicker
+     .body-content h1       — bg-bounce / dark-fire-flicker / hacker-text-flicker
+     .body-content h1/p ::before/::after — bubblegum sparkles, hacker cursor
+     .midnight-char / .midnight-sparkle  — midnight twinkle + sparkle particles
    =================================================================== */
 
-html.dh-anim-paused *,
-html.dh-anim-paused *::before,
-html.dh-anim-paused *::after {
+html.dh-anim-paused body::before,
+html.dh-anim-paused body::after,
+html.dh-anim-paused .body-content h1,
+html.dh-anim-paused .body-content h1::before,
+html.dh-anim-paused .body-content h1::after,
+html.dh-anim-paused .body-content p::before,
+html.dh-anim-paused .body-content p::after,
+html.dh-anim-paused .midnight-char,
+html.dh-anim-paused .midnight-sparkle {
     animation-play-state: paused !important;
 }
 
-/* Honor the OS reduced-motion setting: never run the continuous animations */
+/* While paused, release the hacker CRT compositor layers (see will-change below) */
+html.dh-anim-paused body::before,
+html.dh-anim-paused body::after {
+    will-change: auto;
+}
+
+/* Honor the OS reduced-motion setting: remove the decoration animations entirely
+   (`animation: none`, not merely paused) and release their compositor layers. */
 @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-        animation-play-state: paused !important;
+    body::before,
+    body::after,
+    .body-content h1,
+    .body-content h1::before,
+    .body-content h1::after,
+    .body-content p::before,
+    .body-content p::after,
+    .midnight-char,
+    .midnight-sparkle {
+        animation: none !important;
+        will-change: auto !important;
     }
 }
 
