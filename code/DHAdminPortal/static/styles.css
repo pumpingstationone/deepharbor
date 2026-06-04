@@ -168,6 +168,14 @@ body {
 .dh-navbar {
     padding-top: 0.25rem;
     padding-bottom: 0.25rem;
+    /* Own stacking context so the navbar's dropdowns (theme/Space/Systems) render
+       above the member-list sticky header. Bootstrap's .sticky-top <thead> is
+       z-index 1020 and .dropdown-menu is only 1000, so without this the open menu
+       gets occluded by the table header once the page shifts up (e.g. logging
+       banner dismissed). 1030 sits above 1020 but below the overlay layers:
+       details-sidebar 1040 < onboarder picker 1050 < toast 1090. */
+    position: relative;
+    z-index: 1030;
 }
 
 .dh-navbar .navbar-brand {
