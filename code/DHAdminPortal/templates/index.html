@@ -69,6 +69,16 @@
                     </ul>
                 </div>
             </template>
+            <!-- Hidden content for the status-column legend popover (#statusLegendIcon) -->
+            <template id="statusLegendContent">
+                <div class="dh-status-legend">
+                    <div class="dh-sl-row"><i class="fa-solid fa-circle-check dh-status-icon dh-status-active"></i> Active</div>
+                    <div class="dh-sl-row"><i class="fa-solid fa-circle-plus dh-status-icon dh-status-pending"></i> Pending</div>
+                    <div class="dh-sl-row"><i class="fa-solid fa-circle-pause dh-status-icon dh-status-suspended"></i> Suspended</div>
+                    <div class="dh-sl-row"><i class="fa-solid fa-circle-minus dh-status-icon dh-status-banned"></i> Banned</div>
+                    <div class="dh-sl-row"><i class="fa-solid fa-circle-question dh-status-icon dh-status-other"></i> Other</div>
+                </div>
+            </template>
         </div>
     </div>
 </div>
@@ -83,6 +93,10 @@
                 <table class="table table-striped table-hover mb-0">
                     <thead class="sticky-top bg-white">
                         <tr>
+                            <th class="dh-status-col" onclick="sortTable('membership_status')">
+                                <i class="fa-solid fa-circle-half-stroke" id="statusLegendIcon" aria-label="Status"></i>
+                                <span id="sort-membership_status"></span>
+                            </th>
                             <th onclick="sortTable('id')" style="cursor: pointer;">
                                 ID <span id="sort-id"></span>
                             </th>
@@ -91,9 +105,6 @@
                             </th>
                             <th onclick="sortTable('last_name')" style="cursor: pointer;">
                                 Last Name <span id="sort-last_name"></span>
-                            </th>
-                            <th onclick="sortTable('membership_status')" style="cursor: pointer;">
-                                Status <span id="sort-membership_status"></span>
                             </th>
                         </tr>
                     </thead>
@@ -144,7 +155,7 @@
 
             <!-- Suspended member warning (shown dynamically by loadMemberData) -->
             <div id="memberSuspendedWarning" class="alert dh-suspended-warning alert-dismissible fade show mb-0" role="alert" style="display: none;">
-                <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                <i id="memberSuspendedIcon" class="fa-solid fa-triangle-exclamation me-2"></i>
                 <strong>This member is not active.</strong> Status: <span id="memberSuspendedStatus"></span>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
@@ -1510,6 +1521,43 @@ function updateSortIndicators() {
 
 // Display results table
 
+// Membership-status -> Font Awesome glyph + color class + tooltip label.
+// The className is assembled ONLY from this allowlist; the raw status string is
+// never interpolated into a class name (keeps the XSS-safe rendering posture).
+const STATUS_ICONS = {
+    active:    { icon: 'fa-circle-check',  cls: 'dh-status-active',    label: 'Active' },
+    pending:   { icon: 'fa-circle-plus',   cls: 'dh-status-pending',   label: 'Pending' },
+    suspended: { icon: 'fa-circle-pause',  cls: 'dh-status-suspended', label: 'Suspended' },
+    banned:    { icon: 'fa-circle-minus',  cls: 'dh-status-banned',    label: 'Banned' },
+};
+const STATUS_ICON_DEFAULT = { icon: 'fa-circle-question', cls: 'dh-status-other' };
+
+// Resolve a raw membership_status value to its icon/color/label. Unknown, blank
+// or otherwise-unmapped values (incl. "inactive") fall to the grey question mark;
+// the tooltip then shows the title-cased raw value, or "Unknown" when empty.
+function statusMeta(rawStatus) {
+    const key = (rawStatus || '').toLowerCase().trim();
+    const known = STATUS_ICONS[key];
+    if (known) return { icon: known.icon, cls: known.cls, label: known.label };
+    const label = rawStatus
+        ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1)
+        : 'Unknown';
+    return { icon: STATUS_ICON_DEFAULT.icon, cls: STATUS_ICON_DEFAULT.cls, label };
+}
+
+// Build the leftmost status <td> as a colored icon with a hover/aria tooltip.
+function buildStatusCell(rawStatus) {
+    const meta = statusMeta(rawStatus);
+    const td = document.createElement('td');
+    td.className = 'dh-status-col';
+    const icon = document.createElement('i');
+    icon.className = `fa-solid ${meta.icon} fa-lg dh-status-icon ${meta.cls}`;
+    icon.title = meta.label;
+    icon.setAttribute('aria-label', meta.label);
+    td.appendChild(icon);
+    return td;
+}
+
 function displayResults(members) {
     const tbody = document.getElementById('resultsTableBody');
     const resultsSection = document.getElementById('resultsSection');
@@ -1525,12 +1573,13 @@ function displayResults(members) {
             if (selectedMemberId && member.member_id == selectedMemberId) {
                 row.classList.add('selected-row');
             }
+            // Status icon first (allowlist-driven class — safe), then text columns.
+            row.appendChild(buildStatusCell(member.membership_status));
             // Use textContent to prevent XSS from member data
             const cells = [
                 member.member_id,
                 member.first_name || '',
                 member.last_name || '',
-                member.membership_status || '',
             ];
             cells.forEach(text => {
                 const td = document.createElement('td');
@@ -1734,6 +1783,22 @@ document.addEventListener('DOMContentLoaded', function() {
             customClass: 'dh-search-help-popover',
             title: 'Search tips',
             content: () => tpl.innerHTML,
+        });
+    }
+
+    // Status-column header legend: hover the header icon to see the icon/color
+    // key. Header click still sorts (hover-only, never pins).
+    const statusIcon = document.getElementById('statusLegendIcon');
+    const statusTpl = document.getElementById('statusLegendContent');
+    if (statusIcon && statusTpl && window.bootstrap && bootstrap.Popover) {
+        new bootstrap.Popover(statusIcon, {
+            html: true,
+            trigger: 'hover focus',
+            placement: 'bottom',
+            container: 'body',
+            customClass: 'dh-status-legend-popover',
+            title: 'Status',
+            content: () => statusTpl.innerHTML,
         });
     }
 });
@@ -2385,7 +2450,8 @@ function loadMemberData(memberOrId) {
     // Highlight the selected row
     document.querySelectorAll('#resultsTableBody tr.selected-row').forEach(r => r.classList.remove('selected-row'));
     document.querySelectorAll('#resultsTableBody tr').forEach(r => {
-        if (r.cells[0] && r.cells[0].textContent == memberId) {
+        // cells[0] is now the status-icon column; the ID lives in cells[1].
+        if (r.cells[1] && r.cells[1].textContent == memberId) {
             r.classList.add('selected-row');
         }
     });
@@ -2396,13 +2462,23 @@ function loadMemberData(memberOrId) {
     const activatedNotice = document.getElementById('memberActivatedNotice');
     if (activatedNotice) activatedNotice.style.display = 'none';
 
-    // Show suspended/inactive member warning
+    // Show non-active member warning — icon + left-border accent match the
+    // status palette used in the results table.
     const warningEl = document.getElementById('memberSuspendedWarning');
     const statusEl = document.getElementById('memberSuspendedStatus');
+    const warningIconEl = document.getElementById('memberSuspendedIcon');
     if (warningEl && statusEl) {
         const status = member ? (member.membership_status || '').toLowerCase() : '';
         if (status && status !== 'active') {
             statusEl.textContent = member.membership_status;
+            const meta = statusMeta(member.membership_status);
+            // Reset any prior status modifier class, then apply the current one.
+            warningEl.classList.remove('dh-status-pending', 'dh-status-suspended',
+                'dh-status-banned', 'dh-status-other');
+            warningEl.classList.add(meta.cls);
+            if (warningIconEl) {
+                warningIconEl.className = `fa-solid ${meta.icon} me-2 dh-status-icon ${meta.cls}`;
+            }
             warningEl.style.display = '';
             warningEl.classList.add('show');
         } else {
