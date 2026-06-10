@@ -244,10 +244,15 @@ def signup_submit():
         logger.debug("Obtained access token for DHService")
 
         # If the email is already taken, bail before creating anything.
+        # Send them to login (matching signup_check_email's earlier guard) —
+        # the email is fixed/hidden on the form, so re-rendering it is a
+        # dead-end the user can't act on. This branch is only reached on a
+        # race (account created between the email step and submit) or a
+        # direct POST to /signup/submit.
         existing_member_id = dhservices.get_member_id(access_token, email).get("member_id")
         if existing_member_id is not None:
-            flash('A member with this email already exists', 'error')
-            return _redisplay_form()
+            flash('An account already exists for this email. Please sign in.', 'info')
+            return redirect(url_for('login'))
 
         # Server-side username uniqueness gate. /api/check-username is only
         # the AJAX UX hint — without this, the form happily creates a second
