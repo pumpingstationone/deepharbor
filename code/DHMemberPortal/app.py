@@ -1,3 +1,4 @@
+import re
 import uuid
 import requests
 import json
@@ -228,6 +229,16 @@ def signup_submit():
     # are best-effort: any one failing leaves a half-populated row that admin
     # tooling can address later, but the user still gets a Stripe checkout.
     # See #283.
+    def _redisplay_form(account_exists=False):
+        """Re-render the signup form preserving the user's just-submitted input
+        (fields repopulate from request.form) instead of bouncing back to the
+        email-entry screen and losing everything they typed. Flashed errors
+        render at the top of the form. When account_exists is set, the form also
+        shows an 'account already exists — sign in' alert with a login link (the
+        email can't be corrected on the form, so we offer the link instead)."""
+        return render_template('signup_form.html', email=email,
+                               contact_found=False, account_exists=account_exists)
+
     try:
         access_token = dhservices.get_access_token(
             dhservices.DH_CLIENT_ID,
@@ -235,11 +246,15 @@ def signup_submit():
         )
         logger.debug("Obtained access token for DHService")
 
-        # If the email is already taken, bail before creating anything.
+        # If the email already belongs to a member, don't create a duplicate.
+        # Re-render the form with an "account exists — sign in" alert that links
+        # to login, rather than redirecting to the external B2C page (where a
+        # Flask flash would never render). The email can't be fixed on the form,
+        # so the link is the actionable path. Only reached on a race (account
+        # created between the email step and submit) or a direct POST.
         existing_member_id = dhservices.get_member_id(access_token, email).get("member_id")
         if existing_member_id is not None:
-            flash('A member with this email already exists', 'error')
-            return redirect(url_for('signup_start'))
+            return _redisplay_form(account_exists=True)
 
         # Server-side username uniqueness gate. /api/check-username is only
         # the AJAX UX hint — without this, the form happily creates a second
@@ -248,15 +263,28 @@ def signup_submit():
         # in DHService, PR #252). Skip when no username was provided; the
         # broader required-field enforcement is tracked separately.
         username = (request.form.get("username") or "").strip()
+        # Server-side format gate. The form's maxlength="16" + pattern are
+        # client-side only and a direct POST bypasses them. Mirror them here
+        # (1-16 chars, [A-Za-z0-9_-]); DHService re-validates on the insert
+        # path as a backstop. Skip when empty — required-ness is deferred (#293).
+        if username and not re.fullmatch(r"[A-Za-z0-9_-]{1,16}", username):
+            flash('Username must be 1–16 characters, using only letters, numbers, '
+                  'underscores, or hyphens.', 'error')
+            return _redisplay_form()
         if username and dhservices.is_username_taken(access_token, username):
             flash('That username is already taken. Please choose another.', 'error')
-            return redirect(url_for('signup_start'))
+            return _redisplay_form()
+
+        # Store the stripped+validated value so what we persist matches what we
+        # checked (and what DHService's backstop sees). Also aligns the signup
+        # path with the #297 strip-on-store inconsistency.
+        identity_data["active_directory_username"] = username
 
         member_id = dhservices.add_member(access_token, identity_data).get("member_id")
     except Exception as e:
         logger.error(f"Error creating new member: {str(e)}")
         flash('Error creating new member', 'error')
-        return redirect(url_for('signup_start'))
+        return _redisplay_form()
 
     # DHService returns 200 with `member_id: null` on internal INSERT failure
     # (see add_update_identity in DHService/db.py). Guard explicitly so we
@@ -264,7 +292,7 @@ def signup_submit():
     if not member_id:
         logger.error(f"Signup add_member returned no member_id for email={email}")
         flash('Error creating new member', 'error')
-        return redirect(url_for('signup_start'))
+        return _redisplay_form()
 
     logger.info(f"Created new member with ID: {member_id}")
 

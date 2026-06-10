@@ -9,12 +9,13 @@ from typing import Annotated
 
 import bcrypt
 from fastapi import Depends, HTTPException, Request, Header
+from pydantic import ValidationError
 
 from fastapiapp import app
 import auth
 from dhs_logging import logger
 import db
-from models import ApiClientCreateIn, ApiClientPatchIn
+from models import ApiClientCreateIn, ApiClientPatchIn, SignupIdentityIn
 
 # Type alias for authenticated client dependency
 AuthenticatedClient = Annotated[auth.Client, Depends(auth.get_current_active_client)]
@@ -193,6 +194,25 @@ async def update_member_identity(
     """
     data = await request.json()
     logger.debug(f"In update_member_identity with member_id={x_member_id}, data={data}")
+    # Signup / INSERT path only (no X-Member-ID): backstop the client-side
+    # username maxlength/pattern that a direct POST can bypass. Not applied on
+    # the update path, so editing legacy members whose AD username already
+    # exceeds 16 chars (prod has them, up to 26) stays unaffected.
+    if x_member_id is None:
+        try:
+            validated = SignupIdentityIn.model_validate(data)
+        except ValidationError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid active_directory_username: must be 1-16 characters "
+                       "using letters, digits, underscore, or hyphen",
+            )
+        # Persist the normalized (stripped) username so the stored value matches
+        # what was validated — model_validate checks v.strip() but we store
+        # `data`, so without this a whitespace-padded value would be saved
+        # verbatim. Only write back when the key was actually supplied.
+        if "active_directory_username" in data:
+            data["active_directory_username"] = validated.active_directory_username
     return db.add_update_identity(data, member_id=x_member_id)
 
 @app.post("/v1/member/change_email_address/")
