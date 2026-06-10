@@ -504,6 +504,7 @@ body.sidebar-open .body-content {
     background: none;
     border: none;
     padding: 0;
+    margin-right: 0.35rem;
     font-size: 1.3rem;
     line-height: 1;
     cursor: pointer;
