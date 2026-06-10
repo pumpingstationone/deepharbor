@@ -492,9 +492,15 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
     total = 0
     with get_db_connection() as conn:
         with conn.cursor() as cur:
+            # Paginate first, then attribute matches only on the returned page:
+            # the SRF is uncapped, so per-field attribution runs on at most
+            # per_page rows rather than the whole result set.
             cur.execute(
-                f"""WITH results AS (
+                f"""WITH base AS (
                         SELECT id,
+                               identity,
+                               connections,
+                               access,
                                identity ->> 'first_name' AS first_name,
                                identity ->> 'last_name' AS last_name,
                                identity -> 'emails' -> 0 ->> 'email_address' AS primary_email_address,
@@ -502,18 +508,31 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
                                status ->> 'stripe_product_id' AS stripe_product_id,
                                rank
                         FROM   search_members_by_identity_and_access(%s)
+                    ),
+                    counted AS (
+                        SELECT *, COUNT(*) OVER() AS total_count FROM base
+                    ),
+                    page AS (
+                        SELECT * FROM counted
+                        ORDER BY {sort_col} {direction}, id ASC
+                        LIMIT  %s OFFSET %s
                     )
-                    SELECT *, COUNT(*) OVER() AS total_count
-                    FROM   results
+                    SELECT id, first_name, last_name, primary_email_address,
+                           membership_status, stripe_product_id, total_count,
+                           ( SELECT jsonb_agg(
+                                        jsonb_build_object('field', match_field, 'value', match_value)
+                                        ORDER BY score DESC)
+                             FROM member_search_matches(%s, id, identity, connections, access)
+                           ) AS matches
+                    FROM   page
                     ORDER BY {sort_col} {direction}, id ASC
-                    LIMIT  %s OFFSET %s
                 """,
-                (query, per_page, offset),
+                (query, per_page, offset, query),
             )
             results = cur.fetchall()
 
     for result in results:
-        total = result[7]
+        total = result[6]
         members.append({
             "member_id": result[0],
             "first_name": result[1],
@@ -521,6 +540,10 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
             "primary_email_address": result[3],
             "membership_status": result[4],
             "stripe_product_id": result[5],
+            # Per-field attribution for the admin "Matched on" column: list of
+            # {field, value} ordered strongest-first, or None when nothing
+            # attributable (e.g. an access-blob-only digit match).
+            "matches": result[7],
         })
 
     logger.debug(f"Paginated search found {len(members)} members (total={total})")

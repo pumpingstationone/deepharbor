@@ -32,6 +32,22 @@
 }
 th.dh-status-col { cursor: pointer; }
 
+/* "Matched on" column in the results table (search mode only). Lists each
+   curated field that matched, strongest first; the matched substring is bolded.
+   Long values get a trailing ellipsis with the full "Field: value" in a tooltip.
+   Muting via opacity (not a fixed grey) keeps the label readable in all themes. */
+.dh-match-col { vertical-align: top; }
+.dh-match-line {
+    max-width: 340px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.85rem;
+    line-height: 1.35;
+}
+.dh-match-field { opacity: 0.65; }
+.dh-match-value strong { font-weight: 700; }
+
 /* ===================================================================
    SHARED BASE (theme-neutral — layout, structure, resets)
    =================================================================== */

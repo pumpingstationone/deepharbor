@@ -64,7 +64,7 @@
                     </ul>
                     <p class="dh-sh-lead">Tricks:</p>
                     <ul class="dh-sh-list">
-                        <li>Wrap a term in <code>"quotes"</code> for an <strong>exact</strong> match — e.g. <code>"jordan13"</code> finds that handle instead of every&nbsp;Jordan.</li>
+                        <li>Wrap a term in <code>"quotes"</code> for an <strong>exact</strong> match — e.g. <code>"kai13"</code> finds that handle instead of every&nbsp;Kai.</li>
                         <li>Type at least 2 characters.</li>
                     </ul>
                 </div>
@@ -106,6 +106,8 @@
                             <th onclick="sortTable('last_name')" style="cursor: pointer;">
                                 Last Name <span id="sort-last_name"></span>
                             </th>
+                            <!-- Search-only column; shown/hidden in displayResults() -->
+                            <th id="matchHeader" style="display: none;">Matched on</th>
                         </tr>
                     </thead>
                     <tbody id="resultsTableBody">
@@ -1558,14 +1560,77 @@ function buildStatusCell(rawStatus) {
     return td;
 }
 
+// Append `value` into `container`, bolding any occurrence of a query token.
+// Builds DOM nodes only (text nodes + <strong>) — never innerHTML — so member
+// data can never inject markup. Fuzzy/typo matches have no literal substring to
+// bold and render plain.
+function appendHighlighted(container, value, query) {
+    const tokens = (query || '')
+        .replace(/^"(.*)"$/, '$1')               // strip exact-mode quotes
+        .trim()
+        .split(/\s+/)
+        .filter(t => t.length > 0)
+        .map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));  // regex-escape
+    if (tokens.length === 0) { container.textContent = value; return; }
+    let re;
+    try { re = new RegExp('(' + tokens.join('|') + ')', 'gi'); }
+    catch (e) { container.textContent = value; return; }
+    let lastIndex = 0, m;
+    while ((m = re.exec(value)) !== null) {
+        if (m[0].length === 0) { re.lastIndex++; continue; }  // guard zero-width
+        if (m.index > lastIndex) {
+            container.appendChild(document.createTextNode(value.slice(lastIndex, m.index)));
+        }
+        const strong = document.createElement('strong');
+        strong.textContent = m[0];
+        container.appendChild(strong);
+        lastIndex = m.index + m[0].length;
+    }
+    if (lastIndex < value.length) {
+        container.appendChild(document.createTextNode(value.slice(lastIndex)));
+    }
+}
+
+// Build the search-only "Matched on" <td>: one "Field: value" line per matched
+// field (backend already orders strongest-first), with the matched substring
+// bolded and long values ellipsized (full text in the title tooltip).
+function buildMatchCell(matches, query) {
+    const td = document.createElement('td');
+    td.className = 'dh-match-col';
+    if (!Array.isArray(matches) || matches.length === 0) return td;
+    matches.forEach(item => {
+        const field = (item && item.field) || '';
+        const value = (item && item.value != null) ? String(item.value) : '';
+        const line = document.createElement('div');
+        line.className = 'dh-match-line';
+        line.title = `${field}: ${value}`;
+        const label = document.createElement('span');
+        label.className = 'dh-match-field';
+        label.textContent = field + ': ';
+        const valSpan = document.createElement('span');
+        valSpan.className = 'dh-match-value';
+        appendHighlighted(valSpan, value, query);
+        line.appendChild(label);
+        line.appendChild(valSpan);
+        td.appendChild(line);
+    });
+    return td;
+}
+
 function displayResults(members) {
     const tbody = document.getElementById('resultsTableBody');
     const resultsSection = document.getElementById('resultsSection');
+    const matchHeader = document.getElementById('matchHeader');
+
+    // The "Matched on" column only makes sense for an active search.
+    const searching = !!currentQuery;
+    matchHeader.style.display = searching ? 'table-cell' : 'none';
 
     tbody.innerHTML = '';
 
     if (members.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center">No members found</td></tr>';
+        const colspan = searching ? 5 : 4;
+        tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center">No members found</td></tr>`;
     } else {
         members.forEach(member => {
             const row = document.createElement('tr');
@@ -1586,6 +1651,9 @@ function displayResults(members) {
                 td.textContent = text;
                 row.appendChild(td);
             });
+            if (searching) {
+                row.appendChild(buildMatchCell(member.matches, currentQuery));
+            }
             row.onclick = function() {
                 loadMemberData(member);
             };
