@@ -499,6 +499,58 @@ body.sidebar-open .body-content {
 [data-theme="midnight"] .dh-refresh-btn { color: var(--primary-color); }
 [data-theme="hacker"] .dh-refresh-btn { color: var(--primary-color); }
 
+/* Search-tips info icon (left of the search bar) */
+.dh-search-help-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+    flex-shrink: 0;
+    color: inherit;
+}
+.dh-search-help-btn:hover,
+.dh-search-help-btn:focus { opacity: 1; outline: none; }
+[data-theme="bubblegum"] .dh-search-help-btn { color: #d63384; }
+[data-theme="light"] .dh-search-help-btn { color: var(--primary-color); }
+[data-theme="dark"] .dh-search-help-btn { color: var(--primary-color); }
+[data-theme="midnight"] .dh-search-help-btn { color: var(--primary-color); }
+[data-theme="hacker"] .dh-search-help-btn { color: var(--primary-color); }
+
+/* Search-tips popover — themed through Bootstrap's own CSS vars so the arrow,
+ * header, and body all follow the active theme. Fallbacks cover bubblegum
+ * (which styles with literal colors instead of the --*-color custom props). */
+.dh-search-help-popover {
+    --bs-popover-max-width: 320px;
+    --bs-popover-bg: var(--card-bg, #ffffff);
+    --bs-popover-border-color: var(--border-color, #f3afca);
+    --bs-popover-body-color: var(--text-color, #212529);
+    --bs-popover-header-bg: var(--card-bg, #fff0f6);
+    --bs-popover-header-color: var(--primary-color, #d63384);
+}
+.dh-search-help-popover .popover-header {
+    font-weight: 600;
+    border-bottom-color: var(--border-color, #f3afca);
+}
+.dh-search-help .dh-sh-lead { font-weight: 600; margin: 0.5rem 0 0.2rem; }
+.dh-search-help .dh-sh-lead:first-child { margin-top: 0; }
+.dh-search-help .dh-sh-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+.dh-search-help code {
+    background: rgba(125, 125, 125, 0.18);
+    color: inherit;
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+    font-size: 0.82em;
+}
+
 /* Sidebar close button */
 .sidebar-close-btn {
     font-size: 1.5rem;

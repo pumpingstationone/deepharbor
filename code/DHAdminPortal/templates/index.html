@@ -34,12 +34,41 @@
     <div class="col-md-6">
         <div class="mb-3">
             <div class="d-flex gap-2 align-items-center">
+                <button type="button" class="dh-search-help-btn" id="searchHelpBtn" aria-label="Search tips">
+                    <i class="fa-solid fa-circle-info"></i>
+                </button>
                 <div class="input-group">
-                    <input type="search" class="form-control" id="memberSearch" placeholder="Search for a member..." title="Type at least 2 characters. Wrap a term in double quotes for an exact match, e.g. &quot;robert13&quot;" autocapitalize="none" autocorrect="off" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')searchMembers()">
+                    <input type="search" class="form-control" id="memberSearch" placeholder="Search for a member..." autocapitalize="none" autocorrect="off" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')searchMembers()">
                     <button class="btn btn-primary cute-signin" type="button" id="searchButton" onclick="searchMembers()" aria-label="Search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
                 </div>
                 <span class="dh-refresh-btn" onclick="loadMembers(currentPage)" title="Refresh results"><i class="fa-solid fa-arrow-rotate-right"></i></span>
             </div>
+            <!-- Hidden content for the search-tips info popover (#searchHelpBtn) -->
+            <template id="searchHelpContent">
+                <div class="dh-search-help">
+                    <p class="dh-sh-lead">Searches across:</p>
+                    <ul class="dh-sh-list">
+                        <li>Name &amp; nickname</li>
+                        <li>Member&nbsp;ID &amp; username</li>
+                        <li>Email address</li>
+                        <li>Discord handle</li>
+                        <li>Phone &amp; RFID tag</li>
+                    </ul>
+                    <p class="dh-sh-lead">How it matches:</p>
+                    <ul class="dh-sh-list">
+                        <li><strong>Partial</strong> — <code>jon</code> finds Jonathan</li>
+                        <li><strong>Typo-tolerant</strong> — <code>smtih</code> finds Smith</li>
+                        <li><strong>Ignores accents</strong> — <code>jose</code> finds José</li>
+                        <li><strong>Any phone format</strong> — <code>(312) 555-0101</code> = <code>3125550101</code></li>
+                        <li><strong>Multi-word, any order</strong></li>
+                    </ul>
+                    <p class="dh-sh-lead">Tricks:</p>
+                    <ul class="dh-sh-list">
+                        <li>Wrap a term in <code>"quotes"</code> for an <strong>exact</strong> match — e.g. <code>"robert13"</code> finds that handle instead of every&nbsp;Robert.</li>
+                        <li>Type at least 2 characters.</li>
+                    </ul>
+                </div>
+            </template>
         </div>
     </div>
 </div>
@@ -1690,6 +1719,24 @@ function restoreFromURL() {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', restoreFromURL);
+
+// Search-tips info popover: hover to peek, click to pin it open (dismiss by
+// clicking away). Themed per-theme via the .dh-search-help-popover customClass.
+document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('searchHelpBtn');
+    const tpl = document.getElementById('searchHelpContent');
+    if (btn && tpl && window.bootstrap && bootstrap.Popover) {
+        new bootstrap.Popover(btn, {
+            html: true,
+            trigger: 'hover focus',
+            placement: 'bottom',
+            container: 'body',
+            customClass: 'dh-search-help-popover',
+            title: 'Search tips',
+            content: () => tpl.innerHTML,
+        });
+    }
+});
 window.addEventListener('popstate', restoreFromURL);
 
 // Special format function for authorizations tab
