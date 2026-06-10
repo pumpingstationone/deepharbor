@@ -549,6 +549,16 @@ LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
 AS $$ SELECT unaccent('unaccent', $1) $$;
 
 /*
+ * Escapes LIKE/ILIKE wildcard metacharacters (\, %, _) so user-supplied search
+ * text is matched literally and a typed `%` or `_` doesn't silently become a
+ * wildcard. Mirrors the Python-side escaping in search_onboarder_candidates
+ * (DHService db.py). Relies on the default LIKE escape character (\).
+ */
+CREATE OR REPLACE FUNCTION like_escape(text) RETURNS text
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+AS $$ SELECT replace(replace(replace($1, '\', '\\'), '%', '\%'), '_', '\_') $$;
+
+/*
  * Builds the curated, accent-folded, lowercased searchable text blob for a
  * member from an allowlist of identity/connections/access keys. Curated
  * extraction (not whole-JSON-as-text) keeps JSON key names and internal IDs
@@ -589,6 +599,11 @@ $$ LANGUAGE sql IMMUTABLE;
  *   (c) a digits-only query also matches RFID tags w/ or w/o leading zeros.
  * Ranking is name-first: first/last/nickname matches are weighted 2x over the
  * full-blob similarity.
+ *
+ * Exact mode: a query wrapped in double quotes (e.g. "robert13") strips the
+ * quotes and matches the phrase as a literal substring of the blob only — no
+ * typo tolerance and no RFID fallback. Use it to pin an exact handle/email/name
+ * that the fuzzy ranking would otherwise bury under near-matches.
  */
 CREATE OR REPLACE FUNCTION search_members_by_identity_and_access(search_query text)
 RETURNS TABLE (
@@ -603,8 +618,19 @@ RETURNS TABLE (
     rank real
 ) AS $body$
 DECLARE
-    q text := lower(f_unaccent(trim(search_query)));
+    -- Trimmed raw input. A query wrapped in double quotes ("robert13") flips to
+    -- exact mode: the quotes are stripped and only literal-substring matches are
+    -- returned (no typo tolerance / no RFID fallback).
+    q_in  text := trim(search_query);
+    exact boolean := false;
+    q     text;
 BEGIN
+    IF q_in ~ '^".*"$' AND length(q_in) >= 2 THEN
+        exact := true;
+        q_in  := substring(q_in FROM 2 FOR length(q_in) - 2);
+    END IF;
+    q := lower(f_unaccent(q_in));
+
     RETURN QUERY
     SELECT
         m.id,
@@ -622,23 +648,32 @@ BEGIN
         )::real AS rank
     FROM member m
     WHERE
-        (
-            -- (a) every query token must be a substring of the blob (phone-like tokens digit-normalized)
-            NOT EXISTS (
-                SELECT 1 FROM regexp_split_to_table(q, '\s+') tok
-                WHERE tok <> ''
-                  AND member_search_text(m.identity, m.connections, m.access)
-                      NOT ILIKE '%' ||
-                          CASE WHEN tok ~ '^[0-9()+.\- ]+$'
-                               THEN regexp_replace(tok, '\D', '', 'g')
-                               ELSE tok END
-                      || '%'
+        CASE WHEN exact THEN
+            -- Exact mode: the accent-folded, lowercased phrase must appear
+            -- verbatim as a substring of the blob. Wildcards escaped.
+            member_search_text(m.identity, m.connections, m.access)
+                ILIKE '%' || like_escape(q) || '%'
+        ELSE
+            (
+                -- (a) every query token must be a substring of the blob (phone-like tokens digit-normalized).
+                --     User-supplied tokens are wildcard-escaped so a typed % or _ matches literally.
+                NOT EXISTS (
+                    SELECT 1 FROM regexp_split_to_table(q, '\s+') tok
+                    WHERE tok <> ''
+                      AND member_search_text(m.identity, m.connections, m.access)
+                          NOT ILIKE '%' ||
+                              like_escape(CASE WHEN tok ~ '^[0-9()+.\- ]+$'
+                                               THEN regexp_replace(tok, '\D', '', 'g')
+                                               ELSE tok END)
+                          || '%'
+                )
+                -- (b) typo tolerance
+                OR word_similarity(q, member_search_text(m.identity, m.connections, m.access)) >= 0.4
             )
-            -- (b) typo tolerance
-            OR word_similarity(q, member_search_text(m.identity, m.connections, m.access)) >= 0.4
-        )
-        -- (c) numeric RFID fallback (handles tags with/without leading zeros)
-        OR (search_query ~ '^[0-9]+$' AND m.access::text ILIKE '%' || search_query || '%')
+            -- (c) numeric RFID fallback (handles tags with/without leading zeros); use the
+            --     trimmed input so whitespace-padded digit queries still take this path.
+            OR (q_in ~ '^[0-9]+$' AND m.access::text ILIKE '%' || q_in || '%')
+        END
     ORDER BY rank DESC NULLS LAST;
 END;
 $body$ LANGUAGE plpgsql;

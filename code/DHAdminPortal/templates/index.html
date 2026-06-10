@@ -35,7 +35,7 @@
         <div class="mb-3">
             <div class="d-flex gap-2 align-items-center">
                 <div class="input-group">
-                    <input type="search" class="form-control" id="memberSearch" placeholder="Search for a member..." autocapitalize="none" autocorrect="off" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')searchMembers()">
+                    <input type="search" class="form-control" id="memberSearch" placeholder="Search for a member..." title="Type at least 2 characters. Wrap a term in double quotes for an exact match, e.g. &quot;robert13&quot;" autocapitalize="none" autocorrect="off" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')searchMembers()">
                     <button class="btn btn-primary cute-signin" type="button" id="searchButton" onclick="searchMembers()" aria-label="Search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
                 </div>
                 <span class="dh-refresh-btn" onclick="loadMembers(currentPage)" title="Refresh results"><i class="fa-solid fa-arrow-rotate-right"></i></span>
@@ -1418,6 +1418,16 @@ function loadMembers(page) {
 
 // Search
 
+// Mirrors DHService _is_searchable_query: needs >= 2 chars and at least one
+// word character (unicode-aware, so accent-only queries like "Éé" pass while
+// "@" / "---" / single chars are rejected). Used to surface a friendly alert
+// instead of letting the server silently return an empty result set.
+function isSearchableQuery(q) {
+    const s = (q || '').trim();
+    return s.length >= 2 && /[\p{L}\p{N}_]/u.test(s);
+}
+const SEARCH_TOO_SHORT_MSG = 'Please enter at least 2 characters (letters or numbers) to search. Tip: wrap a term in double quotes for an exact match, e.g. "robert13".';
+
 function searchMembers() {
     const input = document.getElementById('memberSearch').value.trim();
     if (!input && currentQuery) {
@@ -1431,6 +1441,10 @@ function searchMembers() {
     if (!input) {
         // Empty input, no existing query — just reload
         loadMembers(1);
+        return;
+    }
+    if (!isSearchableQuery(input)) {
+        alert(SEARCH_TOO_SHORT_MSG);
         return;
     }
     currentQuery = input;
@@ -3731,6 +3745,10 @@ function confirmRoleAssign(roleId) {
 function searchAssignRoleMembers() {
     const query = document.getElementById('assignRoleMemberSearch').value.trim();
     if (!query) return;
+    if (!isSearchableQuery(query)) {
+        alert(SEARCH_TOO_SHORT_MSG);
+        return;
+    }
 
     fetch(`/api/search?query=${encodeURIComponent(query)}`)
         .then(r => r.json())
