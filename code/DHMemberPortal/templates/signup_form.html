@@ -28,6 +28,17 @@
             <div class="col-md-10 col-lg-8">
                 <div class="card">
                     <div class="card-body">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                        {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                        {% endwith %}
+
                         {% if contact_found %}
                         <div class="alert alert-info">
                             Oh, hey! We found your information! Please complete the form below.
@@ -37,7 +48,7 @@
                         <form method="POST" action="{{ url_for('signup_submit') }}" class="dh-validate">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="email" value="{{ email }}">
-                            <input type="hidden" name="waiver_signed_at" value="{{ contact.signed_at_datetime if contact else '' }}">
+                            <input type="hidden" name="waiver_signed_at" value="{{ request.form.get('waiver_signed_at') or (contact.signed_at_datetime if contact else '') }}">
 
                             <div class="info-group">
                                 <label>Email Address</label>
@@ -59,7 +70,7 @@
                                                title="Cannot be empty or contain only spaces"
                                                data-label="First Name"
                                                autocapitalize="words" autocorrect="off"
-                                               value="{{ contact.first_name if contact else '' }}">
+                                               value="{{ request.form.get('first_name') or (contact.first_name if contact else '') }}">
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -70,7 +81,7 @@
                                                title="Cannot be empty or contain only spaces"
                                                data-label="Last Name"
                                                autocapitalize="words" autocorrect="off"
-                                               value="{{ contact.last_name if contact else '' }}">
+                                               value="{{ request.form.get('last_name') or (contact.last_name if contact else '') }}">
                                     </div>
                                 </div>
                             </div>
@@ -82,7 +93,7 @@
                                        maxlength="100" pattern=".*\S+.*|^$"
                                        title="Cannot contain only spaces"
                                        autocapitalize="words" autocorrect="off"
-                                       value="{{ contact.preferred_name if contact else '' }}">
+                                       value="{{ request.form.get('preferred_name') or (contact.preferred_name if contact else '') }}">
                             </div>
 
                             <div class="mb-3">
@@ -91,7 +102,8 @@
                                 <input type="text" class="form-control" id="pronouns" name="pronouns"
                                        maxlength="50" pattern=".*\S+.*|^$"
                                        title="Cannot contain only spaces"
-                                       autocapitalize="none" autocorrect="off">
+                                       autocapitalize="none" autocorrect="off"
+                                       value="{{ request.form.get('pronouns') or (contact.pronouns if contact else '') }}">
                             </div>
 
                             <div class="mb-3">
@@ -100,7 +112,7 @@
                                        data-label="Birthday"
                                        data-min-age="18"
                                        data-age-message="Members are required to be 18 years or older."
-                                       value="{{ contact.birthday if contact else '' }}">
+                                       value="{{ request.form.get('birthday') or (contact.birthday if contact else '') }}">
                             </div>
 
                             <div class="mb-3">
@@ -112,7 +124,8 @@
                                            title="Username can only contain letters, numbers, underscores, and hyphens"
                                            data-label="Username"
                                            autocapitalize="none" autocorrect="off" autocomplete="off"
-                                           oninput="this.value = this.value.replace(/[^a-zA-Z0-9_-]/g, '')">
+                                           oninput="this.value = this.value.replace(/[^a-zA-Z0-9_-]/g, '')"
+                                           value="{{ request.form.get('username') or '' }}">
                                     <button type="button" class="btn btn-secondary" onclick="checkUsername()">Check</button>
                                 </div>
                                 <div id="username-message" class="username-message"></div>
@@ -128,7 +141,7 @@
                                                title="Phone number can only contain numbers, spaces, and ()-.+"
                                                data-label="Phone Number"
                                                oninput="this.value = this.value.replace(/[^0-9() \-\.\+]/g, '')"
-                                               value="{{ contact.phone_number if contact else '' }}">
+                                               value="{{ request.form.get('phone') or (contact.phone_number if contact else '') }}">
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -139,7 +152,7 @@
                                                title="Cannot contain only spaces"
                                                placeholder="username#1234"
                                                autocapitalize="none" autocorrect="off" autocomplete="off"
-                                               value="{{ contact.discord_handle if contact else '' }}">
+                                               value="{{ request.form.get('discord_handle') or (contact.discord_handle if contact else '') }}">
                                     </div>
                                 </div>
                             </div>
