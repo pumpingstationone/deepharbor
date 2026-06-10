@@ -39,6 +39,14 @@
                         {% endif %}
                         {% endwith %}
 
+                        {% if account_exists %}
+                        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                            An account already exists for this email.
+                            Please <a href="{{ url_for('login') }}" class="alert-link">sign in</a> instead.
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                        {% endif %}
+
                         {% if contact_found %}
                         <div class="alert alert-info">
                             Oh, hey! We found your information! Please complete the form below.

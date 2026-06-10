@@ -229,12 +229,15 @@ def signup_submit():
     # are best-effort: any one failing leaves a half-populated row that admin
     # tooling can address later, but the user still gets a Stripe checkout.
     # See #283.
-    def _redisplay_form():
+    def _redisplay_form(account_exists=False):
         """Re-render the signup form preserving the user's just-submitted input
         (fields repopulate from request.form) instead of bouncing back to the
-        email-entry screen and losing everything they typed. The flashed error
-        renders at the top of the form."""
-        return render_template('signup_form.html', email=email, contact_found=False)
+        email-entry screen and losing everything they typed. Flashed errors
+        render at the top of the form. When account_exists is set, the form also
+        shows an 'account already exists — sign in' alert with a login link (the
+        email can't be corrected on the form, so we offer the link instead)."""
+        return render_template('signup_form.html', email=email,
+                               contact_found=False, account_exists=account_exists)
 
     try:
         access_token = dhservices.get_access_token(
@@ -243,16 +246,15 @@ def signup_submit():
         )
         logger.debug("Obtained access token for DHService")
 
-        # If the email is already taken, bail before creating anything.
-        # Send them to login (matching signup_check_email's earlier guard) —
-        # the email is fixed/hidden on the form, so re-rendering it is a
-        # dead-end the user can't act on. This branch is only reached on a
-        # race (account created between the email step and submit) or a
-        # direct POST to /signup/submit.
+        # If the email already belongs to a member, don't create a duplicate.
+        # Re-render the form with an "account exists — sign in" alert that links
+        # to login, rather than redirecting to the external B2C page (where a
+        # Flask flash would never render). The email can't be fixed on the form,
+        # so the link is the actionable path. Only reached on a race (account
+        # created between the email step and submit) or a direct POST.
         existing_member_id = dhservices.get_member_id(access_token, email).get("member_id")
         if existing_member_id is not None:
-            flash('An account already exists for this email. Please sign in.', 'info')
-            return redirect(url_for('login'))
+            return _redisplay_form(account_exists=True)
 
         # Server-side username uniqueness gate. /api/check-username is only
         # the AJAX UX hint — without this, the form happily creates a second
