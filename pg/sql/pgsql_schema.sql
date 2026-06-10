@@ -539,9 +539,56 @@ $body$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION search_members_by_identity(text) IS 'Performs full text search on the identity JSONB column of member records and returns results ranked by relevance.';
 
 /*
+ * IMMUTABLE wrapper around unaccent(). The stock unaccent() is only STABLE
+ * (it depends on a dictionary that could change), so it cannot be used inside
+ * another IMMUTABLE function. The 2-arg form pins the dictionary explicitly.
+ * Used by member search for accent-folding (e.g. José -> jose).
+ */
+CREATE OR REPLACE FUNCTION f_unaccent(text) RETURNS text
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+AS $$ SELECT unaccent('unaccent', $1) $$;
+
+/*
+ * Builds the curated, accent-folded, lowercased searchable text blob for a
+ * member from an allowlist of identity/connections/access keys. Curated
+ * extraction (not whole-JSON-as-text) keeps JSON key names and internal IDs
+ * (Stripe, WildApricot) out of the searchable text. Phone is normalized to
+ * digits-only so any entry format collapses to a uniform digit string.
+ */
+CREATE OR REPLACE FUNCTION member_search_text(p_identity jsonb, p_connections jsonb, p_access jsonb)
+RETURNS text AS $$
+    SELECT lower(f_unaccent(concat_ws(' ',
+        p_identity ->> 'first_name',
+        p_identity ->> 'last_name',
+        p_identity ->> 'nickname',
+        p_identity ->> 'member_id',
+        p_identity ->> 'active_directory_username',
+        ( SELECT string_agg(e ->> 'email_address', ' ')
+          FROM jsonb_array_elements(
+                 CASE WHEN jsonb_typeof(p_identity -> 'emails') = 'array'
+                      THEN p_identity -> 'emails' ELSE '[]'::jsonb END) AS e ),
+        p_connections ->> 'discord_handle',
+        nullif(regexp_replace(coalesce(p_connections ->> 'phone', ''), '\D', '', 'g'), ''),
+        ( SELECT string_agg(t, ' ')
+          FROM jsonb_array_elements_text(
+                 CASE WHEN jsonb_typeof(p_access -> 'rfid_tags') = 'array'
+                      THEN p_access -> 'rfid_tags' ELSE '[]'::jsonb END) AS t )
+    )));
+$$ LANGUAGE sql IMMUTABLE;
+
+/*
  * This function is used for searching members by identity and access
  * (e.g., RFID tags) and returning full member records. This is used in
- * the admin portal so that an admin can search for a member by name or RFID tag
+ * the admin portal so that an admin can search for a member by name or RFID tag.
+ *
+ * Matching (pg_trgm + curated blob, accent-folded):
+ *   (a) every whitespace token must appear as a substring of the blob
+ *       (order-independent multi-word); phone-like tokens are digit-normalized
+ *       so dashed/parenthesized phone queries match the digits-only stored phone;
+ *   (b) word_similarity >= 0.4 adds typo tolerance (jon -> John);
+ *   (c) a digits-only query also matches RFID tags w/ or w/o leading zeros.
+ * Ranking is name-first: first/last/nickname matches are weighted 2x over the
+ * full-blob similarity.
  */
 CREATE OR REPLACE FUNCTION search_members_by_identity_and_access(search_query text)
 RETURNS TABLE (
@@ -555,9 +602,11 @@ RETURNS TABLE (
     notes jsonb,
     rank real
 ) AS $body$
+DECLARE
+    q text := lower(f_unaccent(trim(search_query)));
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         m.id,
         m.identity,
         m.connections,
@@ -566,27 +615,34 @@ BEGIN
         m.authorizations,
         m.extras,
         m.notes,
-        ts_rank(
-            (
-                to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.identity, '["all"]')::text, '')) ||
-                to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.access, '["all"]')::text, ''))
-            ),
-            plainto_tsquery('english', search_query)
-        ) AS rank
+        (   -- name-first: weight name-field matches 2x over the full-blob match
+            2.0 * word_similarity(q, lower(f_unaccent(concat_ws(' ',
+                      m.identity ->> 'first_name', m.identity ->> 'last_name', m.identity ->> 'nickname'))))
+            + word_similarity(q, member_search_text(m.identity, m.connections, m.access))
+        )::real AS rank
     FROM member m
-    WHERE 
-        -- Full-text search on identity and access
+    WHERE
         (
-            to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.identity, '["all"]')::text, '')) ||
-            to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.access, '["all"]')::text, ''))
-        ) @@ plainto_tsquery('english', search_query)
-        OR
-        -- Pattern matching for numeric searches (handles RFID tags with/without leading zeros)
-        (search_query ~ '^[0-9]+$' AND m.access::text ILIKE '%' || search_query || '%')
-    ORDER BY rank DESC;
+            -- (a) every query token must be a substring of the blob (phone-like tokens digit-normalized)
+            NOT EXISTS (
+                SELECT 1 FROM regexp_split_to_table(q, '\s+') tok
+                WHERE tok <> ''
+                  AND member_search_text(m.identity, m.connections, m.access)
+                      NOT ILIKE '%' ||
+                          CASE WHEN tok ~ '^[0-9()+.\- ]+$'
+                               THEN regexp_replace(tok, '\D', '', 'g')
+                               ELSE tok END
+                      || '%'
+            )
+            -- (b) typo tolerance
+            OR word_similarity(q, member_search_text(m.identity, m.connections, m.access)) >= 0.4
+        )
+        -- (c) numeric RFID fallback (handles tags with/without leading zeros)
+        OR (search_query ~ '^[0-9]+$' AND m.access::text ILIKE '%' || search_query || '%')
+    ORDER BY rank DESC NULLS LAST;
 END;
 $body$ LANGUAGE plpgsql;
-COMMENT ON FUNCTION search_members_by_identity_and_access(text) IS 'Performs full text search on the identity and access JSONB columns of member records and returns results ranked by relevance.';
+COMMENT ON FUNCTION search_members_by_identity_and_access(text) IS 'Curated, accent-folded pg_trgm search over allowlisted identity/connections/access keys (names, nickname, member_id, AD username, emails, Discord, phone, RFID). Substring + word_similarity typo tolerance, ranked name-first.';
 
 /*
  * Function that returns full member records based on identity search

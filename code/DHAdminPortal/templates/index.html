@@ -35,8 +35,8 @@
         <div class="mb-3">
             <div class="d-flex gap-2 align-items-center">
                 <div class="input-group">
-                    <input type="text" class="form-control" id="memberSearch" placeholder="Search for a member..." onkeydown="if(event.key==='Enter')searchMembers()">
-                    <button class="btn btn-primary cute-signin" type="button" id="searchButton" onclick="searchMembers()">Search</button>
+                    <input type="search" class="form-control" id="memberSearch" placeholder="Search for a member..." autocapitalize="none" autocorrect="off" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')searchMembers()">
+                    <button class="btn btn-primary cute-signin" type="button" id="searchButton" onclick="searchMembers()" aria-label="Search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
                 </div>
                 <span class="dh-refresh-btn" onclick="loadMembers(currentPage)" title="Refresh results"><i class="fa-solid fa-arrow-rotate-right"></i></span>
             </div>
@@ -1390,7 +1390,7 @@ function loadMembers(page) {
     // Show loading state on search button
     const searchBtn = document.getElementById('searchButton');
     searchBtn.disabled = true;
-    searchBtn.textContent = 'Loading...';
+    searchBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
     return fetch(`/api/members?${params.toString()}`)
         .then(response => {
@@ -1412,7 +1412,7 @@ function loadMembers(page) {
         })
         .finally(() => {
             searchBtn.disabled = false;
-            searchBtn.textContent = 'Search';
+            searchBtn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i>';
         });
 }
 

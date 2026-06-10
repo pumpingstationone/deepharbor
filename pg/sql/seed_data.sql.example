@@ -12035,6 +12035,61 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
 
 
 /* =====================================================
+ * Member search test fixtures (accents / phone formats / Discord / RFID)
+ * Exercise the pg_trgm curated search: unaccent folding, dash-agnostic phone,
+ * leading-zero RFID, hyphenated names, and plus-alias emails.
+ * ===================================================== */
+
+/* ID 1001 - José Muñoz: accents, leading-zero RFID, parenthesized phone */
+INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
+    '{"first_name": "José", "last_name": "Muñoz", "nickname": "pepe", "active_directory_username": "jmunoz", "emails": [{"type": "primary", "email_address": "jose.munoz@example.com"}], "birthday": "1990-05-05"}'::jsonb,
+    '{"discord_handle": "jmunoz_test", "phone": "(312) 555-0101"}'::jsonb,
+    '{"membership_status": "active", "membership_level": "Membership", "member_since": "2021-03-01"}'::jsonb,
+    NULL,
+    '{"rfid_tags": ["0000001234"]}'::jsonb,
+    NULL,
+    NULL,
+    NULL
+);
+
+/* ID 1002 - Renée Dubois: accent é, dash-formatted phone */
+INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
+    '{"first_name": "Renée", "last_name": "Dubois", "nickname": null, "active_directory_username": "rdubois", "emails": [{"type": "primary", "email_address": "renee.dubois@example.com"}], "birthday": "1987-09-12"}'::jsonb,
+    '{"discord_handle": "renee_test", "phone": "312-555-0190"}'::jsonb,
+    '{"membership_status": "active", "membership_level": "Membership", "member_since": "2022-06-01"}'::jsonb,
+    NULL,
+    '{"rfid_tags": ["1055667788"]}'::jsonb,
+    NULL,
+    NULL,
+    NULL
+);
+
+/* ID 1003 - Pat Smith-Jones: hyphenated last name, +1 phone, plus-alias email, known Discord */
+INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
+    '{"first_name": "Pat", "last_name": "Smith-Jones", "nickname": null, "active_directory_username": "psmithjones", "emails": [{"type": "primary", "email_address": "pat+tag@example.com"}], "birthday": "1995-01-20"}'::jsonb,
+    '{"discord_handle": "ps1_search_fixture", "phone": "+13125550191"}'::jsonb,
+    '{"membership_status": "active", "membership_level": "Membership", "member_since": "2023-02-15"}'::jsonb,
+    NULL,
+    '{"rfid_tags": ["1066778899"]}'::jsonb,
+    NULL,
+    NULL,
+    NULL
+);
+
+/* ID 1004 - Zoë Carter: accent ë, dot-separated phone */
+INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
+    '{"first_name": "Zoë", "last_name": "Carter", "nickname": "zo", "active_directory_username": "zcarter", "emails": [{"type": "primary", "email_address": "zoe.carter@example.com"}], "birthday": "1992-02-02"}'::jsonb,
+    '{"discord_handle": "zoe_test", "phone": "312.555.0192"}'::jsonb,
+    '{"membership_status": "active", "membership_level": "Membership", "member_since": "2024-04-10"}'::jsonb,
+    NULL,
+    '{"rfid_tags": ["1077889900"]}'::jsonb,
+    NULL,
+    NULL,
+    NULL
+);
+
+
+/* =====================================================
  * Role Assignments
  * Roles: Authorizer (1), Administrator (2), Board (3), ID Check (4), CTO (5), Treasurer (6), Area Host (7)
  * ===================================================== */

@@ -1,4 +1,5 @@
 import math
+import re
 import psycopg2
 from contextlib import contextmanager
 import json
@@ -355,19 +356,28 @@ def search_members(query: str) -> list[dict]:
     return members
 
 def search_members_by_identity_and_access(query: str) -> list[dict]:
-    logger.debug(f"Searching members with query: {query}")
+    logger.debug(f"Searching members with query (len={len(query or '')})")
+    # Guard pathological queries (short/punctuation-only) so the non-paginated
+    # consumer (role-assign modal via /api/search) never receives the whole roster.
+    if not _is_searchable_query(query):
+        return []
     members = []
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
+                # The SQL function already orders by its name-first rank; re-state
+                # the order here (a bare SELECT from a SRF does not guarantee it)
+                # with a stable tiebreak, and cap the non-paginated result set.
                 """SELECT id,
                           identity ->> 'first_name' first_name,
                           identity ->> 'last_name' last_name,
                           identity -> 'emails' -> 0 ->> 'email_address' primary_email_address,
                           status ->> 'membership_status' membership_status
                    FROM   search_members_by_identity_and_access(%s)
+                   ORDER BY rank DESC NULLS LAST, id
+                   LIMIT  %s
                 """,
-                (query,),
+                (query, 200),
             )
             results = cur.fetchall()
     for result in results:
@@ -408,6 +418,16 @@ def _validate_sort(sort: str, order: str, allowlist: dict, default_sort: str) ->
     col = allowlist.get(sort, allowlist[default_sort])
     direction = "ASC" if order.lower() == "asc" else "DESC"
     return col, direction
+
+def _is_searchable_query(query: str) -> bool:
+    """Reject pathological search queries (under 2 chars, or no word character).
+
+    `\\w` is unicode-aware, so accented-only queries (e.g. 'Éé') pass while
+    punctuation-only ('@', '---') and single-char queries are rejected. Guards
+    against a short/empty query matching the whole roster.
+    """
+    q = (query or "").strip()
+    return len(q) >= 2 and re.search(r"\w", q) is not None
 
 def _paginated_response(members: list[dict], total: int, page: int, per_page: int) -> dict:
     return {
@@ -460,7 +480,11 @@ def list_members(page: int = 1, per_page: int = 25,
 
 def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
                              sort: str = "rank", order: str = "desc") -> dict:
-    logger.debug(f"Paginated search query={query} page={page} per_page={per_page} sort={sort} order={order}")
+    logger.debug(f"Paginated search query_len={len(query or '')} page={page} per_page={per_page} sort={sort} order={order}")
+    # Guard pathological queries (short/punctuation-only) so they return an empty
+    # page instead of dumping the whole roster.
+    if not _is_searchable_query(query):
+        return _paginated_response([], 0, page, per_page)
     sort_col, direction = _validate_sort(sort, order, _SEARCH_SORT_COLUMNS, "rank")
     offset = (page - 1) * per_page
 
@@ -481,7 +505,7 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
                     )
                     SELECT *, COUNT(*) OVER() AS total_count
                     FROM   results
-                    ORDER BY {sort_col} {direction}
+                    ORDER BY {sort_col} {direction}, id ASC
                     LIMIT  %s OFFSET %s
                 """,
                 (query, per_page, offset),
@@ -774,8 +798,10 @@ def get_member_roles(member_id: str) -> list[str]:
     return roles
 
 def search_onboarder_candidates(query: str, limit: int = 20) -> list[dict]:
-    """Search members by name/username for the onboarder picker.
+    """Search members by name/nickname/username for the onboarder picker.
 
+    Accent-insensitive substring match (via f_unaccent) across first_name,
+    last_name, nickname, and active_directory_username.
     Ranks members holding the `member.forms` change permission first (via any
     role they hold), then alphabetical by last_name, first_name. Returns at
     most `limit` rows. Used by the admin portal Onboard tab and Forms tab
@@ -803,16 +829,17 @@ def search_onboarder_candidates(query: str, limit: int = 20) -> list[dict]:
                 FROM       member m
                 LEFT JOIN  member_to_role mtr ON mtr.member_id = m.id
                 LEFT JOIN  roles r            ON r.id = mtr.role_id
-                WHERE      m.identity ->> 'first_name' ILIKE %s
-                       OR  m.identity ->> 'last_name'  ILIKE %s
-                       OR  m.identity ->> 'active_directory_username' ILIKE %s
+                WHERE      f_unaccent(m.identity ->> 'first_name')                ILIKE f_unaccent(%s)
+                       OR  f_unaccent(m.identity ->> 'last_name')                 ILIKE f_unaccent(%s)
+                       OR  f_unaccent(m.identity ->> 'nickname')                  ILIKE f_unaccent(%s)
+                       OR  f_unaccent(m.identity ->> 'active_directory_username') ILIKE f_unaccent(%s)
                 GROUP BY   m.id
                 ORDER BY   has_forms_change_perm DESC,
                            LOWER(m.identity ->> 'last_name')  ASC NULLS LAST,
                            LOWER(m.identity ->> 'first_name') ASC NULLS LAST
                 LIMIT      %s
                 """,
-                (pattern, pattern, pattern, limit),
+                (pattern, pattern, pattern, pattern, limit),
             )
             rows = cur.fetchall()
     return [
