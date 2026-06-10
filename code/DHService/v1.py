@@ -200,13 +200,19 @@ async def update_member_identity(
     # exceeds 16 chars (prod has them, up to 26) stays unaffected.
     if x_member_id is None:
         try:
-            SignupIdentityIn.model_validate(data)
+            validated = SignupIdentityIn.model_validate(data)
         except ValidationError:
             raise HTTPException(
                 status_code=400,
                 detail="Invalid active_directory_username: must be 1-16 characters "
                        "using letters, digits, underscore, or hyphen",
             )
+        # Persist the normalized (stripped) username so the stored value matches
+        # what was validated — model_validate checks v.strip() but we store
+        # `data`, so without this a whitespace-padded value would be saved
+        # verbatim. Only write back when the key was actually supplied.
+        if "active_directory_username" in data:
+            data["active_directory_username"] = validated.active_directory_username
     return db.add_update_identity(data, member_id=x_member_id)
 
 @app.post("/v1/member/change_email_address/")

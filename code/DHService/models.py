@@ -90,9 +90,20 @@ class SignupIdentityIn(BaseModel):
     @field_validator("active_directory_username")
     @classmethod
     def _validate_ad_username(cls, v):
-        if v is None or v.strip() == "":
+        if v is None:
             return v
-        if not re.fullmatch(r"[A-Za-z0-9_-]{1,16}", v.strip()):
+        # Normalize: return the stripped value so the validated model carries
+        # exactly what callers should persist (the handler writes this back).
+        # Without stripping the *stored* value, a whitespace-padded username
+        # would pass (we check v.strip()) but be saved verbatim — bypassing the
+        # case-insensitive-but-untrimmed uniqueness gate and injecting
+        # whitespace into the AD username.
+        v = v.strip()
+        if v == "":
+            # Empty / whitespace-only normalizes to "" — required-ness is
+            # deferred to #293 (empty/null AD usernames exist in prod).
+            return v
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,16}", v):
             raise ValueError(
                 "active_directory_username must be 1-16 characters: "
                 "letters, digits, underscore, or hyphen"
