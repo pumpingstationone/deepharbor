@@ -1565,15 +1565,26 @@ function buildStatusCell(rawStatus) {
 // data can never inject markup. Fuzzy/typo matches have no literal substring to
 // bold and render plain.
 function appendHighlighted(container, value, query) {
-    const tokens = (query || '')
+    const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');  // regex-escape
+    // Map each query token to a regex fragment. A phone/RFID-style token (digits +
+    // phone punctuation) is matched on its digits with optional non-digit separators
+    // between them, mirroring the backend's digit-normalized phone/RFID matching —
+    // so a query like 3125550101 still highlights inside a stored "(312) 555-0101".
+    const patterns = (query || '')
         .replace(/^"(.*)"$/, '$1')               // strip exact-mode quotes
         .trim()
         .split(/\s+/)
         .filter(t => t.length > 0)
-        .map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));  // regex-escape
-    if (tokens.length === 0) { container.textContent = value; return; }
+        .map(t => {
+            if (/^[0-9()+.\-\s]+$/.test(t)) {
+                const digits = t.replace(/\D/g, '');
+                if (digits.length > 0) return digits.split('').join('[^0-9]*');
+            }
+            return escapeRe(t);
+        });
+    if (patterns.length === 0) { container.textContent = value; return; }
     let re;
-    try { re = new RegExp('(' + tokens.join('|') + ')', 'gi'); }
+    try { re = new RegExp('(' + patterns.join('|') + ')', 'gi'); }
     catch (e) { container.textContent = value; return; }
     let lastIndex = 0, m;
     while ((m = re.exec(value)) !== null) {
