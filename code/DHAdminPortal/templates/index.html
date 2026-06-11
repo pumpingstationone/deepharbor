@@ -18,10 +18,10 @@
 <!-- Logging notice -->
 <div class="row justify-content-center" id="loggingNoticeRow">
     <div class="col-md-8">
-        <div class="alert alert-warning alert-dismissible fade show text-center py-2 mb-4" role="alert">
+        <div class="alert alert-warning fade show text-center py-2 mb-4 position-relative" role="alert">
             <i class="bi bi-exclamation-triangle-fill"></i>
             <strong>HEY!</strong> All changes you make will get logged!
-            <button type="button" class="btn-close" aria-label="Close" onclick="dismissLoggingNotice()"></button>
+            <a href="#" class="text-muted dh-logging-dismiss" onclick="dismissLoggingNotice(); return false;"><span class="dh-dismiss-default">Dismiss</span><span class="dh-dismiss-hover">Fuckoff</span></a>
         </div>
     </div>
 </div>
@@ -193,6 +193,16 @@
                     <div class="card">
                         <div class="card-body">
                             <h5 class="mb-3">Member Onboarding</h5>
+                            <!-- Onboarding wiki pointer: dismissible, remembered per-browser in localStorage -->
+                            <div id="onboardWikiNoticeRow" class="alert alert-warning fade show text-start small py-2 mb-3" role="note">
+                                <span class="flex-grow-1">
+                                    <i class="fa-solid fa-circle-info me-2"></i>
+                                    New to onboarding? Step-by-step instructions are on the
+                                    <a href="https://wiki.pumpingstationone.org/wiki/Deep_Harbor/Onboarding_Process"
+                                       target="_blank" rel="noopener">PS:1 wiki <i class="fa-solid fa-up-right-from-square fa-xs"></i></a>.
+                                </span>
+                                <a href="#" class="text-muted text-nowrap flex-shrink-0 ms-3" onclick="dismissOnboardWikiNotice(); return false;">Dismiss</a>
+                            </div>
                             <div id="onboardLoading" class="text-center" style="display: none;">
                                 <div class="spinner-border" role="status">
                                     <span class="visually-hidden">Loading...</span>
@@ -1413,6 +1423,20 @@ function restoreLoggingNotice() {
     // Only hide it if the user previously dismissed it on this browser.
     if (localStorage.getItem('dh-logging-notice-dismissed') !== '1') return;
     const row = document.getElementById('loggingNoticeRow');
+    if (row) row.style.display = 'none';
+}
+
+// Onboarding wiki-pointer banner: dismissible, remembered per-browser in localStorage
+
+function dismissOnboardWikiNotice() {
+    localStorage.setItem('dh-onboard-wiki-notice-dismissed', '1');
+    const row = document.getElementById('onboardWikiNoticeRow');
+    if (row) row.style.display = 'none';
+}
+
+function restoreOnboardWikiNotice() {
+    if (localStorage.getItem('dh-onboard-wiki-notice-dismissed') !== '1') return;
+    const row = document.getElementById('onboardWikiNoticeRow');
     if (row) row.style.display = 'none';
 }
 
@@ -3396,6 +3420,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Restore dismissed state of the logging-notice banner
     restoreLoggingNotice();
+    restoreOnboardWikiNotice();
 
     // Apply navbar visibility based on permissions
     filterNavbarByPermissions();

@@ -371,15 +371,34 @@ body {
     margin-bottom: 0;
 }
 
-/* Logging-notice banner dismiss (x): Bootstrap's default 1.25rem padding makes
-   the hit-area taller than this thin py-2 alert and pins it to the top corner.
-   Shrink it and vertically center it so it sits neatly in the band. */
-#loggingNoticeRow .btn-close {
+/* HEY logging-notice "Dismiss": absolutely positioned (out of flow) so the
+   message stays centered across the full band, and small so it's unobtrusive. */
+#loggingNoticeRow .dh-logging-dismiss {
+    position: absolute;
     top: 50%;
-    right: 0.5rem;
+    right: 0.75rem;
     transform: translateY(-50%);
-    padding: 0.5rem;
-    background-size: 0.75em;
+    font-size: 0.7rem;
+}
+
+/* Easter egg: "Dismiss" flips to its true feelings on hover. */
+#loggingNoticeRow .dh-logging-dismiss .dh-dismiss-hover {
+    display: none;
+}
+#loggingNoticeRow .dh-logging-dismiss:hover .dh-dismiss-default {
+    display: none;
+}
+#loggingNoticeRow .dh-logging-dismiss:hover .dh-dismiss-hover {
+    display: inline;
+}
+
+/* Onboard wiki-pointer notice: flex layout keeps the "Dismiss" link right-aligned
+   and centered without overlapping the message. Set here (not via the .d-flex
+   utility) so the inline display:none set on dismiss can override it — .d-flex is
+   display:flex !important and would keep the banner visible after dismissal. */
+#onboardWikiNoticeRow {
+    display: flex;
+    align-items: center;
 }
 
 [data-theme="bubblegum"] .dh-member-bar + .dh-suspended-warning {
