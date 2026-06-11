@@ -11952,8 +11952,8 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
 /* ID 994 - Joseph Park */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
     '{"first_name": "Joseph", "last_name": "Park", "nickname": null, "active_directory_username": null, "emails": [{"type": "primary", "email_address": "water.per95562@students.northwestern-university.edu"}], "birthday": "2005-04-13T00:00:00", "aliases": []}'::jsonb,
-    NULL,
-    '{"membership_status": "pending", "membership_level": "Membership", "member_since": "2023-05-16", "renewal_date": "2020-11-21T14:31:40", "waiver_signed": true}'::jsonb,
+    '{"discord_handle": "", "phone": "3125550194", "stripe_customer_id": "cus_Rp9mKt3XbViu7Q", "stripe_id": "cus_Rp9mKt3XbViu7Q"}'::jsonb,
+    '{"membership_status": "pending", "membership_level": "Stripe Member - $65", "member_since": "2023-05-16", "renewal_date": "2020-11-21T14:31:40", "waiver_signed": true, "balance": 0, "donations": 0, "donor": false, "stripe_subscription_id": "sub_Rp9mKt3XbViu7QdLf2NhUq8C", "stripe_product_id": "prod_lbluY11SxAKyDN"}'::jsonb,
     NULL,
     NULL,
     NULL,
@@ -11964,8 +11964,8 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
 /* ID 995 - Megan Carrillo */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
     '{"first_name": "Megan", "last_name": "Carrillo", "nickname": null, "active_directory_username": null, "emails": [{"type": "primary", "email_address": "involve.whom63347@alumni.illinois-institute-of-technology.edu"}], "birthday": "1986-07-21T00:00:00", "aliases": []}'::jsonb,
-    NULL,
-    '{"membership_status": "pending", "membership_level": "Membership", "member_since": "2024-02-18", "renewal_date": "2022-04-04T01:51:18", "waiver_signed": false}'::jsonb,
+    '{"discord_handle": "", "phone": "7735550142", "stripe_customer_id": "cus_Mc4nWz8YbTqr2P", "stripe_id": "cus_Mc4nWz8YbTqr2P"}'::jsonb,
+    '{"membership_status": "pending", "membership_level": "Stripe Member w/ Storage - $95", "member_since": "2024-02-18", "renewal_date": "2022-04-04T01:51:18", "waiver_signed": false, "balance": 0, "donations": 0, "donor": false, "stripe_subscription_id": "sub_Mc4nWz8YbTqr2PeKj7VsHd1B", "stripe_product_id": "prod_2FOAQyhcPSeycr"}'::jsonb,
     NULL,
     NULL,
     NULL,
@@ -11976,8 +11976,8 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
 /* ID 996 - Jacob Bowman */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
     '{"first_name": "Jacob", "last_name": "Bowman", "nickname": null, "active_directory_username": null, "emails": [{"type": "primary", "email_address": "gun.relationship@consulting.global-partners-chicago.com"}], "birthday": "1983-07-25T00:00:00", "aliases": []}'::jsonb,
-    NULL,
-    '{"membership_status": "pending", "membership_level": "New Member", "member_since": "2025-01-19", "renewal_date": "2021-12-07T15:54:04", "waiver_signed": false}'::jsonb,
+    '{"discord_handle": "", "phone": "3125550178", "stripe_customer_id": "cus_Jb6vQx1ScLmn5R", "stripe_id": "cus_Jb6vQx1ScLmn5R"}'::jsonb,
+    '{"membership_status": "pending", "membership_level": "Stripe Volunteer w/ Paid Storage - $30", "member_since": "2025-01-19", "renewal_date": "2021-12-07T15:54:04", "waiver_signed": false, "balance": 0, "donations": 0, "donor": false, "stripe_subscription_id": "sub_Jb6vQx1ScLmn5RpYt3FgWk9D", "stripe_product_id": "prod_aCCvSZvXh6aUxd"}'::jsonb,
     NULL,
     NULL,
     NULL,
@@ -11988,8 +11988,8 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
 /* ID 997 - Rhonda Davis */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
     '{"first_name": "Rhonda", "last_name": "Davis", "nickname": null, "active_directory_username": null, "emails": [{"type": "primary", "email_address": "wait.seem.give@students.northwestern-university.edu"}], "birthday": "1993-12-15T00:00:00", "aliases": []}'::jsonb,
-    NULL,
-    '{"membership_status": "pending", "membership_level": "New Member", "member_since": "2019-11-18", "renewal_date": "2022-03-22T14:09:06", "waiver_signed": false}'::jsonb,
+    '{"discord_handle": "", "phone": "8475550133", "stripe_customer_id": "cus_Rd3hNp7ZbVfu8Q", "stripe_id": "cus_Rd3hNp7ZbVfu8Q"}'::jsonb,
+    '{"membership_status": "pending", "membership_level": "Stripe Member - $65", "member_since": "2019-11-18", "renewal_date": "2022-03-22T14:09:06", "waiver_signed": false, "balance": 0, "donations": 0, "donor": false, "stripe_subscription_id": "sub_Rd3hNp7ZbVfu8QmKx2LtScE4", "stripe_product_id": "prod_lbluY11SxAKyDN"}'::jsonb,
     NULL,
     NULL,
     NULL,
@@ -12000,8 +12000,8 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
 /* ID 998 - Anthony Carter */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
     '{"first_name": "Anthony", "last_name": "Carter", "nickname": null, "active_directory_username": null, "emails": [{"type": "primary", "email_address": "hotel.author.sport96231@engineering.midwest-manufacturing-co.com"}], "birthday": "1960-08-01T00:00:00", "aliases": []}'::jsonb,
-    NULL,
-    '{"membership_status": "pending", "membership_level": "Membership", "member_since": "2025-11-30", "renewal_date": null, "waiver_signed": false}'::jsonb,
+    '{"discord_handle": "", "phone": "7735550166", "stripe_customer_id": "cus_Ac5tGy9WbXqr1P", "stripe_id": "cus_Ac5tGy9WbXqr1P"}'::jsonb,
+    '{"membership_status": "pending", "membership_level": "Stripe Member w/ Storage - $95", "member_since": "2025-11-30", "renewal_date": null, "waiver_signed": false, "balance": 0, "donations": 0, "donor": false, "stripe_subscription_id": "sub_Ac5tGy9WbXqr1PnVj6HdLs7B", "stripe_product_id": "prod_2FOAQyhcPSeycr"}'::jsonb,
     NULL,
     NULL,
     NULL,
