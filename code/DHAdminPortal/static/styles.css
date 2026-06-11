@@ -70,7 +70,7 @@ th.dh-status-col { cursor: pointer; }
    so unrelated keyframe animations (e.g. Bootstrap `.spinner-border` loaders)
    keep spinning. Keep this list in sync when adding a themed animation.
    The selectors cover every theme's `@keyframes` target:
-     body::before/::after  — bubblegum bubble, hacker scanline + CRT flicker, midnight starfield
+     body::before/::after  — hacker scanline + CRT flicker, midnight starfield
      .body-content h1       — bg-bounce / dark-fire-flicker / hacker-text-flicker / midnight twinkle
      .body-content h1/p ::before/::after — bubblegum sparkles, hacker cursor
    =================================================================== */
@@ -614,19 +614,19 @@ body.sidebar-open .body-content {
 [data-theme="hacker"] .dh-search-help-btn { color: var(--primary-color); }
 
 /* Search-tips popover — themed through Bootstrap's own CSS vars so the arrow,
- * header, and body all follow the active theme. Fallbacks cover bubblegum
- * (which styles with literal colors instead of the --*-color custom props). */
+ * header, and body all follow the active theme. All five themes (bubblegum
+ * included) now define the --*-color palette, so bare var() resolves. */
 .dh-search-help-popover {
     --bs-popover-max-width: 320px;
-    --bs-popover-bg: var(--card-bg, #ffffff);
-    --bs-popover-border-color: var(--border-color, #f3afca);
-    --bs-popover-body-color: var(--text-color, #212529);
-    --bs-popover-header-bg: var(--card-bg, #fff0f6);
-    --bs-popover-header-color: var(--primary-color, #d63384);
+    --bs-popover-bg: var(--card-bg);
+    --bs-popover-border-color: var(--border-color);
+    --bs-popover-body-color: var(--text-color);
+    --bs-popover-header-bg: color-mix(in srgb, var(--primary-color) 12%, var(--card-bg));
+    --bs-popover-header-color: var(--primary-color);
 }
 .dh-search-help-popover .popover-header {
     font-weight: 600;
-    border-bottom-color: var(--border-color, #f3afca);
+    border-bottom-color: var(--border-color);
 }
 .dh-search-help .dh-sh-lead { font-weight: 600; margin: 0.5rem 0 0.2rem; }
 .dh-search-help .dh-sh-lead:first-child { margin-top: 0; }
@@ -645,18 +645,18 @@ body.sidebar-open .body-content {
 }
 
 /* Status-column legend popover — themed through Bootstrap's own CSS vars, same
- * pattern as the search-tips popover (bubblegum falls back to literal colors). */
+ * pattern as the search-tips popover (all five themes define the palette). */
 .dh-status-legend-popover {
     --bs-popover-max-width: 240px;
-    --bs-popover-bg: var(--card-bg, #ffffff);
-    --bs-popover-border-color: var(--border-color, #f3afca);
-    --bs-popover-body-color: var(--text-color, #212529);
-    --bs-popover-header-bg: var(--card-bg, #fff0f6);
-    --bs-popover-header-color: var(--primary-color, #d63384);
+    --bs-popover-bg: var(--card-bg);
+    --bs-popover-border-color: var(--border-color);
+    --bs-popover-body-color: var(--text-color);
+    --bs-popover-header-bg: color-mix(in srgb, var(--primary-color) 12%, var(--card-bg));
+    --bs-popover-header-color: var(--primary-color);
 }
 .dh-status-legend-popover .popover-header {
     font-weight: 600;
-    border-bottom-color: var(--border-color, #f3afca);
+    border-bottom-color: var(--border-color);
 }
 .dh-status-legend {
     font-size: 0.85rem;
@@ -883,7 +883,7 @@ body.sidebar-resizing .details-sidebar {
     border-radius: 4px;
     vertical-align: middle;
     letter-spacing: 0.02em;
-    background: var(--primary-color, #2563eb);
+    background: var(--primary-color);
     color: #ffffff;
     border: 1px solid transparent;
 }
@@ -991,36 +991,26 @@ body.sidebar-resizing .details-sidebar {
    BUBBLEGUM THEME
    =================================================================== */
 
+/* Palette custom properties — mirrors the other themes' top-level blocks so
+   shared components can use bare var(--*-color). Bubblegum's decorative rules
+   below still use literal hex; these vars match the functional accents
+   (#d63384 etc.) the shared popovers/badge already assumed. No --bs-* remap
+   (keeps Bootstrap component rendering as-is); the status palette lives in
+   :root, which is bubblegum's base. --bg-color is the lightest gradient stop. */
+[data-theme="bubblegum"] {
+    --primary-color: #d63384;
+    --secondary-color: #6c757d;
+    --success-color: #16a34a;
+    --error-color: #dc2626;
+    --info-color: #0891b2;
+    --bg-color: #ffd6e8;
+    --card-bg: #ffffff;
+    --text-color: #212529;
+    --border-color: #f3afca;
+}
+
 [data-theme="bubblegum"] body {
     background: linear-gradient(135deg, #ffd6e8 0%, #ffc0e5 50%, #ffb3e6 100%);
-}
-
-/* Floating bubbles */
-
-[data-theme="bubblegum"] body::before {
-    content: '';
-    position: fixed;
-    width: 200px;
-    height: 200px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 50%;
-    top: -100px;
-    left: 10%;
-    animation: bg-float 8s infinite ease-in-out;
-    pointer-events: none;
-}
-
-[data-theme="bubblegum"] body::after {
-    display: none;
-}
-
-@keyframes bg-float {
-    0%, 100% {
-        transform: translateY(0) rotate(0deg);
-    }
-    50% {
-        transform: translateY(-20px) rotate(180deg);
-    }
 }
 
 /* Bubblegum content styles */
