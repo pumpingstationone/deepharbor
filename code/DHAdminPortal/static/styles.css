@@ -531,6 +531,35 @@ body.sidebar-open .body-content {
     outline: none;
 }
 
+/* Refresh button pairs with the close (X) in the sidebar header — same
+   transparent, color-inherit treatment so it themes for free, just a touch
+   smaller than the X for visual balance. */
+.dh-sidebar-refresh {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    padding: 0.15rem 0.4rem;
+    line-height: 1;
+    font-size: 1.05rem;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.85;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.dh-sidebar-refresh:hover,
+.dh-sidebar-refresh:focus {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.15);
+    outline: none;
+}
+
+.dh-sidebar-refresh:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: transparent;
+}
+
 
 
 /* Search bar border matches theme color */
