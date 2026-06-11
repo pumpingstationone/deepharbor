@@ -4,6 +4,51 @@
    =================================================================== */
 
 /* ===================================================================
+   MEMBERSHIP STATUS PALETTE (base / default = Bubblegum)
+   Per-theme overrides live in each [data-theme="…"] block below.
+   Same hue family across themes; lightness/saturation tuned per bg.
+   =================================================================== */
+:root {
+    --status-active:    #16a34a; /* green */
+    --status-pending:   #2563eb; /* blue */
+    --status-suspended: #d97706; /* amber */
+    --status-banned:    #dc2626; /* red */
+    --status-other:     #6b7280; /* grey — inactive / blank / unknown */
+}
+
+/* Colored status icons — used in the results table and the detail warning */
+.dh-status-icon         { line-height: 1; }
+.dh-status-active       { color: var(--status-active); }
+.dh-status-pending      { color: var(--status-pending); }
+.dh-status-suspended    { color: var(--status-suspended); }
+.dh-status-banned       { color: var(--status-banned); }
+.dh-status-other        { color: var(--status-other); }
+
+/* Narrow, centered status column in the results table */
+.dh-status-col {
+    width: 1%;
+    white-space: nowrap;
+    text-align: center;
+}
+th.dh-status-col { cursor: pointer; }
+
+/* "Matched on" column in the results table (search mode only). Lists each
+   curated field that matched, strongest first; the matched substring is bolded.
+   Long values get a trailing ellipsis with the full "Field: value" in a tooltip.
+   Muting via opacity (not a fixed grey) keeps the label readable in all themes. */
+.dh-match-col { vertical-align: top; }
+.dh-match-line {
+    max-width: 340px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.85rem;
+    line-height: 1.35;
+}
+.dh-match-field { opacity: 0.65; }
+.dh-match-value strong { font-weight: 700; }
+
+/* ===================================================================
    SHARED BASE (theme-neutral — layout, structure, resets)
    =================================================================== */
 
@@ -338,12 +383,10 @@ body {
 }
 
 [data-theme="bubblegum"] .dh-member-bar + .dh-suspended-warning {
-    border-left: 4px solid #ff1493;
     border-right: 1px solid #ff69b4;
 }
 
 [data-theme="light"] .dh-member-bar + .dh-suspended-warning {
-    border-left: 4px solid var(--error-color);
     border-right: 1px solid var(--border-color);
 }
 
@@ -498,6 +541,89 @@ body.sidebar-open .body-content {
 [data-theme="dark"] .dh-refresh-btn { color: var(--primary-color); }
 [data-theme="midnight"] .dh-refresh-btn { color: var(--primary-color); }
 [data-theme="hacker"] .dh-refresh-btn { color: var(--primary-color); }
+
+/* Search-tips info icon (left of the search bar) */
+.dh-search-help-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    margin-right: 0.35rem;
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+    flex-shrink: 0;
+    color: inherit;
+}
+.dh-search-help-btn:hover,
+.dh-search-help-btn:focus { opacity: 1; outline: none; }
+[data-theme="bubblegum"] .dh-search-help-btn { color: #d63384; }
+[data-theme="light"] .dh-search-help-btn { color: var(--primary-color); }
+[data-theme="dark"] .dh-search-help-btn { color: var(--primary-color); }
+[data-theme="midnight"] .dh-search-help-btn { color: var(--primary-color); }
+[data-theme="hacker"] .dh-search-help-btn { color: var(--primary-color); }
+
+/* Search-tips popover — themed through Bootstrap's own CSS vars so the arrow,
+ * header, and body all follow the active theme. Fallbacks cover bubblegum
+ * (which styles with literal colors instead of the --*-color custom props). */
+.dh-search-help-popover {
+    --bs-popover-max-width: 320px;
+    --bs-popover-bg: var(--card-bg, #ffffff);
+    --bs-popover-border-color: var(--border-color, #f3afca);
+    --bs-popover-body-color: var(--text-color, #212529);
+    --bs-popover-header-bg: var(--card-bg, #fff0f6);
+    --bs-popover-header-color: var(--primary-color, #d63384);
+}
+.dh-search-help-popover .popover-header {
+    font-weight: 600;
+    border-bottom-color: var(--border-color, #f3afca);
+}
+.dh-search-help .dh-sh-lead { font-weight: 600; margin: 0.5rem 0 0.2rem; }
+.dh-search-help .dh-sh-lead:first-child { margin-top: 0; }
+.dh-search-help .dh-sh-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+.dh-search-help code {
+    background: rgba(125, 125, 125, 0.18);
+    color: inherit;
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+    font-size: 0.82em;
+}
+
+/* Status-column legend popover — themed through Bootstrap's own CSS vars, same
+ * pattern as the search-tips popover (bubblegum falls back to literal colors). */
+.dh-status-legend-popover {
+    --bs-popover-max-width: 240px;
+    --bs-popover-bg: var(--card-bg, #ffffff);
+    --bs-popover-border-color: var(--border-color, #f3afca);
+    --bs-popover-body-color: var(--text-color, #212529);
+    --bs-popover-header-bg: var(--card-bg, #fff0f6);
+    --bs-popover-header-color: var(--primary-color, #d63384);
+}
+.dh-status-legend-popover .popover-header {
+    font-weight: 600;
+    border-bottom-color: var(--border-color, #f3afca);
+}
+.dh-status-legend {
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+.dh-status-legend .dh-sl-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.12rem 0;
+}
+.dh-status-legend .dh-sl-row i {
+    width: 1.1rem;
+    text-align: center;
+    flex-shrink: 0;
+}
 
 /* Sidebar close button */
 .sidebar-close-btn {
@@ -799,12 +925,17 @@ body.sidebar-resizing .details-sidebar {
     padding-left: 1.25rem;
 }
 
-/* Suspended member warning */
+/* Non-active member warning — left-border accent driven by status (set as a
+   .dh-status-<key> modifier class in JS); background stays neutral per theme. */
 
 .dh-suspended-warning {
-    border-left: 4px solid #dc2626;
+    border-left: 4px solid var(--status-other);
     border-radius: 6px;
 }
+.dh-suspended-warning.dh-status-pending   { border-left-color: var(--status-pending); }
+.dh-suspended-warning.dh-status-suspended { border-left-color: var(--status-suspended); }
+.dh-suspended-warning.dh-status-banned    { border-left-color: var(--status-banned); }
+.dh-suspended-warning.dh-status-other     { border-left-color: var(--status-other); }
 
 
 /* ===================================================================
@@ -1254,7 +1385,6 @@ body.sidebar-resizing .details-sidebar {
 
 [data-theme="bubblegum"] .dh-suspended-warning {
     background: rgba(255, 255, 255, 0.9);
-    border-left-color: #ff1493;
 }
 
 /* Bubblegum responsive */
@@ -1296,6 +1426,13 @@ body.sidebar-resizing .details-sidebar {
     --card-bg: #ffffff;
     --text-color: #1e293b;
     --border-color: #e2e8f0;
+
+    /* Membership status palette — light bg, same hues as base */
+    --status-active:    #16a34a;
+    --status-pending:   #2563eb;
+    --status-suspended: #d97706;
+    --status-banned:    #dc2626;
+    --status-other:     #6b7280;
 
     /* Bootstrap variable overrides */
     --bs-primary: #2563eb;
@@ -1581,8 +1718,7 @@ body.sidebar-resizing .details-sidebar {
 /* Light suspended warning */
 
 [data-theme="light"] .dh-suspended-warning {
-    background: #fef2f2;
-    border-left-color: var(--error-color);
+    background: var(--card-bg);
 }
 
 /* ===================================================================
@@ -1599,6 +1735,13 @@ body.sidebar-resizing .details-sidebar {
     --card-bg: #18181b;
     --text-color: #e4e4e7;
     --border-color: #27272a;
+
+    /* Membership status palette — lightened for dark bg */
+    --status-active:    #22c55e;
+    --status-pending:   #3b82f6;
+    --status-suspended: #f59e0b;
+    --status-banned:    #f87171;
+    --status-other:     #a1a1aa;
 
     /* Bootstrap variable overrides */
     --bs-primary: #ef4444;
@@ -2087,12 +2230,10 @@ body.sidebar-resizing .details-sidebar {
 /* Dark suspended warning */
 
 [data-theme="dark"] .dh-suspended-warning {
-    background: #1c1117;
-    border-left-color: var(--error-color);
+    background: var(--card-bg);
 }
 
 [data-theme="dark"] .dh-member-bar + .dh-suspended-warning {
-    border-left: 4px solid var(--error-color);
     border-right: 1px solid #3f3f46;
 }
 
@@ -2203,6 +2344,13 @@ body.sidebar-resizing .details-sidebar {
     --card-bg: #0f1629;
     --text-color: #c8d6e5;
     --border-color: #1a2744;
+
+    /* Membership status palette — lightened for deep-navy bg */
+    --status-active:    #22c55e;
+    --status-pending:   #60a5fa;
+    --status-suspended: #fbbf24;
+    --status-banned:    #f87171;
+    --status-other:     #94a3b8;
 
     --bs-primary: #fbbf24;
     --bs-secondary: #8b9dc3;
@@ -2692,12 +2840,10 @@ body.sidebar-resizing .details-sidebar {
 /* Midnight suspended warning */
 
 [data-theme="midnight"] .dh-suspended-warning {
-    background: #180a0a;
-    border-left-color: var(--error-color);
+    background: var(--card-bg);
 }
 
 [data-theme="midnight"] .dh-member-bar + .dh-suspended-warning {
-    border-left: 4px solid var(--error-color);
     border-right: 1px solid #243356;
 }
 
@@ -2882,6 +3028,13 @@ body.sidebar-resizing .details-sidebar {
     --card-bg: #111111;
     --text-color: #00ff41;
     --border-color: #1a3a1a;
+
+    /* Membership status palette — bright variants for green-on-black bg */
+    --status-active:    #00ff41;
+    --status-pending:   #2f81f7;
+    --status-suspended: #ffae00;
+    --status-banned:    #ff3333;
+    --status-other:     #9aa0a6;
 
     --bs-primary: #00ff41;
     --bs-secondary: #00cc33;
@@ -3412,12 +3565,10 @@ body.sidebar-resizing .details-sidebar {
 /* Hacker suspended warning */
 
 [data-theme="hacker"] .dh-suspended-warning {
-    background: #0a0a0a;
-    border-left-color: #ff3333;
+    background: var(--card-bg);
 }
 
 [data-theme="hacker"] .dh-member-bar + .dh-suspended-warning {
-    border-left: 4px solid #ff3333;
     border-right: 1px solid #1a3a1a;
 }
 

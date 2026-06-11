@@ -539,9 +539,207 @@ $body$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION search_members_by_identity(text) IS 'Performs full text search on the identity JSONB column of member records and returns results ranked by relevance.';
 
 /*
+ * IMMUTABLE wrapper around unaccent(). The stock unaccent() is only STABLE
+ * (it depends on a dictionary that could change), so it cannot be used inside
+ * another IMMUTABLE function. The 2-arg form pins the dictionary explicitly.
+ * Used by member search for accent-folding (e.g. José -> jose).
+ */
+CREATE OR REPLACE FUNCTION f_unaccent(text) RETURNS text
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+AS $$ SELECT unaccent('unaccent', $1) $$;
+
+/*
+ * Escapes LIKE/ILIKE wildcard metacharacters (\, %, _) so user-supplied search
+ * text is matched literally and a typed `%` or `_` doesn't silently become a
+ * wildcard. Mirrors the Python-side escaping in search_onboarder_candidates
+ * (DHService db.py). Relies on the default LIKE escape character (\).
+ */
+CREATE OR REPLACE FUNCTION like_escape(text) RETURNS text
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+AS $$ SELECT replace(replace(replace($1, '\', '\\'), '%', '\%'), '_', '\_') $$;
+
+/*
+ * Parse a raw member-search query into its normalized parts — the single source
+ * of truth for "how a query is interpreted", shared by both the search function
+ * and member_search_matches so the two can never drift on quote-parsing.
+ * A query wrapped in double quotes ("robert13") flips to exact mode: the quotes
+ * are stripped and only literal-substring matches apply.
+ *   q_in  = trimmed input, surrounding quotes stripped in exact mode
+ *   exact = whether the query was quoted
+ *   q     = accent-folded, lowercased q_in (the value actually matched against)
+ */
+CREATE OR REPLACE FUNCTION member_search_normalize(search_query text)
+RETURNS TABLE(q_in text, exact boolean, q text) AS $$
+    SELECT qi, ex, lower(f_unaccent(qi))
+    FROM (
+        SELECT
+            CASE WHEN btrim(search_query) ~ '^".*"$' AND length(btrim(search_query)) >= 2
+                 THEN substring(btrim(search_query) FROM 2 FOR length(btrim(search_query)) - 2)
+                 ELSE btrim(search_query) END AS qi,
+            (btrim(search_query) ~ '^".*"$' AND length(btrim(search_query)) >= 2) AS ex
+    ) s;
+$$ LANGUAGE sql IMMUTABLE;
+
+/*
+ * THE curated, searchable member field allowlist — the single place that
+ * decides which fields member search covers. Both member_search_text (the blob)
+ * and member_search_matches (per-field "Matched on" attribution) derive from
+ * this, so adding/removing a searchable field is a one-place edit and the two
+ * can never disagree about which fields are searchable.
+ *
+ * Internal IDs (Stripe, the legacy Wild Apricot identity.member_id) and JSON key
+ * names are deliberately excluded — the displayed DB id (member.id) is matched
+ * exactly and separately in search_members_by_identity_and_access().
+ * `numeric_field` marks phone/RFID, whose values are matched digit-normalized.
+ * `priority` orders fields for tie-break / name-first nudging (lower = stronger)
+ * AND fixes the blob field order in member_search_text — kept sequential so the
+ * blob matches the pre-refactor concat order exactly (no fuzzy-rank drift).
+ */
+CREATE OR REPLACE FUNCTION member_search_candidates(
+    p_identity jsonb, p_connections jsonb, p_access jsonb)
+RETURNS TABLE(label text, value text, priority int, numeric_field boolean) AS $$
+    VALUES
+        ('First name',  p_identity ->> 'first_name',                1, false),
+        ('Last name',   p_identity ->> 'last_name',                 2, false),
+        ('Nickname',    p_identity ->> 'nickname',                  3, false),
+        ('AD username', p_identity ->> 'active_directory_username', 4, false),
+        ('Discord',     p_connections ->> 'discord_handle',         6, false),
+        ('Phone',       p_connections ->> 'phone',                  7, true)
+    UNION ALL
+    SELECT 'Email', e ->> 'email_address', 5, false
+      FROM jsonb_array_elements(
+             CASE WHEN jsonb_typeof(p_identity -> 'emails') = 'array'
+                  THEN p_identity -> 'emails' ELSE '[]'::jsonb END) AS e
+    UNION ALL
+    SELECT 'RFID tag', t, 8, true
+      FROM jsonb_array_elements_text(
+             CASE WHEN jsonb_typeof(p_access -> 'rfid_tags') = 'array'
+                  THEN p_access -> 'rfid_tags' ELSE '[]'::jsonb END) AS t;
+$$ LANGUAGE sql IMMUTABLE;
+
+/*
+ * Does `token` match `value` under the member-search rules: accent-folded,
+ * lowercased, LIKE-escaped substring; numeric values additionally match
+ * digit-normalized (a dashed/parenthesized phone token hits a digits-only stored
+ * phone, and vice-versa). The single per-field/per-token match primitive — used
+ * by member_search_matches so its predicates can't drift field to field.
+ */
+CREATE OR REPLACE FUNCTION member_token_in_value(value text, token text, is_numeric boolean)
+RETURNS boolean AS $$
+    SELECT
+        lower(f_unaccent(value)) LIKE '%' || like_escape(lower(f_unaccent(token))) || '%'
+        OR ( is_numeric
+             AND nullif(regexp_replace(token, '\D', '', 'g'), '') IS NOT NULL
+             AND regexp_replace(value, '\D', '', 'g')
+                 LIKE '%' || regexp_replace(token, '\D', '', 'g') || '%' );
+$$ LANGUAGE sql IMMUTABLE;
+
+/*
+ * Builds the curated, accent-folded, lowercased searchable text blob for a
+ * member by concatenating the member_search_candidates() allowlist (numeric
+ * fields digit-normalized, fields space-separated to preserve token boundaries).
+ * Sourcing from the shared allowlist keeps the blob and the per-field attribution
+ * in lockstep. JSON key names and internal IDs never enter the blob.
+ */
+CREATE OR REPLACE FUNCTION member_search_text(p_identity jsonb, p_connections jsonb, p_access jsonb)
+RETURNS text AS $$
+    SELECT lower(f_unaccent(string_agg(
+               CASE WHEN numeric_field
+                    THEN nullif(regexp_replace(value, '\D', '', 'g'), '')
+                    ELSE value END,
+               ' ' ORDER BY priority)))
+    FROM member_search_candidates(p_identity, p_connections, p_access)
+    WHERE value IS NOT NULL AND value <> '';
+$$ LANGUAGE sql IMMUTABLE;
+
+/*
+ * Per-field match attribution for the admin results list's "Matched on" column.
+ * Given a query and a member's id + curated JSONB, returns one row per curated
+ * field whose value matched the query. Shares the field allowlist
+ * (member_search_candidates), the query parse (member_search_normalize) and the
+ * per-token predicate (member_token_in_value) with the search function, so
+ * attribution can't drift from what actually matched. Typo tolerance
+ * (word_similarity >= 0.4) applies to NON-numeric fields only — two unrelated
+ * phone/RFID digit strings can be trigram-similar enough to attribute a field
+ * the query is not visibly in. The raw (un-normalized) value is returned for
+ * display. `score` tiers exact/substring matches above fuzzy ones, with a small
+ * name-first nudge, so callers ORDER BY score DESC for "strongest match first".
+ *
+ * The legacy Wild Apricot identity.member_id is intentionally NOT attributed
+ * (only the DB id, p_id).
+ */
+CREATE OR REPLACE FUNCTION member_search_matches(
+    search_query text, p_id integer,
+    p_identity jsonb, p_connections jsonb, p_access jsonb)
+RETURNS TABLE(match_field text, match_value text, score real) AS $matches$
+    WITH n AS (
+        SELECT q_in, exact, q FROM member_search_normalize(search_query)
+    )
+    -- (1) exact DB-id match — always the strongest signal.
+    --     The ::int cast is gated inside a CASE (not sibling ANDed quals) so the
+    --     digit/length guards always run BEFORE the cast — Postgres is free to
+    --     reorder top-level WHERE quals, and an ungated cast would raise
+    --     "invalid input syntax for integer" / overflow on a non-numeric or
+    --     10+-digit query (this fn runs per result row, so that would 500 search).
+    SELECT 'Member ID'::text, p_id::text, 100::real
+    FROM n
+    WHERE p_id IS NOT NULL
+      AND p_id = CASE WHEN n.q_in ~ '^[0-9]+$' AND length(n.q_in) <= 9
+                      THEN n.q_in::int END
+
+    UNION ALL
+
+    -- (2) curated-field matches, sharing member_token_in_value with the search
+    --     predicate so attribution can't drift from what actually matched.
+    SELECT c.label, c.value,
+           ( CASE WHEN sm.substr_match
+                  THEN 1.0 + word_similarity(n.q, lower(f_unaccent(c.value)))
+                  ELSE word_similarity(n.q, lower(f_unaccent(c.value))) END
+             + (10 - c.priority) * 0.001 )::real AS score
+    FROM member_search_candidates(p_identity, p_connections, p_access) c
+    CROSS JOIN n
+    CROSS JOIN LATERAL (
+        SELECT CASE WHEN n.exact THEN
+                   member_token_in_value(c.value, n.q, c.numeric_field)
+               ELSE
+                   EXISTS (
+                       SELECT 1 FROM regexp_split_to_table(n.q, '\s+') tok
+                       WHERE tok <> ''
+                         AND member_token_in_value(c.value, tok, c.numeric_field)
+                   )
+               END
+    ) sm(substr_match)
+    WHERE c.value IS NOT NULL AND c.value <> ''
+      AND ( sm.substr_match
+            -- Typo tolerance only for NON-numeric fields: two unrelated phone/RFID
+            -- digit strings can be >= 0.4 trigram-similar, which would attribute a
+            -- field whose value the query is not visibly in (unbolded noise row).
+            OR ( NOT c.numeric_field
+                 AND word_similarity(n.q, lower(f_unaccent(c.value))) >= 0.4 ) )
+    ORDER BY 3 DESC;
+$matches$ LANGUAGE sql STABLE;
+COMMENT ON FUNCTION member_search_matches(text, integer, jsonb, jsonb, jsonb) IS 'Per-field match attribution for the admin "Matched on" column. Returns (field label, raw value, score) for each curated field that matched, mirroring search_members_by_identity_and_access predicates. Order by score DESC for strongest-first.';
+
+/*
  * This function is used for searching members by identity and access
  * (e.g., RFID tags) and returning full member records. This is used in
- * the admin portal so that an admin can search for a member by name or RFID tag
+ * the admin portal so that an admin can search for a member by name or RFID tag.
+ *
+ * Matching (pg_trgm + curated blob, accent-folded):
+ *   (a) every whitespace token must appear as a substring of the blob
+ *       (order-independent multi-word); phone-like tokens are digit-normalized
+ *       so dashed/parenthesized phone queries match the digits-only stored phone;
+ *   (b) word_similarity >= 0.4 adds typo tolerance (jon -> John);
+ *   (c) a digits-only query also matches RFID tags w/ or w/o leading zeros;
+ *   (d) a short digits-only query equal to the displayed DB id (member.id, NOT
+ *       the legacy Wild Apricot identity.member_id) matches that member exactly.
+ * Ranking is name-first: first/last/nickname matches are weighted 2x over the
+ * full-blob similarity; an exact DB-id match is boosted to the top.
+ *
+ * Exact mode: a query wrapped in double quotes (e.g. "robert13") strips the
+ * quotes and matches the phrase as a literal substring of the blob only — no
+ * typo tolerance and no RFID fallback. Use it to pin an exact handle/email/name
+ * that the fuzzy ranking would otherwise bury under near-matches.
  */
 CREATE OR REPLACE FUNCTION search_members_by_identity_and_access(search_query text)
 RETURNS TABLE (
@@ -555,9 +753,18 @@ RETURNS TABLE (
     notes jsonb,
     rank real
 ) AS $body$
+DECLARE
+    -- Query parsing (quote-strip / exact mode / accent-fold) is delegated to the
+    -- shared member_search_normalize() so it can't drift from member_search_matches.
+    q_in  text;
+    exact boolean;
+    q     text;
 BEGIN
+    SELECT n.q_in, n.exact, n.q INTO q_in, exact, q
+    FROM member_search_normalize(search_query) n;
+
     RETURN QUERY
-    SELECT 
+    SELECT
         m.id,
         m.identity,
         m.connections,
@@ -566,27 +773,63 @@ BEGIN
         m.authorizations,
         m.extras,
         m.notes,
-        ts_rank(
-            (
-                to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.identity, '["all"]')::text, '')) ||
-                to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.access, '["all"]')::text, ''))
-            ),
-            plainto_tsquery('english', search_query)
-        ) AS rank
+        (   -- name-first: weight name-field matches 2x over the full-blob match
+            2.0 * word_similarity(q, lower(f_unaccent(concat_ws(' ',
+                      m.identity ->> 'first_name', m.identity ->> 'last_name', m.identity ->> 'nickname'))))
+            + word_similarity(q, msb.blob)
+            -- An all-digit query equal to the displayed DB id (member.id) floats that
+            -- member to the very top while other fuzzy digit matches still appear below.
+            + CASE WHEN q_in ~ '^[0-9]+$' AND length(q_in) <= 9 AND m.id = q_in::int
+                   THEN 100 ELSE 0 END
+        )::real AS rank
     FROM member m
-    WHERE 
-        -- Full-text search on identity and access
+    -- Compute the curated blob ONCE per row. The OFFSET 0 fences the lateral
+    -- subquery from being pulled up / inlined, so member_search_text (which does
+    -- concat_ws + two correlated subqueries + f_unaccent) runs once instead of
+    -- once per reference below (rank + exact + per-token + typo).
+    CROSS JOIN LATERAL (
+        SELECT member_search_text(m.identity, m.connections, m.access) AS blob
+        OFFSET 0
+    ) msb
+    WHERE
         (
-            to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.identity, '["all"]')::text, '')) ||
-            to_tsvector('english', COALESCE(jsonb_to_tsvector('english', m.access, '["all"]')::text, ''))
-        ) @@ plainto_tsquery('english', search_query)
-        OR
-        -- Pattern matching for numeric searches (handles RFID tags with/without leading zeros)
-        (search_query ~ '^[0-9]+$' AND m.access::text ILIKE '%' || search_query || '%')
-    ORDER BY rank DESC;
+            CASE WHEN exact THEN
+                -- Exact mode: the accent-folded, lowercased phrase must appear
+                -- verbatim as a substring of the blob (wildcards escaped) — OR, for
+                -- a digit-bearing query, its digit-normalized form, so a quoted
+                -- formatted phone/RFID matches the digits-only stored value.
+                msb.blob ILIKE '%' || like_escape(q) || '%'
+                OR ( nullif(regexp_replace(q, '\D', '', 'g'), '') IS NOT NULL
+                     AND msb.blob ILIKE '%' || regexp_replace(q, '\D', '', 'g') || '%' )
+            ELSE
+                (
+                    -- (a) every query token must be a substring of the blob (phone-like tokens digit-normalized).
+                    --     User-supplied tokens are wildcard-escaped so a typed % or _ matches literally.
+                    NOT EXISTS (
+                        SELECT 1 FROM regexp_split_to_table(q, '\s+') tok
+                        WHERE tok <> ''
+                          AND msb.blob
+                              NOT ILIKE '%' ||
+                                  like_escape(CASE WHEN tok ~ '^[0-9()+.\- ]+$'
+                                                   THEN regexp_replace(tok, '\D', '', 'g')
+                                                   ELSE tok END)
+                              || '%'
+                    )
+                    -- (b) typo tolerance
+                    OR word_similarity(q, msb.blob) >= 0.4
+                )
+                -- (c) numeric RFID fallback (handles tags with/without leading zeros); use the
+                --     trimmed input so whitespace-padded digit queries still take this path.
+                OR (q_in ~ '^[0-9]+$' AND m.access::text ILIKE '%' || q_in || '%')
+            END
+        )
+        -- (d) exact DB-id match on the displayed member.id (NOT the legacy WA member_id).
+        --     A short all-digit query equal to the row's id always matches, in either mode.
+        OR (q_in ~ '^[0-9]+$' AND length(q_in) <= 9 AND m.id = q_in::int)
+    ORDER BY rank DESC NULLS LAST;
 END;
 $body$ LANGUAGE plpgsql;
-COMMENT ON FUNCTION search_members_by_identity_and_access(text) IS 'Performs full text search on the identity and access JSONB columns of member records and returns results ranked by relevance.';
+COMMENT ON FUNCTION search_members_by_identity_and_access(text) IS 'Curated, accent-folded pg_trgm search over allowlisted identity/connections/access keys (names, nickname, AD username, emails, Discord, phone, RFID) plus exact DB-id (member.id) match. The legacy Wild Apricot identity.member_id is NOT searched. Substring + word_similarity typo tolerance, ranked name-first.';
 
 /*
  * Function that returns full member records based on identity search

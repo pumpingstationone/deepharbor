@@ -705,7 +705,7 @@ def api_members():
                     {
                         "activity_details": {
                             "action": "search",
-                            "query": query,
+                            "query_length": len(query),  # keep raw query (PII) out of the activity log
                             "results_count": result.get("total", 0)
                         }
                     }
@@ -757,7 +757,7 @@ def api_search():
                 {
                     "activity_details": {
                         "action": "search",
-                        "query": query,
+                        "query_length": len(query),  # keep raw query (PII) out of the activity log
                         "results_count": results_count
                     }
                 }

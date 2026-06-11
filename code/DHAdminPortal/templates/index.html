@@ -34,12 +34,51 @@
     <div class="col-md-6">
         <div class="mb-3">
             <div class="d-flex gap-2 align-items-center">
+                <button type="button" class="dh-search-help-btn" id="searchHelpBtn" aria-label="Search tips">
+                    <i class="fa-solid fa-circle-info"></i>
+                </button>
                 <div class="input-group">
-                    <input type="text" class="form-control" id="memberSearch" placeholder="Search for a member..." onkeydown="if(event.key==='Enter')searchMembers()">
-                    <button class="btn btn-primary cute-signin" type="button" id="searchButton" onclick="searchMembers()">Search</button>
+                    <input type="search" class="form-control" id="memberSearch" placeholder="Search for a member..." autocapitalize="none" autocorrect="off" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')searchMembers()">
+                    <button class="btn btn-primary cute-signin" type="button" id="searchButton" onclick="searchMembers()" aria-label="Search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
                 </div>
                 <span class="dh-refresh-btn" onclick="loadMembers(currentPage)" title="Refresh results"><i class="fa-solid fa-arrow-rotate-right"></i></span>
             </div>
+            <!-- Hidden content for the search-tips info popover (#searchHelpBtn) -->
+            <template id="searchHelpContent">
+                <div class="dh-search-help">
+                    <p class="dh-sh-lead">Searches across:</p>
+                    <ul class="dh-sh-list">
+                        <li>Name &amp; nickname</li>
+                        <li>Member&nbsp;ID &amp; username</li>
+                        <li>Email address</li>
+                        <li>Discord handle</li>
+                        <li>Phone &amp; RFID tag</li>
+                    </ul>
+                    <p class="dh-sh-lead">How it matches:</p>
+                    <ul class="dh-sh-list">
+                        <li><strong>Partial</strong> — <code>jon</code> finds Jonathan</li>
+                        <li><strong>Typo-tolerant</strong> — <code>smiht</code> finds Smith</li>
+                        <li><strong>Ignores accents</strong> — <code>jose</code> finds José</li>
+                        <li><strong>Any phone format</strong> — <code>(312) 555-0101</code> = <code>3125550101</code></li>
+                        <li><strong>Multi-word, any order</strong></li>
+                    </ul>
+                    <p class="dh-sh-lead">Tricks:</p>
+                    <ul class="dh-sh-list">
+                        <li>Wrap a term in <code>"quotes"</code> for an <strong>exact</strong> match — e.g. <code>"kai13"</code> finds that handle instead of every&nbsp;Kai.</li>
+                        <li>Type at least 2 characters.</li>
+                    </ul>
+                </div>
+            </template>
+            <!-- Hidden content for the status-column legend popover (#statusLegendIcon) -->
+            <template id="statusLegendContent">
+                <div class="dh-status-legend">
+                    <div class="dh-sl-row"><i class="fa-solid fa-circle-check dh-status-icon dh-status-active"></i> Active</div>
+                    <div class="dh-sl-row"><i class="fa-solid fa-circle-plus dh-status-icon dh-status-pending"></i> Pending</div>
+                    <div class="dh-sl-row"><i class="fa-solid fa-circle-pause dh-status-icon dh-status-suspended"></i> Suspended</div>
+                    <div class="dh-sl-row"><i class="fa-solid fa-circle-minus dh-status-icon dh-status-banned"></i> Banned</div>
+                    <div class="dh-sl-row"><i class="fa-solid fa-circle-question dh-status-icon dh-status-other"></i> Other</div>
+                </div>
+            </template>
         </div>
     </div>
 </div>
@@ -54,6 +93,10 @@
                 <table class="table table-striped table-hover mb-0">
                     <thead class="sticky-top bg-white">
                         <tr>
+                            <th class="dh-status-col" onclick="sortTable('membership_status')">
+                                <i class="fa-solid fa-circle-half-stroke" id="statusLegendIcon" aria-label="Status"></i>
+                                <span id="sort-membership_status"></span>
+                            </th>
                             <th onclick="sortTable('id')" style="cursor: pointer;">
                                 ID <span id="sort-id"></span>
                             </th>
@@ -63,9 +106,8 @@
                             <th onclick="sortTable('last_name')" style="cursor: pointer;">
                                 Last Name <span id="sort-last_name"></span>
                             </th>
-                            <th onclick="sortTable('membership_status')" style="cursor: pointer;">
-                                Status <span id="sort-membership_status"></span>
-                            </th>
+                            <!-- Search-only column; shown/hidden in displayResults() -->
+                            <th id="matchHeader" style="display: none;">Matched on</th>
                         </tr>
                     </thead>
                     <tbody id="resultsTableBody">
@@ -115,7 +157,7 @@
 
             <!-- Suspended member warning (shown dynamically by loadMemberData) -->
             <div id="memberSuspendedWarning" class="alert dh-suspended-warning alert-dismissible fade show mb-0" role="alert" style="display: none;">
-                <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                <i id="memberSuspendedIcon" class="fa-solid fa-triangle-exclamation me-2"></i>
                 <strong>This member is not active.</strong> Status: <span id="memberSuspendedStatus"></span>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
@@ -1390,7 +1432,7 @@ function loadMembers(page) {
     // Show loading state on search button
     const searchBtn = document.getElementById('searchButton');
     searchBtn.disabled = true;
-    searchBtn.textContent = 'Loading...';
+    searchBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
     return fetch(`/api/members?${params.toString()}`)
         .then(response => {
@@ -1412,11 +1454,25 @@ function loadMembers(page) {
         })
         .finally(() => {
             searchBtn.disabled = false;
-            searchBtn.textContent = 'Search';
+            searchBtn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i>';
         });
 }
 
 // Search
+
+// Mirrors DHService _is_searchable_query: needs >= 2 chars and at least one
+// word character (unicode-aware, so accent-only queries like "Éé" pass while
+// "@" / "---" / single chars are rejected). Used to surface a friendly alert
+// instead of letting the server silently return an empty result set.
+function isSearchableQuery(q) {
+    let s = (q || '').trim();
+    // Mirror member_search_normalize / _is_searchable_query: surrounding double
+    // quotes (exact mode) are stripped before matching, so measure the inner
+    // term — a quoted single char ('"a"') must not pass the 2-char floor.
+    if (s.length >= 2 && s[0] === '"' && s[s.length - 1] === '"') s = s.slice(1, -1);
+    return s.length >= 2 && /[\p{L}\p{N}_]/u.test(s);
+}
+const SEARCH_TOO_SHORT_MSG = 'Please enter at least 2 characters (letters or numbers) to search. Tip: wrap a term in double quotes for an exact match, e.g. "robert13".';
 
 function searchMembers() {
     const input = document.getElementById('memberSearch').value.trim();
@@ -1431,6 +1487,10 @@ function searchMembers() {
     if (!input) {
         // Empty input, no existing query — just reload
         loadMembers(1);
+        return;
+    }
+    if (!isSearchableQuery(input)) {
+        alert(SEARCH_TOO_SHORT_MSG);
         return;
     }
     currentQuery = input;
@@ -1467,14 +1527,125 @@ function updateSortIndicators() {
 
 // Display results table
 
+// Membership-status -> Font Awesome glyph + color class + tooltip label.
+// The className is assembled ONLY from this allowlist; the raw status string is
+// never interpolated into a class name (keeps the XSS-safe rendering posture).
+const STATUS_ICONS = {
+    active:    { icon: 'fa-circle-check',  cls: 'dh-status-active',    label: 'Active' },
+    pending:   { icon: 'fa-circle-plus',   cls: 'dh-status-pending',   label: 'Pending' },
+    suspended: { icon: 'fa-circle-pause',  cls: 'dh-status-suspended', label: 'Suspended' },
+    banned:    { icon: 'fa-circle-minus',  cls: 'dh-status-banned',    label: 'Banned' },
+};
+const STATUS_ICON_DEFAULT = { icon: 'fa-circle-question', cls: 'dh-status-other' };
+
+// Resolve a raw membership_status value to its icon/color/label. Unknown, blank
+// or otherwise-unmapped values (incl. "inactive") fall to the grey question mark;
+// the tooltip then shows the title-cased raw value, or "Unknown" when empty.
+function statusMeta(rawStatus) {
+    const key = (rawStatus || '').toLowerCase().trim();
+    const known = STATUS_ICONS[key];
+    if (known) return { icon: known.icon, cls: known.cls, label: known.label };
+    const label = rawStatus
+        ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1)
+        : 'Unknown';
+    return { icon: STATUS_ICON_DEFAULT.icon, cls: STATUS_ICON_DEFAULT.cls, label };
+}
+
+// Build the leftmost status <td> as a colored icon with a hover/aria tooltip.
+function buildStatusCell(rawStatus) {
+    const meta = statusMeta(rawStatus);
+    const td = document.createElement('td');
+    td.className = 'dh-status-col';
+    const icon = document.createElement('i');
+    icon.className = `fa-solid ${meta.icon} fa-lg dh-status-icon ${meta.cls}`;
+    icon.title = meta.label;
+    icon.setAttribute('aria-label', meta.label);
+    td.appendChild(icon);
+    return td;
+}
+
+// Append `value` into `container`, bolding any occurrence of a query token.
+// Builds DOM nodes only (text nodes + <strong>) — never innerHTML — so member
+// data can never inject markup. Fuzzy/typo matches have no literal substring to
+// bold and render plain.
+function appendHighlighted(container, value, query) {
+    const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');  // regex-escape
+    // Map each query token to a regex fragment. A phone/RFID-style token (digits +
+    // phone punctuation) is matched on its digits with optional non-digit separators
+    // between them, mirroring the backend's digit-normalized phone/RFID matching —
+    // so a query like 3125550101 still highlights inside a stored "(312) 555-0101".
+    const patterns = (query || '')
+        .replace(/^"(.*)"$/, '$1')               // strip exact-mode quotes
+        .trim()
+        .split(/\s+/)
+        .filter(t => t.length > 0)
+        .map(t => {
+            if (/^[0-9()+.\-\s]+$/.test(t)) {
+                const digits = t.replace(/\D/g, '');
+                if (digits.length > 0) return digits.split('').join('[^0-9]*');
+            }
+            return escapeRe(t);
+        });
+    if (patterns.length === 0) { container.textContent = value; return; }
+    let re;
+    try { re = new RegExp('(' + patterns.join('|') + ')', 'gi'); }
+    catch (e) { container.textContent = value; return; }
+    let lastIndex = 0, m;
+    while ((m = re.exec(value)) !== null) {
+        if (m[0].length === 0) { re.lastIndex++; continue; }  // guard zero-width
+        if (m.index > lastIndex) {
+            container.appendChild(document.createTextNode(value.slice(lastIndex, m.index)));
+        }
+        const strong = document.createElement('strong');
+        strong.textContent = m[0];
+        container.appendChild(strong);
+        lastIndex = m.index + m[0].length;
+    }
+    if (lastIndex < value.length) {
+        container.appendChild(document.createTextNode(value.slice(lastIndex)));
+    }
+}
+
+// Build the search-only "Matched on" <td>: one "Field: value" line per matched
+// field (backend already orders strongest-first), with the matched substring
+// bolded and long values ellipsized (full text in the title tooltip).
+function buildMatchCell(matches, query) {
+    const td = document.createElement('td');
+    td.className = 'dh-match-col';
+    if (!Array.isArray(matches) || matches.length === 0) return td;
+    matches.forEach(item => {
+        const field = (item && item.field) || '';
+        const value = (item && item.value != null) ? String(item.value) : '';
+        const line = document.createElement('div');
+        line.className = 'dh-match-line';
+        line.title = `${field}: ${value}`;
+        const label = document.createElement('span');
+        label.className = 'dh-match-field';
+        label.textContent = field + ': ';
+        const valSpan = document.createElement('span');
+        valSpan.className = 'dh-match-value';
+        appendHighlighted(valSpan, value, query);
+        line.appendChild(label);
+        line.appendChild(valSpan);
+        td.appendChild(line);
+    });
+    return td;
+}
+
 function displayResults(members) {
     const tbody = document.getElementById('resultsTableBody');
     const resultsSection = document.getElementById('resultsSection');
+    const matchHeader = document.getElementById('matchHeader');
+
+    // The "Matched on" column only makes sense for an active search.
+    const searching = !!currentQuery;
+    matchHeader.style.display = searching ? 'table-cell' : 'none';
 
     tbody.innerHTML = '';
 
     if (members.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center">No members found</td></tr>';
+        const colspan = searching ? 5 : 4;
+        tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center">No members found</td></tr>`;
     } else {
         members.forEach(member => {
             const row = document.createElement('tr');
@@ -1482,18 +1653,22 @@ function displayResults(members) {
             if (selectedMemberId && member.member_id == selectedMemberId) {
                 row.classList.add('selected-row');
             }
+            // Status icon first (allowlist-driven class — safe), then text columns.
+            row.appendChild(buildStatusCell(member.membership_status));
             // Use textContent to prevent XSS from member data
             const cells = [
                 member.member_id,
                 member.first_name || '',
                 member.last_name || '',
-                member.membership_status || '',
             ];
             cells.forEach(text => {
                 const td = document.createElement('td');
                 td.textContent = text;
                 row.appendChild(td);
             });
+            if (searching) {
+                row.appendChild(buildMatchCell(member.matches, currentQuery));
+            }
             row.onclick = function() {
                 loadMemberData(member);
             };
@@ -1676,6 +1851,40 @@ function restoreFromURL() {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', restoreFromURL);
+
+// Search-tips info popover: hover to peek, click to pin it open (dismiss by
+// clicking away). Themed per-theme via the .dh-search-help-popover customClass.
+document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('searchHelpBtn');
+    const tpl = document.getElementById('searchHelpContent');
+    if (btn && tpl && window.bootstrap && bootstrap.Popover) {
+        new bootstrap.Popover(btn, {
+            html: true,
+            trigger: 'hover focus',
+            placement: 'bottom',
+            container: 'body',
+            customClass: 'dh-search-help-popover',
+            title: 'Search tips',
+            content: () => tpl.innerHTML,
+        });
+    }
+
+    // Status-column header legend: hover the header icon to see the icon/color
+    // key. Header click still sorts (hover-only, never pins).
+    const statusIcon = document.getElementById('statusLegendIcon');
+    const statusTpl = document.getElementById('statusLegendContent');
+    if (statusIcon && statusTpl && window.bootstrap && bootstrap.Popover) {
+        new bootstrap.Popover(statusIcon, {
+            html: true,
+            trigger: 'hover focus',
+            placement: 'bottom',
+            container: 'body',
+            customClass: 'dh-status-legend-popover',
+            title: 'Status',
+            content: () => statusTpl.innerHTML,
+        });
+    }
+});
 window.addEventListener('popstate', restoreFromURL);
 
 // Special format function for authorizations tab
@@ -2324,7 +2533,8 @@ function loadMemberData(memberOrId) {
     // Highlight the selected row
     document.querySelectorAll('#resultsTableBody tr.selected-row').forEach(r => r.classList.remove('selected-row'));
     document.querySelectorAll('#resultsTableBody tr').forEach(r => {
-        if (r.cells[0] && r.cells[0].textContent == memberId) {
+        // cells[0] is now the status-icon column; the ID lives in cells[1].
+        if (r.cells[1] && r.cells[1].textContent == memberId) {
             r.classList.add('selected-row');
         }
     });
@@ -2335,13 +2545,23 @@ function loadMemberData(memberOrId) {
     const activatedNotice = document.getElementById('memberActivatedNotice');
     if (activatedNotice) activatedNotice.style.display = 'none';
 
-    // Show suspended/inactive member warning
+    // Show non-active member warning — icon + left-border accent match the
+    // status palette used in the results table.
     const warningEl = document.getElementById('memberSuspendedWarning');
     const statusEl = document.getElementById('memberSuspendedStatus');
+    const warningIconEl = document.getElementById('memberSuspendedIcon');
     if (warningEl && statusEl) {
         const status = member ? (member.membership_status || '').toLowerCase() : '';
         if (status && status !== 'active') {
             statusEl.textContent = member.membership_status;
+            const meta = statusMeta(member.membership_status);
+            // Reset any prior status modifier class, then apply the current one.
+            warningEl.classList.remove('dh-status-pending', 'dh-status-suspended',
+                'dh-status-banned', 'dh-status-other');
+            warningEl.classList.add(meta.cls);
+            if (warningIconEl) {
+                warningIconEl.className = `fa-solid ${meta.icon} me-2 dh-status-icon ${meta.cls}`;
+            }
             warningEl.style.display = '';
             warningEl.classList.add('show');
         } else {
@@ -3731,6 +3951,10 @@ function confirmRoleAssign(roleId) {
 function searchAssignRoleMembers() {
     const query = document.getElementById('assignRoleMemberSearch').value.trim();
     if (!query) return;
+    if (!isSearchableQuery(query)) {
+        alert(SEARCH_TOO_SHORT_MSG);
+        return;
+    }
 
     fetch(`/api/search?query=${encodeURIComponent(query)}`)
         .then(r => r.json())
