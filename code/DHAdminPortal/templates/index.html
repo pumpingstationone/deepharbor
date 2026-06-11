@@ -57,7 +57,7 @@
                     <p class="dh-sh-lead">How it matches:</p>
                     <ul class="dh-sh-list">
                         <li><strong>Partial</strong> — <code>jon</code> finds Jonathan</li>
-                        <li><strong>Typo-tolerant</strong> — <code>smtih</code> finds Smith</li>
+                        <li><strong>Typo-tolerant</strong> — <code>smiht</code> finds Smith</li>
                         <li><strong>Ignores accents</strong> — <code>jose</code> finds José</li>
                         <li><strong>Any phone format</strong> — <code>(312) 555-0101</code> = <code>3125550101</code></li>
                         <li><strong>Multi-word, any order</strong></li>
@@ -1465,7 +1465,11 @@ function loadMembers(page) {
 // "@" / "---" / single chars are rejected). Used to surface a friendly alert
 // instead of letting the server silently return an empty result set.
 function isSearchableQuery(q) {
-    const s = (q || '').trim();
+    let s = (q || '').trim();
+    // Mirror member_search_normalize / _is_searchable_query: surrounding double
+    // quotes (exact mode) are stripped before matching, so measure the inner
+    // term — a quoted single char ('"a"') must not pass the 2-char floor.
+    if (s.length >= 2 && s[0] === '"' && s[s.length - 1] === '"') s = s.slice(1, -1);
     return s.length >= 2 && /[\p{L}\p{N}_]/u.test(s);
 }
 const SEARCH_TOO_SHORT_MSG = 'Please enter at least 2 characters (letters or numbers) to search. Tip: wrap a term in double quotes for an exact match, e.g. "robert13".';

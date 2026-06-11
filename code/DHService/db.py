@@ -427,6 +427,12 @@ def _is_searchable_query(query: str) -> bool:
     against a short/empty query matching the whole roster.
     """
     q = (query or "").strip()
+    # Mirror member_search_normalize: a query wrapped in double quotes is exact
+    # mode, and the quotes are stripped before matching. Measure the *inner*
+    # term, not the quotes, so a quoted single char ('"a"') doesn't slip past
+    # the 2-char floor and run a 1-char exact-substring search over the roster.
+    if len(q) >= 2 and q[0] == '"' and q[-1] == '"':
+        q = q[1:-1]
     return len(q) >= 2 and re.search(r"\w", q) is not None
 
 def _paginated_response(members: list[dict], total: int, page: int, per_page: int) -> dict:
@@ -464,16 +470,23 @@ def list_members(page: int = 1, per_page: int = 25,
             )
             results = cur.fetchall()
 
-    for result in results:
-        total = result[6]
-        members.append({
-            "member_id": result[0],
-            "first_name": result[1],
-            "last_name": result[2],
-            "primary_email_address": result[3],
-            "membership_status": result[4],
-            "stripe_product_id": result[5],
-        })
+            for result in results:
+                total = result[6]
+                members.append({
+                    "member_id": result[0],
+                    "first_name": result[1],
+                    "last_name": result[2],
+                    "primary_email_address": result[3],
+                    "membership_status": result[4],
+                    "stripe_product_id": result[5],
+                })
+
+            # A past-the-end page returns no rows, so the COUNT(*) OVER() total
+            # never comes back — fetch it directly so the response still reports
+            # the real member count instead of 0.
+            if not results:
+                cur.execute("SELECT COUNT(*) FROM member")
+                total = cur.fetchone()[0]
 
     logger.debug(f"Listed {len(members)} members (total={total})")
     return _paginated_response(members, total, page, per_page)
@@ -495,6 +508,10 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
             # Paginate first, then attribute matches only on the returned page:
             # the SRF is uncapped, so per-field attribution runs on at most
             # per_page rows rather than the whole result set.
+            # `tot` carries the full match count independent of the page, joined
+            # via LEFT JOIN ... ON true so an out-of-range (past-the-end) page
+            # still returns one row bearing the real total (page columns NULL)
+            # instead of zero rows — otherwise `total` reads back as 0.
             cur.execute(
                 f"""WITH base AS (
                         SELECT id,
@@ -509,23 +526,24 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
                                rank
                         FROM   search_members_by_identity_and_access(%s)
                     ),
-                    counted AS (
-                        SELECT *, COUNT(*) OVER() AS total_count FROM base
+                    tot AS (
+                        SELECT COUNT(*) AS total_count FROM base
                     ),
                     page AS (
-                        SELECT * FROM counted
+                        SELECT * FROM base
                         ORDER BY {sort_col} {direction}, id ASC
                         LIMIT  %s OFFSET %s
                     )
-                    SELECT id, first_name, last_name, primary_email_address,
-                           membership_status, stripe_product_id, total_count,
+                    SELECT page.id, page.first_name, page.last_name,
+                           page.primary_email_address, page.membership_status,
+                           page.stripe_product_id, tot.total_count,
                            ( SELECT jsonb_agg(
                                         jsonb_build_object('field', match_field, 'value', match_value)
                                         ORDER BY score DESC)
-                             FROM member_search_matches(%s, id, identity, connections, access)
+                             FROM member_search_matches(%s, page.id, page.identity, page.connections, page.access)
                            ) AS matches
-                    FROM   page
-                    ORDER BY {sort_col} {direction}, id ASC
+                    FROM   tot LEFT JOIN page ON true
+                    ORDER BY {sort_col} {direction}, page.id ASC
                 """,
                 (query, per_page, offset, query),
             )
@@ -533,6 +551,10 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
 
     for result in results:
         total = result[6]
+        # Skip the empty-page sentinel (NULL id) emitted by the tot LEFT JOIN
+        # when the requested page is past the end — its only job is to carry total.
+        if result[0] is None:
+            continue
         members.append({
             "member_id": result[0],
             "first_name": result[1],
