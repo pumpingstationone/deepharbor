@@ -40,7 +40,7 @@
                     <input type="search" class="form-control" id="memberSearch" placeholder="Search for a member..." autocapitalize="none" autocorrect="off" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')searchMembers()">
                     <button class="btn btn-primary cute-signin" type="button" id="searchButton" onclick="searchMembers()" aria-label="Search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
                 </div>
-                <span class="dh-refresh-btn" onclick="loadMembers(currentPage)" title="Refresh results"><i class="fa-solid fa-arrow-rotate-right"></i></span>
+                <span class="dh-refresh-btn" onclick="refreshResultsAndProfile()" title="Refresh results"><i class="fa-solid fa-arrow-rotate-right"></i></span>
             </div>
             <!-- Hidden content for the search-tips info popover (#searchHelpBtn) -->
             <template id="searchHelpContent">
@@ -144,9 +144,14 @@
                         <div id="memberHeaderId" class="text-muted small"></div>
                     </div>
                     <div class="d-flex flex-column align-items-end justify-content-between">
-                        <button type="button" class="dh-sidebar-close" onclick="closeSidebar()" title="Close" aria-label="Close">
-                            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-                        </button>
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" class="dh-sidebar-refresh" id="memberRefreshBtn" onclick="refreshMemberProfile()" title="Refresh" aria-label="Refresh">
+                                <i class="fa-solid fa-arrow-rotate-right" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="dh-sidebar-close" onclick="closeSidebar()" title="Close" aria-label="Close">
+                                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                            </button>
+                        </div>
                         <span id="memberHeaderAgeBadge" class="dh-age-badge" title="Member is 21 or older" style="display: none;">
                             <i class="fa-solid fa-id-card me-1" aria-hidden="true"></i>21+
                         </span>
@@ -815,7 +820,8 @@ function toggleEditMode(tabName) {
         editBtn.textContent = isNotesTab ? 'Add note' : 'Edit';
         editBtn.classList.remove('btn-secondary');
         editBtn.classList.add('btn-primary');
-        
+        updateRefreshButtonState();
+
         // Remove Save button if it exists
         const saveBtn = document.getElementById(`${tabName}SaveBtn`);
         if (saveBtn) {
@@ -838,6 +844,7 @@ function toggleEditMode(tabName) {
         editBtn.textContent = 'Cancel';
         editBtn.classList.remove('btn-primary');
         editBtn.classList.add('btn-secondary');
+        updateRefreshButtonState();
 
         if (isNotesTab) {
             addNotesRow();
@@ -2543,6 +2550,115 @@ function isAnyTabEditing() {
     });
 }
 
+// ============================================================================
+// Member-profile refresh (header + active tab), with results-row sync.
+// ============================================================================
+
+// Tab name of the currently-shown detail pill (e.g. 'identity'), or null.
+function getActiveDetailTab() {
+    const activePill = document.querySelector('#memberTabs .nav-link.active');
+    if (!activePill || !activePill.id) return null;
+    return activePill.id.replace(/-tab$/, '');
+}
+
+// Keep the refresh button disabled whenever any tab is in edit mode, so a
+// refresh can never silently discard unsaved edits. No-op until the button
+// exists in the DOM.
+function updateRefreshButtonState() {
+    const btn = document.getElementById('memberRefreshBtn');
+    if (btn) btn.disabled = isAnyTabEditing();
+}
+
+// Derive the primary email from a raw identity blob the same way the backend
+// does (identity.emails[0].email_address).
+function primaryEmailFromIdentity(identity) {
+    if (!identity || !Array.isArray(identity.emails) || !identity.emails.length) return '';
+    return identity.emails[0].email_address || '';
+}
+
+// Re-fetch the open member's header (name / email / 21+ badge) and active tab
+// in place, and sync that member's row in the results table behind the
+// sidebar. Disabled while any tab is in edit mode (see updateRefreshButtonState).
+function refreshMemberProfile() {
+    if (!currentMemberId) return;
+    if (isAnyTabEditing()) return;  // belt-and-suspenders; button is disabled too
+
+    const refreshBtn = document.getElementById('memberRefreshBtn');
+    const icon = refreshBtn ? refreshBtn.querySelector('i') : null;
+    if (icon) icon.classList.add('fa-spin');
+    if (refreshBtn) refreshBtn.disabled = true;
+
+    const reqMemberId = currentMemberId;
+
+    Promise.all([
+        fetch(`/api/member/identity?member_id=${encodeURIComponent(reqMemberId)}`)
+            .then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`/api/member/status?member_id=${encodeURIComponent(reqMemberId)}`)
+            .then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([identity, status]) => {
+        // Bail if the user selected a different member while we were fetching.
+        if (reqMemberId !== currentMemberId) return;
+
+        const hasIdentity = identity && !identity.error;
+        const hasStatus = status && !status.error;
+        const firstName = hasIdentity ? (identity.first_name || '') : '';
+        const lastName = hasIdentity ? (identity.last_name || '') : '';
+        const email = hasIdentity ? primaryEmailFromIdentity(identity) : '';
+        const membershipStatus = hasStatus ? (status.membership_status || '') : '';
+
+        // Refresh the header (also re-fetches identity for the 21+ badge).
+        if (hasIdentity) {
+            updateMemberHeaderInfo({
+                member_id: reqMemberId,
+                first_name: firstName,
+                last_name: lastName,
+                primary_email_address: email,
+                membership_status: membershipStatus,
+            });
+        }
+
+        // Sync this member's row in the results table (status icon + names).
+        // Only overwrite cells whose source fetch actually succeeded, so a
+        // failed fetch never blanks a known value. Cells: 0=status, 1=id,
+        // 2=first, 3=last.
+        document.querySelectorAll('#resultsTableBody tr').forEach(r => {
+            if (!r.cells[1] || r.cells[1].textContent != reqMemberId) return;
+            if (hasStatus && r.cells[0]) {
+                r.replaceChild(buildStatusCell(membershipStatus), r.cells[0]);
+            }
+            if (hasIdentity) {
+                if (r.cells[2]) r.cells[2].textContent = firstName;
+                if (r.cells[3]) r.cells[3].textContent = lastName;
+            }
+        });
+
+        // Re-fetch the active tab's data.
+        const activeTab = getActiveDetailTab();
+        if (activeTab === 'onboard') {
+            loadOnboardTab(reqMemberId);
+        } else if (activeTab) {
+            fetchTabData(activeTab, reqMemberId);
+        }
+    }).finally(() => {
+        if (icon) icon.classList.remove('fa-spin');
+        updateRefreshButtonState();  // re-enable (unless a tab is now editing)
+    });
+}
+
+// Search-bar refresh button: reload the results list, and also refresh the
+// open member profile (header + active tab) when the sidebar is showing one.
+// Gate on the sidebar's `.open` class, not currentMemberId — closeSidebar()
+// leaves currentMemberId set, so it alone would refresh a hidden profile.
+// refreshMemberProfile() self-guards against edit mode, so an in-progress edit
+// is left untouched while the list still reloads.
+function refreshResultsAndProfile() {
+    loadMembers(currentPage);
+    const sidebar = document.getElementById('detailsSidebar');
+    if (sidebar && sidebar.classList.contains('open') && currentMemberId) {
+        refreshMemberProfile();
+    }
+}
+
 function loadMemberData(memberOrId) {
     if (isAnyTabEditing()) {
         alert('Please cancel or save your changes before selecting another member.');
@@ -2651,6 +2767,7 @@ function loadMemberData(memberOrId) {
 
     // Open the sidebar
     openSidebar();
+    updateRefreshButtonState();
 
     // Find the first visible tab to activate and load
     const permissions = getUserPermissions();
