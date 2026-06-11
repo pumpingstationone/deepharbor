@@ -18,10 +18,9 @@
 <!-- Logging notice -->
 <div class="row justify-content-center" id="loggingNoticeRow">
     <div class="col-md-8">
-        <div class="alert alert-warning fade show text-center py-2 mb-4 position-relative" role="alert">
-            <i class="bi bi-exclamation-triangle-fill"></i>
-            <strong>HEY!</strong> All changes you make will get logged!
-            <a href="#" class="text-muted dh-logging-dismiss" onclick="dismissLoggingNotice(); return false;"><span class="dh-dismiss-default">Dismiss</span><span class="dh-dismiss-hover">Fuckoff</span></a>
+        <div class="alert alert-warning fade show py-2 mb-4" role="alert">
+            <span class="dh-logging-msg"><i class="bi bi-exclamation-triangle-fill"></i> <strong>HEY!</strong> All changes you make will get logged!</span>
+            <a href="#" class="dh-logging-dismiss" onclick="dismissLoggingNotice(); return false;"><span class="dh-dismiss-default">Dismiss</span><span class="dh-dismiss-hover">Fuckoff</span></a>
         </div>
     </div>
 </div>
@@ -201,7 +200,7 @@
                                     <a href="https://wiki.pumpingstationone.org/wiki/Deep_Harbor/Onboarding_Process"
                                        target="_blank" rel="noopener">PS:1 wiki <i class="fa-solid fa-up-right-from-square fa-xs"></i></a>.
                                 </span>
-                                <a href="#" class="text-muted text-nowrap flex-shrink-0 ms-3" onclick="dismissOnboardWikiNotice(); return false;">Dismiss</a>
+                                <a href="#" class="dh-notice-dismiss text-nowrap flex-shrink-0 ms-3" onclick="dismissOnboardWikiNotice(); return false;">Dismiss</a>
                             </div>
                             <div id="onboardLoading" class="text-center" style="display: none;">
                                 <div class="spinner-border" role="status">

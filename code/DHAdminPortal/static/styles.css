@@ -371,14 +371,44 @@ body {
     margin-bottom: 0;
 }
 
-/* HEY logging-notice "Dismiss": absolutely positioned (out of flow) so the
-   message stays centered across the full band, and small so it's unobtrusive. */
+/* Notice "Dismiss" links inherit the alert's per-theme text color (already
+   tuned for contrast against the alert-warning background) and mute via opacity
+   instead of a fixed grey. Bootstrap's .text-muted is a hardcoded dark grey that
+   is unreadable on the dark/midnight/hacker alert surfaces — same opacity-muting
+   approach as the "Matched on" column. */
+.alert .dh-logging-dismiss,
+.alert .dh-notice-dismiss {
+    color: inherit;
+    opacity: 0.85;
+}
+.alert .dh-logging-dismiss:hover,
+.alert .dh-notice-dismiss:hover {
+    color: inherit;
+    opacity: 1;
+}
+
+/* HEY logging-notice: 3-column grid (equal-width side gutters) keeps the message
+   centered to the box while the "Dismiss" link lives in its OWN right-hand track,
+   so it can never overlap the message no matter how many lines it wraps to — an
+   absolutely-positioned link sits out of flow and overlaps tall wrapped text. The
+   side gutters are a fixed width so the Dismiss→"Fuckoff" hover swap doesn't
+   reflow the banner. */
+#loggingNoticeRow .alert {
+    display: grid;
+    grid-template-columns: 4rem 1fr 4rem;
+    align-items: center;
+    column-gap: 0.25rem;
+}
+#loggingNoticeRow .dh-logging-msg {
+    grid-column: 2;
+    text-align: center;
+}
 #loggingNoticeRow .dh-logging-dismiss {
-    position: absolute;
-    top: 50%;
-    right: 0.75rem;
-    transform: translateY(-50%);
+    grid-column: 3;
+    justify-self: end;
     font-size: 0.7rem;
+    line-height: 1.15;
+    text-align: right;
 }
 
 /* Easter egg: "Dismiss" flips to its true feelings on hover. */
