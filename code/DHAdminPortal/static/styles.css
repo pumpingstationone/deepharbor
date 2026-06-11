@@ -371,15 +371,64 @@ body {
     margin-bottom: 0;
 }
 
-/* Logging-notice banner dismiss (x): Bootstrap's default 1.25rem padding makes
-   the hit-area taller than this thin py-2 alert and pins it to the top corner.
-   Shrink it and vertically center it so it sits neatly in the band. */
-#loggingNoticeRow .btn-close {
-    top: 50%;
-    right: 0.5rem;
-    transform: translateY(-50%);
-    padding: 0.5rem;
-    background-size: 0.75em;
+/* Notice "Dismiss" links inherit the alert's per-theme text color (already
+   tuned for contrast against the alert-warning background) and mute via opacity
+   instead of a fixed grey. Bootstrap's .text-muted is a hardcoded dark grey that
+   is unreadable on the dark/midnight/hacker alert surfaces — same opacity-muting
+   approach as the "Matched on" column. */
+.alert .dh-logging-dismiss,
+.alert .dh-notice-dismiss {
+    color: inherit;
+    opacity: 0.85;
+}
+.alert .dh-logging-dismiss:hover,
+.alert .dh-notice-dismiss:hover {
+    color: inherit;
+    opacity: 1;
+}
+
+/* HEY logging-notice: 3-column grid (equal-width side gutters) keeps the message
+   centered to the box while the "Dismiss" link lives in its OWN right-hand track,
+   so it can never overlap the message no matter how many lines it wraps to — an
+   absolutely-positioned link sits out of flow and overlaps tall wrapped text. The
+   side gutters are a fixed width so the Dismiss→"Fuckoff" hover swap doesn't
+   reflow the banner. */
+#loggingNoticeRow .alert {
+    display: grid;
+    grid-template-columns: 4rem 1fr 4rem;
+    align-items: center;
+    column-gap: 0.25rem;
+}
+#loggingNoticeRow .dh-logging-msg {
+    grid-column: 2;
+    text-align: center;
+}
+#loggingNoticeRow .dh-logging-dismiss {
+    grid-column: 3;
+    justify-self: end;
+    font-size: 0.7rem;
+    line-height: 1.15;
+    text-align: right;
+}
+
+/* Easter egg: "Dismiss" flips to its true feelings on hover. */
+#loggingNoticeRow .dh-logging-dismiss .dh-dismiss-hover {
+    display: none;
+}
+#loggingNoticeRow .dh-logging-dismiss:hover .dh-dismiss-default {
+    display: none;
+}
+#loggingNoticeRow .dh-logging-dismiss:hover .dh-dismiss-hover {
+    display: inline;
+}
+
+/* Onboard wiki-pointer notice: flex layout keeps the "Dismiss" link right-aligned
+   and centered without overlapping the message. Set here (not via the .d-flex
+   utility) so the inline display:none set on dismiss can override it — .d-flex is
+   display:flex !important and would keep the banner visible after dismissal. */
+#onboardWikiNoticeRow {
+    display: flex;
+    align-items: center;
 }
 
 [data-theme="bubblegum"] .dh-member-bar + .dh-suspended-warning {
