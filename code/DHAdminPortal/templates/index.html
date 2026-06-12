@@ -818,13 +818,14 @@ document.addEventListener('click', function(e) {
 // geometry (scaled to font-size for the larger Onboard DOB) and let the native
 // handler own that zone — we only open the picker for clicks on the rest.
 document.addEventListener('click', function(e) {
-    // Desktop only: on touch/mobile the OS opens the native picker on tap
-    // anywhere, so this enhancement is unnecessary there and could double-fire
-    // with the system picker. fine pointer == mouse-driven device.
-    if (!window.matchMedia('(pointer: fine)').matches) return;
     var input = e.target.closest('input[type="date"]');
     if (!input || input.readOnly || input.disabled) return;
     if (typeof input.showPicker !== 'function') return;
+    // Desktop only: on touch/mobile the OS opens the native picker on tap
+    // anywhere, so this enhancement is unnecessary there and could double-fire
+    // with the system picker. fine pointer == mouse-driven device. Checked
+    // after the cheap target guard so unrelated clicks pay nothing.
+    if (!window.matchMedia('(pointer: fine)').matches) return;
     var rect = input.getBoundingClientRect();
     var iconZone = (parseFloat(getComputedStyle(input).fontSize) || 16) * 2.5;
     var onIcon = (document.dir === 'rtl')

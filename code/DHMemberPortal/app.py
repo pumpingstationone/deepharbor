@@ -166,8 +166,8 @@ def signup_submit():
         "emails": [{"type": "primary", "email_address": email}],
         "nickname": request.form.get("preferred_name"),
         "active_directory_username": request.form.get("username"),
-        "birthday": request.form.get("birthday"),
         "pronouns": request.form.get("pronouns")
+        # birthday is added below, after the format/validity gate
     }
     connections_data = {
         "phone": request.form.get("phone"),
@@ -280,16 +280,22 @@ def signup_submit():
         # path with the #297 strip-on-store inconsistency.
         identity_data["active_directory_username"] = username
 
-        # Server-side birthday format gate. The form's <input type="date">
-        # always serializes as YYYY-MM-DD, but a direct POST can submit anything
-        # (e.g. "03/15/2026" or a legacy "YYYY-MM-DDT00:00:00" datetime). The
-        # admin portal + DHService treat birthday as a bare ISO date, so reject
-        # non-ISO here rather than persist a malformed value. Required-ness and
-        # age enforcement are deferred to #293.
+        # Server-side birthday gate. The form's <input type="date"> always
+        # serializes as YYYY-MM-DD, but a direct POST can submit anything
+        # (e.g. "03/15/2026", a legacy "YYYY-MM-DDT00:00:00" datetime, or a
+        # calendar-invalid "2026-02-30"). The admin portal + DHService treat
+        # birthday as a bare ISO date, so reject non-ISO / impossible dates
+        # here rather than persist a malformed value. A regex alone would pass
+        # invalid calendar dates (Feb 30, month 13), so parse with strptime —
+        # mirrors validate_age_18_or_older in the admin portal. Required-ness
+        # and age enforcement are deferred to #293.
         birthday = (request.form.get("birthday") or "").strip()
-        if birthday and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", birthday):
-            flash('Birthday must be a valid date (YYYY-MM-DD).', 'error')
-            return _redisplay_form()
+        if birthday:
+            try:
+                datetime.strptime(birthday, "%Y-%m-%d")
+            except ValueError:
+                flash('Birthday must be a valid date (YYYY-MM-DD).', 'error')
+                return _redisplay_form()
         identity_data["birthday"] = birthday or None
 
         member_id = dhservices.add_member(access_token, identity_data).get("member_id")
@@ -770,6 +776,18 @@ def format_date(date_string):
         return date_string
     except:
         return date_string
+
+@app.template_filter('iso_date_prefix')
+def iso_date_prefix(value):
+    """Leading YYYY-MM-DD of a value, or '' if it doesn't start with an ISO
+    date. Strips a legacy datetime suffix ("YYYY-MM-DDT00:00:00") so a date
+    <input> never receives a non-ISO value (which it would silently blank).
+    Mirrors birthdayToDateValue() in the admin portal — see the birthday
+    normalization invariant in CLAUDE.md."""
+    if not value:
+        return ''
+    s = str(value)
+    return s[:10] if re.match(r'\d{4}-\d{2}-\d{2}', s) else ''
 
 def _load_cache():
     logger.info("Loading token cache")
