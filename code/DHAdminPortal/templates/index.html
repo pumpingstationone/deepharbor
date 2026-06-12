@@ -804,6 +804,36 @@ document.addEventListener('click', function(e) {
     bsToast.show();
 });
 
+// Open the native date picker when clicking anywhere on an editable date
+// field, not just its calendar icon. Delegated so it covers every
+// <input type="date"> including ones rendered later (birthday, Onboard DOB,
+// id_check_date). showPicker() needs a user gesture — the click provides it.
+// Readonly/disabled inputs (view mode, locked DOB) are skipped; the
+// readonly-hint toast above handles those instead.
+//
+// The native calendar icon is a closed shadow-DOM indicator at the inline-end
+// edge that opens the picker itself on mousedown; calling showPicker() again on
+// the following click toggles it shut, so the icon would look dead. e.target is
+// the <input> for both icon and segment clicks, so we detect the icon by
+// geometry (scaled to font-size for the larger Onboard DOB) and let the native
+// handler own that zone — we only open the picker for clicks on the rest.
+document.addEventListener('click', function(e) {
+    // Desktop only: on touch/mobile the OS opens the native picker on tap
+    // anywhere, so this enhancement is unnecessary there and could double-fire
+    // with the system picker. fine pointer == mouse-driven device.
+    if (!window.matchMedia('(pointer: fine)').matches) return;
+    var input = e.target.closest('input[type="date"]');
+    if (!input || input.readOnly || input.disabled) return;
+    if (typeof input.showPicker !== 'function') return;
+    var rect = input.getBoundingClientRect();
+    var iconZone = (parseFloat(getComputedStyle(input).fontSize) || 16) * 2.5;
+    var onIcon = (document.dir === 'rtl')
+        ? e.clientX <= rect.left + iconZone
+        : e.clientX >= rect.right - iconZone;
+    if (onIcon) return;
+    try { input.showPicker(); } catch (_) { /* already open or blocked */ }
+});
+
 // Toggle edit mode for a specific tab
 function toggleEditMode(tabName) {
     const editBtn = document.getElementById(`${tabName}EditBtn`);
@@ -2322,10 +2352,22 @@ function normalizeMembershipLevels(levels) {
     }).filter(level => level && level.name);
 }
 
-// True iff birthdayStr (YYYY-MM-DD) is on or before today minus 21 years.
+// Returns the leading YYYY-MM-DD of a birthday value, or '' if it doesn't
+// start with an ISO date. Legacy birthdays are stored as naive datetimes
+// ("YYYY-MM-DDT00:00:00", from the Wild Apricot import) which an
+// <input type="date"> silently rejects and isOver21's regex fails on.
+// Normalizing on read makes both work; prod cleanup is tracked in #285.
+function birthdayToDateValue(v) {
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : '';
+}
+
+// True iff birthdayStr is on or before today minus 21 years. Tolerates a
+// legacy datetime suffix by reading the leading date.
 function isOver21(birthdayStr) {
-    if (!birthdayStr || typeof birthdayStr !== 'string') return false;
-    const m = birthdayStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const dateStr = birthdayToDateValue(birthdayStr);
+    const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!m) return false;
     const y = +m[1], mo = +m[2], d = +m[3];
     const dob = new Date(y, mo - 1, d);
@@ -2397,6 +2439,12 @@ function formatData(data, options = {}) {
             `;
         }
 
+        // Birthday is always a date picker (even when unset/null), and its
+        // stored value may carry a legacy datetime suffix — normalize on read.
+        if (tabName === 'identity' && key === 'birthday') {
+            return `<input type="date" class="form-control" data-field="${key}" value="${birthdayToDateValue(value)}" readonly>`;
+        }
+
         // Handle null/undefined/empty values
         if (value === null || value === undefined || value === '') {
             return `<input type="text" class="form-control" data-field="${key}" value="" placeholder="Not set" readonly>`;
@@ -2447,9 +2495,6 @@ function formatData(data, options = {}) {
             }
             if (key === 'username' || key === 'active_directory_username') {
                 return `<input type="text" class="form-control" data-field="${key}" value="${strValue}" maxlength="16" pattern="[a-zA-Z0-9_-]+" autocapitalize="none" autocorrect="off" oninput="this.value = this.value.replace(/[^a-zA-Z0-9_\\-]/g, '')" readonly>`;
-            }
-            if (key === 'date_of_birth') {
-                return `<input type="date" class="form-control" data-field="${key}" value="${strValue}" readonly>`;
             }
             if (key === 'theme_song_url') {
                 return `<input type="url" class="form-control" data-field="${key}" value="${strValue}" maxlength="500" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="https://example.com/my-theme.mp3" readonly>`;
@@ -2826,7 +2871,7 @@ function loadOnboardTab(memberId) {
             const dobEditBtn = document.getElementById('onboardingDobEditBtn');
             const dobError = document.getElementById('onboardingDobError');
             if (dobInput) {
-                dobInput.value = data.birthday || '';
+                dobInput.value = birthdayToDateValue(data.birthday);
                 dobInput.disabled = true;
                 dobInput.classList.remove('is-invalid');
             }

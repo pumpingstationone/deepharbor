@@ -280,6 +280,18 @@ def signup_submit():
         # path with the #297 strip-on-store inconsistency.
         identity_data["active_directory_username"] = username
 
+        # Server-side birthday format gate. The form's <input type="date">
+        # always serializes as YYYY-MM-DD, but a direct POST can submit anything
+        # (e.g. "03/15/2026" or a legacy "YYYY-MM-DDT00:00:00" datetime). The
+        # admin portal + DHService treat birthday as a bare ISO date, so reject
+        # non-ISO here rather than persist a malformed value. Required-ness and
+        # age enforcement are deferred to #293.
+        birthday = (request.form.get("birthday") or "").strip()
+        if birthday and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", birthday):
+            flash('Birthday must be a valid date (YYYY-MM-DD).', 'error')
+            return _redisplay_form()
+        identity_data["birthday"] = birthday or None
+
         member_id = dhservices.add_member(access_token, identity_data).get("member_id")
     except Exception as e:
         logger.error(f"Error creating new member: {str(e)}")

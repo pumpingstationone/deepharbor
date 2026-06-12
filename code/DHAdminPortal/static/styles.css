@@ -642,6 +642,19 @@ body.sidebar-open .body-content {
 [data-theme="midnight"] .dh-search-help-btn { color: var(--primary-color); }
 [data-theme="hacker"] .dh-search-help-btn { color: var(--primary-color); }
 
+/* Native date-input calendar-picker icon visibility.
+   The browser renders <input type="date">'s picker indicator (and its popup
+   calendar) from `color-scheme`. On the three dark themes the default light
+   color-scheme paints a near-black glyph that vanishes against the dark field;
+   declaring color-scheme: dark makes the UA draw the icon + popup in a light
+   tone. bubblegum/light keep the default (dark icon on a light field reads
+   fine). Applies to every date input — birthday, Onboard DOB, id_check_date. */
+[data-theme="dark"] input[type="date"],
+[data-theme="midnight"] input[type="date"],
+[data-theme="hacker"] input[type="date"] {
+    color-scheme: dark;
+}
+
 /* Search-tips popover — themed through Bootstrap's own CSS vars so the arrow,
  * header, and body all follow the active theme. All five themes (bubblegum
  * included) now define the --*-color palette, so bare var() resolves. */
