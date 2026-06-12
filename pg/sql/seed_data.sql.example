@@ -289,9 +289,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2023-07-27T01:30:19", "from": "System", "note": "Doctor minute while who collection environmental."}, {"timestamp": "2024-07-28T05:39:10", "from": "System", "note": "Police provide building position as along look thought night require our material pass."}, {"timestamp": "2022-08-27T20:44:57", "from": "Admin", "note": "Anyone dream high road record deep keep artist Republican check since two church road."}, {"timestamp": "2025-12-31T22:10:00", "from": "System", "note": "Service enter treat price happen reason teacher road me free none culture share live have exist thank."}, {"timestamp": "2026-04-25T01:35:52", "from": "System", "note": "Sense those star section center me room know radio store."}, {"timestamp": "2024-10-24T00:35:16", "from": "System", "note": "Member requested deactivation"}]'::jsonb
 );
 
-/* ID 23 - Daniel Hernandez */
+/* ID 23 - Daniel Hernández */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Daniel", "last_name": "Hernandez", "nickname": null, "active_directory_username": "dhernandez", "emails": [{"type": "primary", "email_address": "discussion.small8479@consulting.global-partners-chicago.com"}], "birthday": "1965-09-09T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "Daniel", "last_name": "Hernández", "nickname": null, "active_directory_username": "dhernandez", "emails": [{"type": "primary", "email_address": "discussion.small8479@consulting.global-partners-chicago.com"}], "birthday": "1965-09-09T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "", "phone": "3035263607", "wildapricot_id": 49127616}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "zDEFUNCT - Member w/ Storage", "member_since": null, "renewal_date": "2021-03-11T21:31:42", "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "MD DL A9572837", "id_check_2": "", "waiver_signed_date": "2021-07-31T00:00:00", "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -373,9 +373,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2022-12-21T13:27:10", "from": "System", "note": "Form lay bit method beautiful order local even market executive throw say arrive."}, {"timestamp": "2024-02-19T14:20:18", "from": "System", "note": "Defense wife ready page then once rate manager."}, {"timestamp": "2025-07-20T15:09:09", "from": "Admin", "note": "Experience rather Democrat political few performance significant rock heart skill."}, {"timestamp": "2023-06-06T04:40:09", "from": "System", "note": "Member requested deactivation"}]'::jsonb
 );
 
-/* ID 30 - James Lopez */
+/* ID 30 - James López */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "James", "last_name": "Lopez", "nickname": "john36", "active_directory_username": "jlopez", "emails": [{"type": "primary", "email_address": "yet.hold.receive56469@consulting.global-partners-chicago.com"}], "birthday": "1990-11-30T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "James", "last_name": "López", "nickname": "john36", "active_directory_username": "jlopez", "emails": [{"type": "primary", "email_address": "yet.hold.receive56469@consulting.global-partners-chicago.com"}], "birthday": "1990-11-30T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "oconnelldouglas", "phone": "5440903626", "wildapricot_id": 99692821}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "zDEFUNCT - Member", "member_since": "2024-03-27T05:24:44+00:00", "renewal_date": "2023-01-15T00:45:47", "balance": "0", "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "waiver_signed_date": null, "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -397,9 +397,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2023-01-31T10:01:31", "from": "Admin", "note": "Out oil general none himself coach oil film beautiful stand performance establish."}, {"timestamp": "2024-09-26T02:53:24", "from": "Board", "note": "Student international culture central child trial yeah call east."}]'::jsonb
 );
 
-/* ID 32 - Kathy Nunez */
+/* ID 32 - Kathy Núñez */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Kathy", "last_name": "Nunez", "nickname": null, "active_directory_username": "knunez", "emails": [{"type": "primary", "email_address": "require.though@alumni.illinois-institute-of-technology.edu"}], "birthday": "1983-08-24T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "Kathy", "last_name": "Núñez", "nickname": null, "active_directory_username": "knunez", "emails": [{"type": "primary", "email_address": "require.though@alumni.illinois-institute-of-technology.edu"}], "birthday": "1983-08-24T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "bruce84", "phone": "5116356000", "wildapricot_id": 88873394, "stripe_customer_id": "cus_smZ5iZRga7xfPU", "stripe_id": "cus_smZ5iZRga7xfPU"}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "zDEFUNCT - Member", "member_since": null, "renewal_date": "2023-02-20T18:23:50", "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_date": "2023-02-05", "id_check_by": 2, "orientation_completed_date": "2025-04-04T00:00:00", "waiver_signed_date": null, "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -445,9 +445,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     NULL
 );
 
-/* ID 36 - Michelle Ramirez */
+/* ID 36 - Michelle Ramírez */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Michelle", "last_name": "Ramirez", "nickname": null, "active_directory_username": "mramirez", "emails": [{"type": "primary", "email_address": "bad.senior49066@alumni.illinois-institute-of-technology.edu"}], "birthday": "1957-11-24T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "Michelle", "last_name": "Ramírez", "nickname": null, "active_directory_username": "mramirez", "emails": [{"type": "primary", "email_address": "bad.senior49066@alumni.illinois-institute-of-technology.edu"}], "birthday": "1957-11-24T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "", "phone": "3274878514", "wildapricot_id": 11634985}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "Stripe Member w/ Storage - $95", "member_since": "2018-07-30T23:48:48+00:00", "renewal_date": null, "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "Arkansas", "id_check_2": "D801-1913-1476", "waiver_signed_date": null, "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -637,9 +637,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2023-10-05T23:34:40", "from": "Board", "note": "Agree else together piece son but every agency person."}, {"timestamp": "2024-07-30T13:20:55", "from": "Admin", "note": "Option many appear fast possible alone nation."}, {"timestamp": "2023-08-11T11:21:45", "from": "System", "note": "Member requested deactivation"}]'::jsonb
 );
 
-/* ID 52 - Christine Martinez */
+/* ID 52 - Christine Martínez */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Christine", "last_name": "Martinez", "nickname": null, "active_directory_username": "cmartinez", "emails": [{"type": "primary", "email_address": "understand.plant@proton-secure-personal-mail.com"}], "birthday": "1968-08-20T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "Christine", "last_name": "Martínez", "nickname": null, "active_directory_username": "cmartinez", "emails": [{"type": "primary", "email_address": "understand.plant@proton-secure-personal-mail.com"}], "birthday": "1968-08-20T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "stevenmiller", "phone": "6102353579", "wildapricot_id": 73265218, "stripe_id": "cus_vSj1gxPsuX43Dk"}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "zDEFUNCT - Member w/ Storage", "member_since": "2023-10-09T17:05:28+00:00", "renewal_date": null, "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "MS", "id_check_2": "DL-9003", "id_check_date": "2026-05-14", "id_check_by": 4, "waiver_signed_date": null, "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -841,9 +841,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2026-01-25T16:02:05", "from": "Board", "note": "Relate young hotel."}, {"timestamp": "2023-11-22T11:38:04", "from": "System", "note": "Consumer civil example special need research energy image drug would information toward should green wish realize."}]'::jsonb
 );
 
-/* ID 69 - Derrick Leon */
+/* ID 69 - Derrick León */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Derrick", "last_name": "Leon", "nickname": null, "active_directory_username": "dleon", "emails": [{"type": "primary", "email_address": "whatever.gun@mail.independent-contractors-guild.org"}], "birthday": "1979-10-30T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "Derrick", "last_name": "León", "nickname": null, "active_directory_username": "dleon", "emails": [{"type": "primary", "email_address": "whatever.gun@mail.independent-contractors-guild.org"}], "birthday": "1979-10-30T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "", "phone": "4690818824"}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "", "member_since": "2018-12-28", "renewal_date": null, "waiver_signed": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "essentials_forms_completed_date": null, "waiver_signed_at": "", "is_21_or_older": true}'::jsonb,
@@ -1021,9 +1021,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2023-09-24T01:56:14", "from": "Board", "note": "Very reach consider travel main movie."}]'::jsonb
 );
 
-/* ID 84 - Veronica Welch */
+/* ID 84 - Verónica Welch */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Veronica", "last_name": "Welch", "nickname": null, "active_directory_username": "vwelch", "emails": [{"type": "primary", "email_address": "reality.receive.in18245@engineering.midwest-manufacturing-co.com"}], "birthday": "1972-12-17T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "Verónica", "last_name": "Welch", "nickname": null, "active_directory_username": "vwelch", "emails": [{"type": "primary", "email_address": "reality.receive.in18245@engineering.midwest-manufacturing-co.com"}], "birthday": "1972-12-17T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "corey56", "phone": "5298876277", "wildapricot_id": 54224810}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "", "member_since": "2018-08-25T13:13:57+00:00", "renewal_date": "2021-06-28T18:10:38", "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "LA", "id_check_2": "DL-7154", "id_check_date": "2023-08-10", "id_check_by": 7, "waiver_signed_date": null, "covid_vaccine_policy_acknowledged": "2023-03-31"}'::jsonb,
@@ -1177,9 +1177,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2022-09-22T18:24:24", "from": "Board", "note": "Safe let though seek."}, {"timestamp": "2022-12-01T23:17:24", "from": "Admin", "note": "Would development sister on husband admit."}]'::jsonb
 );
 
-/* ID 97 - Dana Fernandez */
+/* ID 97 - Dana Fernández */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Dana", "last_name": "Fernandez", "nickname": "", "active_directory_username": "dfernandez", "emails": [{"type": "primary", "email_address": "production.vote.stay19555@consulting.global-partners-chicago.com"}], "birthday": "1973-09-23T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "Dana", "last_name": "Fernández", "nickname": "", "active_directory_username": "dfernandez", "emails": [{"type": "primary", "email_address": "production.vote.stay19555@consulting.global-partners-chicago.com"}], "birthday": "1973-09-23T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "", "phone": "5523380006", "wildapricot_id": 59858354}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "Membership", "member_since": null, "renewal_date": null, "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "saw MT DL, looked legit", "id_check_2": "CW approved", "waiver_signed_date": "2021-10-23T00:00:00", "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -1249,9 +1249,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2024-05-04T09:47:55", "from": "System", "note": "Fact quality price audience ask current guy leader identify."}, {"timestamp": "2022-07-10T10:06:46", "from": "System", "note": "Mean position concern memory student cost matter."}]'::jsonb
 );
 
-/* ID 103 - Eric Sanchez */
+/* ID 103 - Eric Sánchez */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Eric", "last_name": "Sanchez", "nickname": "nicolaswallace", "active_directory_username": "esanchez", "emails": [{"type": "primary", "email_address": "year.probably50581@proton-secure-personal-mail.com"}], "birthday": "1958-06-15T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "Eric", "last_name": "Sánchez", "nickname": "nicolaswallace", "active_directory_username": "esanchez", "emails": [{"type": "primary", "email_address": "year.probably50581@proton-secure-personal-mail.com"}], "birthday": "1958-06-15T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "eric03", "phone": "8191739900", "wildapricot_id": 83372095}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "Stripe Member w/ Storage - $95", "member_since": "2026-01-26T04:24:43+00:00", "renewal_date": "2023-09-08T21:34:03", "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "saw CT DL, looked legit", "id_check_2": "TB approved", "id_check_date": "2025-06-13", "id_check_by": 3, "waiver_signed_date": null, "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -1585,9 +1585,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2023-09-13T18:46:25", "from": "System", "note": "Language camera this late blue occur month positive box want scientist president."}, {"timestamp": "2025-06-12T06:26:07", "from": "System", "note": "Membership expired — no renewal"}]'::jsonb
 );
 
-/* ID 131 - Angela Marquez */
+/* ID 131 - Angela Márquez */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Angela", "last_name": "Marquez", "nickname": null, "active_directory_username": "amarquez", "emails": [{"type": "primary", "email_address": "south.manage.forget99531@consulting.global-partners-chicago.com"}], "birthday": "1970-11-03T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "Angela", "last_name": "Márquez", "nickname": null, "active_directory_username": "amarquez", "emails": [{"type": "primary", "email_address": "south.manage.forget99531@consulting.global-partners-chicago.com"}], "birthday": "1970-11-03T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "williamshea", "phone": "", "wildapricot_id": 55904963}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "Stripe Member - $65", "member_since": "2021-07-13T22:30:13+00:00", "renewal_date": null, "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "US", "id_check_2": "PP-F78084546", "waiver_signed_date": "2021-07-24T00:00:00", "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -1657,9 +1657,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2025-03-20T12:25:14", "from": "Board", "note": "Establish almost explain anything film."}]'::jsonb
 );
 
-/* ID 137 - April Gonzalez */
+/* ID 137 - April González */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "April", "last_name": "Gonzalez", "nickname": null, "active_directory_username": "agonzalez", "emails": [{"type": "primary", "email_address": "short.yes.must9995@alumni.illinois-institute-of-technology.edu"}], "birthday": "2006-04-02", "aliases": []}'::jsonb,
+    '{"first_name": "April", "last_name": "González", "nickname": null, "active_directory_username": "agonzalez", "emails": [{"type": "primary", "email_address": "short.yes.must9995@alumni.illinois-institute-of-technology.edu"}], "birthday": "2006-04-02", "aliases": []}'::jsonb,
     '{"discord_handle": "", "phone": "(614) 810-6167", "wildapricot_id": 12520171, "stripe_customer_id": "cus_DleaSwn3dOAsSo"}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "zDEFUNCT - Volunteer w/ Paid Storage", "member_since": "2019-12-10T17:03:59+00:00", "renewal_date": "2024-04-26T06:49:13", "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "JC", "id_check_2": "2019-08-08", "waiver_signed_date": "2021-07-10T00:00:00", "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -1897,9 +1897,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     NULL
 );
 
-/* ID 157 - Casey Garcia */
+/* ID 157 - Casey García */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Casey", "last_name": "Garcia", "nickname": null, "active_directory_username": "cgarcia", "emails": [{"type": "primary", "email_address": "real.language@engineering.midwest-manufacturing-co.com"}], "birthday": "1983-02-01T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "Casey", "last_name": "García", "nickname": null, "active_directory_username": "cgarcia", "emails": [{"type": "primary", "email_address": "real.language@engineering.midwest-manufacturing-co.com"}], "birthday": "1983-02-01T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "loganrasmussen", "phone": "9960554211", "wildapricot_id": 74730220, "stripe_customer_id": "cus_l67q52ubPG2qgM", "stripe_id": "cus_l67q52ubPG2qgM"}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "zDEFUNCT - Member", "member_since": "2025-05-25T14:58:44+00:00", "renewal_date": "2022-10-30T07:25:34", "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "OK DL E1443502", "id_check_2": "", "waiver_signed_date": null, "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -3181,9 +3181,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2025-08-12T01:37:38", "from": "System", "note": "Show current life source military member plan south start year field lot."}]'::jsonb
 );
 
-/* ID 264 - Kayla Rodriguez */
+/* ID 264 - Kayla Rodríguez */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Kayla", "last_name": "Rodriguez", "nickname": null, "active_directory_username": "krodriguez", "emails": [{"type": "primary", "email_address": "political.prepare@alumni.illinois-institute-of-technology.edu"}], "birthday": "2001-10-03T00:00:00", "aliases": [], "pronouns": "she/her"}'::jsonb,
+    '{"first_name": "Kayla", "last_name": "Rodríguez", "nickname": null, "active_directory_username": "krodriguez", "emails": [{"type": "primary", "email_address": "political.prepare@alumni.illinois-institute-of-technology.edu"}], "birthday": "2001-10-03T00:00:00", "aliases": [], "pronouns": "she/her"}'::jsonb,
     '{"discord_handle": "keith82", "phone": "7935694698", "wildapricot_id": 70431049}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "zDEFUNCT - Member", "member_since": "2024-01-09T22:57:25+00:00", "renewal_date": "", "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "saw TX DL, looked legit", "id_check_2": "AA approved", "waiver_signed_date": "2024-01-28T00:00:00", "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -3229,9 +3229,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2026-03-09T09:59:55", "from": "System", "note": "Analysis evening describe hear necessary interview picture voice production."}, {"timestamp": "2024-01-12T23:47:30", "from": "Admin", "note": "Lose defense land build together blue five mention audience past."}]'::jsonb
 );
 
-/* ID 268 - Frank Perez */
+/* ID 268 - Frank Pérez */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Frank", "last_name": "Perez", "nickname": "brendashelton", "active_directory_username": "fperez", "emails": [{"type": "primary", "email_address": "management.can94968@engineering.midwest-manufacturing-co.com"}], "birthday": "1968-05-22T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "Frank", "last_name": "Pérez", "nickname": "brendashelton", "active_directory_username": "fperez", "emails": [{"type": "primary", "email_address": "management.can94968@engineering.midwest-manufacturing-co.com"}], "birthday": "1968-05-22T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "", "phone": "3946998289", "wildapricot_id": 73840290, "stripe_customer_id": "cus_CyVhThPBKjorEA"}'::jsonb,
     '{"membership_status": "banned", "membership_level": "New Member", "member_since": "2022-09-03T17:25:06+00:00", "renewal_date": null, "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "MI", "id_check_2": "DL-7868", "orientation_completed_date": "2023-09-07T00:00:00", "waiver_signed_date": "2020-08-09T00:00:00", "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -3481,9 +3481,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2024-02-06T04:18:28", "from": "Admin", "note": "Radio hear hospital must against."}, {"timestamp": "2025-04-07T13:21:08", "from": "Admin", "note": "Religious month day recognize back test senior collection small cut green agree school."}, {"timestamp": "2023-05-12T22:20:32", "from": "System", "note": "Membership lapsed — moved to suspended"}]'::jsonb
 );
 
-/* ID 289 - Jose Sullivan */
+/* ID 289 - José Sullivan */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Jose", "last_name": "Sullivan", "nickname": "craigmartinez", "active_directory_username": "jsullivan", "emails": [{"type": "primary", "email_address": "teacher.purpose@consulting.global-partners-chicago.com"}], "birthday": "1972-05-02T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "José", "last_name": "Sullivan", "nickname": "craigmartinez", "active_directory_username": "jsullivan", "emails": [{"type": "primary", "email_address": "teacher.purpose@consulting.global-partners-chicago.com"}], "birthday": "1972-05-02T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "tonypayne", "phone": "8380986402", "wildapricot_id": 61783424}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "zDEFUNCT - Volunteer w/ Paid Storage", "member_since": "2018-09-07T03:27:44+00:00", "renewal_date": "2023-09-23T00:46:55", "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_date": "2021-06-05", "id_check_by": 3, "waiver_signed_date": null, "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -5149,9 +5149,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2025-09-01T18:28:36", "from": "System", "note": "Issue magazine soldier sign lose only describe throw fine article benefit note brother training ago."}]'::jsonb
 );
 
-/* ID 428 - Monica Lopez */
+/* ID 428 - Mónica Lopez */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Monica", "last_name": "Lopez", "nickname": null, "active_directory_username": null, "emails": [{"type": "primary", "email_address": "newspaper.employee.effort@mail.independent-contractors-guild.org"}], "birthday": "1958-10-20T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "Mónica", "last_name": "Lopez", "nickname": null, "active_directory_username": null, "emails": [{"type": "primary", "email_address": "newspaper.employee.effort@mail.independent-contractors-guild.org"}], "birthday": "1958-10-20T00:00:00", "aliases": []}'::jsonb,
     NULL,
     '{"membership_status": "active", "membership_level": "Stripe Member w/ Storage - $95", "member_since": "2023-05-23T07:19:00+00:00", "renewal_date": "", "balance": 0, "donations": 0, "donor": false, "stripe_subscription_id": "sub_f14lvXjzDZWEyBzgdHuHiDvx", "stripe_product_id": "prod_VNUCPDtwF1YHdZ"}'::jsonb,
     NULL,
@@ -5785,9 +5785,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2026-05-10T04:43:44", "from": "Admin", "note": "Language subject budget indeed for measure suffer space learn although."}]'::jsonb
 );
 
-/* ID 481 - Christopher Gomez */
+/* ID 481 - Christopher Gómez */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Christopher", "last_name": "Gomez", "nickname": null, "active_directory_username": "cgomez", "emails": [{"type": "primary", "email_address": "become.too@engineering.midwest-manufacturing-co.com"}], "birthday": "1957-03-17T00:00:00", "aliases": [], "pronouns": "he/him"}'::jsonb,
+    '{"first_name": "Christopher", "last_name": "Gómez", "nickname": null, "active_directory_username": "cgomez", "emails": [{"type": "primary", "email_address": "become.too@engineering.midwest-manufacturing-co.com"}], "birthday": "1957-03-17T00:00:00", "aliases": [], "pronouns": "he/him"}'::jsonb,
     '{"discord_handle": "hughesallison", "phone": "8385253810", "wildapricot_id": 75747979, "stripe_customer_id": "cus_66edfFmJyrNfnP"}'::jsonb,
     '{"membership_status": "active", "membership_level": "Stripe Member - $65", "member_since": "2022-01-31T14:12:14+00:00", "renewal_date": null, "balance": 0, "donations": "0", "donor": false, "stripe_subscription_id": "sub_pVOfaASxuln85JwdkyuU8Te7", "stripe_product_id": "prod_afLmzp4dhTuqzg"}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_date": "2025-07-25", "id_check_by": 1, "waiver_signed_date": "2023-07-17T00:00:00", "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -6433,9 +6433,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2023-11-03T03:30:58", "from": "Board", "note": "Far turn foot mouth father admit adult social hotel but kid."}, {"timestamp": "2024-01-11T14:34:10", "from": "System", "note": "Membership lapsed — moved to suspended"}]'::jsonb
 );
 
-/* ID 535 - Maria Brown */
+/* ID 535 - María Brown */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Maria", "last_name": "Brown", "nickname": "beardandrew", "active_directory_username": "mbrown", "emails": [{"type": "primary", "email_address": "stuff.current.far@alumni.illinois-institute-of-technology.edu"}], "birthday": "1958-01-03", "aliases": []}'::jsonb,
+    '{"first_name": "María", "last_name": "Brown", "nickname": "beardandrew", "active_directory_username": "mbrown", "emails": [{"type": "primary", "email_address": "stuff.current.far@alumni.illinois-institute-of-technology.edu"}], "birthday": "1958-01-03", "aliases": []}'::jsonb,
     '{"discord_handle": "", "phone": "3215117505", "wildapricot_id": 67213721}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "Stripe Volunteer w/ Paid Storage - $30", "member_since": "2020-02-05T00:44:06+00:00", "renewal_date": null, "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "MH", "id_check_2": "2020-07-18", "waiver_signed_date": null, "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -6757,9 +6757,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2023-12-31T20:28:43", "from": "Board", "note": "Someone strong push available."}, {"timestamp": "2022-10-14T18:19:05", "from": "Admin", "note": "Bad method dream five body method shake baby doctor mission certain product maybe."}, {"timestamp": "2022-07-08T08:16:16", "from": "Admin", "note": "Here feeling form turn."}]'::jsonb
 );
 
-/* ID 562 - Michael Diaz */
+/* ID 562 - Michael Díaz */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Michael", "last_name": "Diaz", "nickname": null, "active_directory_username": "mdiaz", "emails": [{"type": "primary", "email_address": "dark.decide.fear@proton-secure-personal-mail.com"}], "birthday": "1967-02-12T00:00:00", "aliases": []}'::jsonb,
+    '{"first_name": "Michael", "last_name": "Díaz", "nickname": null, "active_directory_username": "mdiaz", "emails": [{"type": "primary", "email_address": "dark.decide.fear@proton-secure-personal-mail.com"}], "birthday": "1967-02-12T00:00:00", "aliases": []}'::jsonb,
     '{"discord_handle": "", "phone": "9208911046", "wildapricot_id": 63997248, "stripe_customer_id": "cus_CfPYqjJFnT7cWA"}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "zDEFUNCT - Member w/ Storage", "member_since": "2021-02-02T00:16:33+00:00", "renewal_date": "2021-10-30T16:31:05", "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "US", "id_check_2": "PP-I71914621", "waiver_signed_date": "2025-09-04T00:00:00", "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -8521,9 +8521,9 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '[{"timestamp": "2024-10-30T07:04:09", "from": "System", "note": "Model area I successful chance than artist partner past country voice church debate."}, {"timestamp": "2025-05-31T03:26:32", "from": "System", "note": "Direction take this save."}, {"timestamp": "2023-10-09T23:01:05", "from": "System", "note": "Membership lapsed — moved to suspended"}]'::jsonb
 );
 
-/* ID 709 - Kathleen Jimenez */
+/* ID 709 - Kathleen Jiménez */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Kathleen", "last_name": "Jimenez", "nickname": null, "active_directory_username": "kjimenez", "emails": [{"type": "primary", "email_address": "stop.off.think58254@engineering.midwest-manufacturing-co.com"}], "birthday": "1962-01-27T00:00:00"}'::jsonb,
+    '{"first_name": "Kathleen", "last_name": "Jiménez", "nickname": null, "active_directory_username": "kjimenez", "emails": [{"type": "primary", "email_address": "stop.off.think58254@engineering.midwest-manufacturing-co.com"}], "birthday": "1962-01-27T00:00:00"}'::jsonb,
     '{"discord_handle": "tracey98", "phone": "3661556006", "wildapricot_id": 30445799}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "zDEFUNCT - Member w/ Storage", "member_since": "2021-12-11T04:27:30+00:00", "renewal_date": null, "balance": 0, "donations": 0, "donor": true}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "NM", "id_check_2": "DL-9785", "waiver_signed_date": "2021-06-07T00:00:00", "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -12028,61 +12028,6 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
     '{"membership_status": "pending", "membership_level": "New Member", "member_since": "2025-12-22", "renewal_date": null, "waiver_signed": false}'::jsonb,
     NULL,
     NULL,
-    NULL,
-    NULL,
-    NULL
-);
-
-
-/* =====================================================
- * Member search test fixtures (accents / phone formats / Discord / RFID)
- * Exercise the pg_trgm curated search: unaccent folding, dash-agnostic phone,
- * leading-zero RFID, hyphenated names, and plus-alias emails.
- * ===================================================== */
-
-/* ID 1001 - José Muñoz: accents, leading-zero RFID, parenthesized phone */
-INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "José", "last_name": "Muñoz", "nickname": "pepe", "active_directory_username": "jmunoz", "emails": [{"type": "primary", "email_address": "jose.munoz@example.com"}], "birthday": "1990-05-05"}'::jsonb,
-    '{"discord_handle": "jmunoz_test", "phone": "(312) 555-0101"}'::jsonb,
-    '{"membership_status": "active", "membership_level": "Membership", "member_since": "2021-03-01"}'::jsonb,
-    NULL,
-    '{"rfid_tags": ["0000001234"]}'::jsonb,
-    NULL,
-    NULL,
-    NULL
-);
-
-/* ID 1002 - Renée Dubois: accent é, dash-formatted phone */
-INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Renée", "last_name": "Dubois", "nickname": null, "active_directory_username": "rdubois", "emails": [{"type": "primary", "email_address": "renee.dubois@example.com"}], "birthday": "1987-09-12"}'::jsonb,
-    '{"discord_handle": "renee_test", "phone": "312-555-0190"}'::jsonb,
-    '{"membership_status": "active", "membership_level": "Membership", "member_since": "2022-06-01"}'::jsonb,
-    NULL,
-    '{"rfid_tags": ["1055667788"]}'::jsonb,
-    NULL,
-    NULL,
-    NULL
-);
-
-/* ID 1003 - Pat Smith-Jones: hyphenated last name, +1 phone, plus-alias email, known Discord */
-INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Pat", "last_name": "Smith-Jones", "nickname": null, "active_directory_username": "psmithjones", "emails": [{"type": "primary", "email_address": "pat+tag@example.com"}], "birthday": "1995-01-20"}'::jsonb,
-    '{"discord_handle": "ps1_search_fixture", "phone": "+13125550191"}'::jsonb,
-    '{"membership_status": "active", "membership_level": "Membership", "member_since": "2023-02-15"}'::jsonb,
-    NULL,
-    '{"rfid_tags": ["1066778899"]}'::jsonb,
-    NULL,
-    NULL,
-    NULL
-);
-
-/* ID 1004 - Zoë Carter: accent ë, dot-separated phone */
-INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Zoë", "last_name": "Carter", "nickname": "zo", "active_directory_username": "zcarter", "emails": [{"type": "primary", "email_address": "zoe.carter@example.com"}], "birthday": "1992-02-02"}'::jsonb,
-    '{"discord_handle": "zoe_test", "phone": "312.555.0192"}'::jsonb,
-    '{"membership_status": "active", "membership_level": "Membership", "member_since": "2024-04-10"}'::jsonb,
-    NULL,
-    '{"rfid_tags": ["1077889900"]}'::jsonb,
     NULL,
     NULL,
     NULL
