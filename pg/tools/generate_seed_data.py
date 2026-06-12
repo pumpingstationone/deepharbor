@@ -658,14 +658,16 @@ def make_phone() -> str:
 
 
 def make_birthday(fake: Faker) -> str | None:
-    """~94% naive datetime (19-char) / ~5% ISO date (10-char) / ~1% null."""
+    """~99% bare ISO date (YYYY-MM-DD) / ~1% null.
+
+    Birthdays are canonical bare ISO dates (matching the post-#285 prod state).
+    The ~1% null cohort is legitimate "no birthday on file". The legacy 19-char
+    naive-datetime form (Wild Apricot import) is no longer emitted.
+    """
     d = _rand_date(fake, 70 * 365, 18 * 365)  # 18-70 years old vs REF_DATE
-    r = random.random()
-    if r < 0.01:
+    if random.random() < 0.01:
         return None
-    if r < 0.06:
-        return d.isoformat()
-    return f"{d.isoformat()}T00:00:00"
+    return d.isoformat()
 
 
 def make_member_since(fake: Faker, cohort_b: bool) -> str | None:

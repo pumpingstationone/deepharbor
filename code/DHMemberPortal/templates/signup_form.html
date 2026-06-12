@@ -120,7 +120,7 @@
                                        data-label="Birthday"
                                        data-min-age="18"
                                        data-age-message="Members are required to be 18 years or older."
-                                       value="{{ request.form.get('birthday') or (contact.birthday if contact else '') }}">
+                                       value="{{ (request.form.get('birthday') or (contact.birthday if contact else '')) | iso_date_prefix }}">
                             </div>
 
                             <div class="mb-3">
@@ -210,5 +210,29 @@
 
         // Also check on blur
         document.getElementById('username').addEventListener('blur', checkUsername);
+
+        // Open the native date picker when clicking anywhere on the date field,
+        // not just its calendar icon. The icon is a closed shadow-DOM indicator
+        // at the inline-end edge that opens the picker itself; calling
+        // showPicker() again there toggles it shut, so we detect the icon zone
+        // by geometry (scaled to font-size) and let the native handler own it.
+        // Mirrors the admin portal's date-picker behavior.
+        document.addEventListener('click', function(e) {
+            var input = e.target.closest('input[type="date"]');
+            if (!input || input.readOnly || input.disabled) return;
+            if (typeof input.showPicker !== 'function') return;
+            // Desktop only: on touch/mobile the OS opens the native picker on
+            // tap anywhere, so this enhancement is unnecessary there and could
+            // double-fire with the system picker. fine pointer == mouse device.
+            // Checked after the cheap target guard so unrelated clicks pay nothing.
+            if (!window.matchMedia('(pointer: fine)').matches) return;
+            var rect = input.getBoundingClientRect();
+            var iconZone = (parseFloat(getComputedStyle(input).fontSize) || 16) * 2.5;
+            var onIcon = (document.dir === 'rtl')
+                ? e.clientX <= rect.left + iconZone
+                : e.clientX >= rect.right - iconZone;
+            if (onIcon) return;
+            try { input.showPicker(); } catch (_) { /* already open or blocked */ }
+        });
     </script>
 {% endblock %}
