@@ -144,18 +144,31 @@ PHYSICAL_AUTHORIZATIONS = [
     "Wood Mini Lathe",
 ]
 
-# Long, realistic-looking email domains — member emails skew long (48-89 chars).
-LONG_EMAIL_DOMAINS = [
-    "students.northwestern-university.edu",
-    "alumni.illinois-institute-of-technology.edu",
-    "consulting.global-partners-chicago.com",
-    "engineering.midwest-manufacturing-co.com",
-    "mail.independent-contractors-guild.org",
-    "fastmail-personal-accounts.com",
-    "proton-secure-personal-mail.com",
+# Realistic email domains. Short common providers carry the bulk; a handful of
+# longer domains supply the 30-46-char tail. (The old "emails skew long, 48-89"
+# rule was a fingerprinting artifact — the prod query measured the length of the
+# JSON email *object* `{"type":...,"email_address":...}`, ~40 chars of wrapper,
+# not the address itself. Real emails match `primary_email`: ~11-46 chars.)
+SHORT_EMAIL_DOMAINS = [
     "gmail.com",
-    "outlook.com",
     "yahoo.com",
+    "outlook.com",
+    "hotmail.com",
+    "icloud.com",
+    "proton.me",
+    "aol.com",
+    "live.com",
+    "me.com",
+    "comcast.net",
+    "fastmail.com",
+    "protonmail.com",
+]
+LONG_EMAIL_DOMAINS = [
+    "alumni.iit.edu",
+    "students.northwestern.edu",
+    "mail.uchicago.edu",
+    "contractors-guild.org",
+    "midwest-mfg.com",
 ]
 
 PRONOUN_VALUES = ["she/her", "he/him", "they/them", "she/they", "he/they", "any/all"]
@@ -620,19 +633,24 @@ def _alnum(n: int) -> str:
     return "".join(random.choice(string.ascii_letters + string.digits) for _ in range(n))
 
 
-def make_long_email(fake: Faker, used_emails: set) -> str:
-    """Generate a long (48-89 char), case-insensitively unique email address."""
+def make_email(fake: Faker, used_emails: set) -> str:
+    """Generate a realistic, normal-length (~11-46 char), case-insensitively
+    unique email address — mirrors the real prod `primary_email` distribution
+    (median ~21, p95 ~28). See SHORT_EMAIL_DOMAINS for why this isn't "long"."""
     for _ in range(2000):
-        words = [w.lower() for w in fake.words(nb=random.randint(2, 3))]
+        words = [w.lower() for w in fake.words(nb=random.randint(1, 2))]
         local = ".".join(words)
-        if random.random() < 0.5:
-            local += str(random.randint(1, 99999))
-        email = f"{local}@{random.choice(LONG_EMAIL_DOMAINS)}"
-        if 48 <= len(email) <= 89 and email.lower() not in used_emails:
+        if random.random() < 0.35:
+            local += str(random.randint(1, 999))
+        # ~10% use a longer domain to fill out the 30-46-char tail.
+        domain = (random.choice(LONG_EMAIL_DOMAINS) if random.random() < 0.10
+                  else random.choice(SHORT_EMAIL_DOMAINS))
+        email = f"{local}@{domain}"
+        if 11 <= len(email) <= 46 and email.lower() not in used_emails:
             used_emails.add(email.lower())
             return email
     # Fallback — guarantee uniqueness/length even if sampling kept colliding.
-    email = f"{_alnum(40).lower()}@fastmail-personal-accounts.com"
+    email = f"{_alnum(12).lower()}@gmail.com"
     used_emails.add(email.lower())
     return email
 
@@ -968,7 +986,7 @@ def generate_random_member(
         username = f"{base_username}{counter}"
         counter += 1
 
-    email = make_long_email(fake, used_emails)
+    email = make_email(fake, used_emails)
 
     if has_full_data:
         used_usernames.add(username.lower())

@@ -99,10 +99,12 @@ Each entry notes the **target** distribution. "current →" notes where today's 
 
 ### identity
 
-- **emails** — JSONB array with **exactly 1** element per member, unique case-insensitively. Length
-  **48–89 chars** (avg ~61). *current → generator/static emit short `example.com` addresses (~24
-  chars); lengthen them.* These represent ordinary long real-world addresses (custom domains,
-  work/university), not a special format.
+- **emails** — JSONB array with **exactly 1** element per member, unique case-insensitively. Each
+  element is an object `{"type": "primary", "email_address": "..."}`. The **address** length matches
+  `primary_email`: **~11–46 chars** (median ~21, avg ~24). *(The earlier "48–89 chars" figure was a
+  fingerprinting artifact — that query measured `length(element::text)`, i.e. the ~40-char JSON
+  object wrapper plus the address, not the address itself. Real PS1 emails are ordinary length.)*
+  Ordinary real-world addresses (common providers + a longer-domain tail), not a special format.
 - **first_name / last_name** — always present, non-empty.
 - **nickname** — real value on only **~14%**; **~78% JSON null**; remainder empty string.
 - **active_directory_username** — present on **~98%**; **~1.6% null or empty** (legacy/import gaps).
