@@ -832,8 +832,6 @@ i.ic-x          { color: #000000 !important; } /* X brand */
     font-weight: 700;
 }
 
-/* Email + Next stay dimmed until all checklist boxes are ticked (the
- * controls inside also carry the disabled attribute). */
 /* Bootstrap's default checkbox border (#dee2e6) is nearly invisible on the
  * white card. Give the unchecked gate boxes a darker, slightly thicker border
  * so they read clearly; the checked state keeps Bootstrap's blue fill. */
@@ -842,6 +840,8 @@ i.ic-x          { color: #000000 !important; } /* X brand */
     border-width: 2px;
 }
 
+/* Email + Next stay dimmed until all checklist boxes are ticked (the
+ * controls inside also carry the disabled attribute). */
 .signup-locked {
     opacity: 0.55;
 }

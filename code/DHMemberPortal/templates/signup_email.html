@@ -13,7 +13,7 @@
                             <div class="form-check mb-2">
                                 <input class="form-check-input signup-gate-check" type="checkbox" id="gate-waiver">
                                 <label class="form-check-label" for="gate-waiver">
-                                    Completed the online
+                                    Complete the online
                                     <a href="https://app.waiverforever.com/pending/PMdbLqcKFq1491518230" target="_blank" rel="noopener noreferrer">Waiver Form</a>, if you haven't already.
                                 </label>
                             </div>
@@ -34,8 +34,8 @@
                             <div class="form-check mb-2">
                                 <input class="form-check-input signup-gate-check" type="checkbox" id="gate-idcheck">
                                 <label class="form-check-label" for="gate-idcheck">
-                                    Be ready for an in-person age verification check with an onboarding volunteer at the space.
-                                    Our <a href="https://pumpingstationone.org/events/" target="_blank" rel="noopener noreferrer">Tuesday 8&nbsp;PM open house tours</a>
+                                    Be ready for an in-person <a href="https://wiki.pumpingstationone.org/wiki/Age_Verification" target="_blank" rel="noopener noreferrer">age verification check</a> at the space,
+                                    our <a href="https://pumpingstationone.org/events/" target="_blank" rel="noopener noreferrer">Tuesday 8&nbsp;PM open house tours</a>
                                     are a great time to do it.
                                 </label>
                             </div>
@@ -58,17 +58,20 @@
 
                         <form method="POST" action="{{ url_for('signup_check_email') }}" class="dh-validate">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <div id="signup-gated" class="signup-locked">
+                            <!-- Controls ship ENABLED; the gate script disables them on load (see
+                                 scripts block). If JS never runs, the form stays usable instead of
+                                 a permanent dead end. -->
+                            <div id="signup-gated">
                                 <div class="mb-3">
                                     <label for="email" class="form-label">Email Address <span class="badge bg-danger required-badge">Required</span></label>
                                     <span class="info-label-desc">Please use the same email address you used for the waiver form.</span>
-                                    <input type="email" class="form-control" id="email" name="email" required disabled
+                                    <input type="email" class="form-control" id="email" name="email" required
                                            data-label="Email Address"
                                            placeholder="your.email@example.com"
                                            oninput="this.value = this.value.replace(/[^a-zA-Z0-9@._+\-]/g, '')">
                                 </div>
 
-                                <button type="submit" id="signup-next" class="btn btn-primary w-100" disabled>Next</button>
+                                <button type="submit" id="signup-next" class="btn btn-primary w-100">Next</button>
                             </div>
                         </form>
 
@@ -148,13 +151,37 @@
     }, 4000);
 })();
 
-/* Checklist gate — email + Next stay disabled until all boxes are ticked */
+/* Checklist gate — controls ship enabled (progressive enhancement); this script
+ * disables them until all boxes are ticked. Tick state is mirrored to
+ * sessionStorage so it survives a submit-error re-render within the tab. */
 (function () {
     var boxes = Array.prototype.slice.call(document.querySelectorAll('.signup-gate-check'));
     var gated = document.getElementById('signup-gated');
     var email = document.getElementById('email');
     var next = document.getElementById('signup-next');
     if (!boxes.length || !gated || !email || !next) return;
+
+    var STORAGE_KEY = 'ps1-signup-gate-checks';
+
+    function saveState() {
+        try {
+            var checkedIds = boxes.filter(function (b) { return b.checked; })
+                                  .map(function (b) { return b.id; });
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(checkedIds));
+        } catch (e) { /* storage unavailable (private mode, quota) — non-fatal */ }
+    }
+
+    function restoreState() {
+        try {
+            var raw = sessionStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            var checkedIds = JSON.parse(raw);
+            if (!Array.isArray(checkedIds)) return;
+            boxes.forEach(function (b) {
+                if (checkedIds.indexOf(b.id) !== -1) { b.checked = true; }
+            });
+        } catch (e) { /* missing/corrupt/unavailable storage — start unchecked */ }
+    }
 
     function update() {
         var allChecked = boxes.every(function (b) { return b.checked; });
@@ -165,7 +192,10 @@
         if (allChecked && wasLocked) { email.focus(); }
     }
 
-    boxes.forEach(function (b) { b.addEventListener('change', update); });
+    restoreState();
+    boxes.forEach(function (b) {
+        b.addEventListener('change', function () { saveState(); update(); });
+    });
     update();
 })();
 </script>
