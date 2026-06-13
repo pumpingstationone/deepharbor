@@ -809,3 +809,45 @@ i.ic-x          { color: #000000 !important; } /* X brand */
     pointer-events: none;
     cursor: not-allowed;
 }
+
+/* ===================================================================
+   SIGNUP CHECKLIST GATE (/signup landing page)
+   =================================================================== */
+
+/* Rotating word + "?" in the "Are you ready to start ___?" heading. The slot
+ * cross-fades as a whole via the .is-fading opacity toggle; its min-width is set
+ * in JS to the widest word so swapping words never reflows the line. */
+.signup-ready-word {
+    display: inline-block;
+    text-align: left;
+    transition: opacity 0.4s ease;
+}
+.signup-ready-word.is-fading {
+    opacity: 0;
+}
+/* Only the word is accent-colored + bold; the trailing "?" fades with it but
+ * keeps the normal heading color. */
+.signup-ready-term {
+    color: var(--primary-color);
+    font-weight: 700;
+}
+
+/* Bootstrap's default checkbox border (#dee2e6) is nearly invisible on the
+ * white card. Give the unchecked gate boxes a darker, slightly thicker border
+ * so they read clearly; the checked state keeps Bootstrap's blue fill. */
+.signup-gate-check {
+    border-color: var(--secondary-color);
+    border-width: 2px;
+}
+
+/* Email + Next stay dimmed until all checklist boxes are ticked (the
+ * controls inside also carry the disabled attribute). */
+.signup-locked {
+    opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .signup-ready-word {
+        transition: none;
+    }
+}

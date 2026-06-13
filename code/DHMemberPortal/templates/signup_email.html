@@ -6,11 +6,40 @@
             <div class="col-md-8 col-lg-7">
                 <div class="card">
                     <div class="card-body">
-                        <h2 class="card-title mb-3">Get Started</h2>
-                        <p class="mb-1">Step 0: Please <a href="https://app.waiverforever.com/pending/PMdbLqcKFq1491518230" target="_blank" rel="noopener noreferrer">complete the waiver form first.</a></p>
-                        <p class="small text-muted ms-4 mb-3">If you've already completed the waiver, you can skip this step.</p>
-                        <p>Step 1: Review <a href="https://wiki.pumpingstationone.org/wiki/Membership_agreement" target="_blank" rel="noopener noreferrer">the membership agreement</a>.</p>
-                        <p>Step 2: Enter your email address to begin your membership application.</p>
+                        <h2 class="card-title mb-3">Are you ready to start <span id="signup-ready-word" class="signup-ready-word"><span class="signup-ready-term"></span>?</span></h2>
+                        <p class="mb-3">Let's have you first check a few things off before we continue:</p>
+
+                        <div class="mb-4">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input signup-gate-check" type="checkbox" id="gate-waiver">
+                                <label class="form-check-label" for="gate-waiver">
+                                    Complete the online
+                                    <a href="https://app.waiverforever.com/pending/PMdbLqcKFq1491518230" target="_blank" rel="noopener noreferrer">Waiver Form</a>, if you haven't already.
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input signup-gate-check" type="checkbox" id="gate-agreement">
+                                <label class="form-check-label" for="gate-agreement">
+                                    Review the
+                                    <a href="https://wiki.pumpingstationone.org/wiki/Membership_agreement" target="_blank" rel="noopener noreferrer">Membership Agreement</a>.
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input signup-gate-check" type="checkbox" id="gate-standards">
+                                <label class="form-check-label" for="gate-standards">
+                                    Read through our
+                                    <a href="https://wiki.pumpingstationone.org/wiki/Community_Standards" target="_blank" rel="noopener noreferrer">Community Standards</a>.
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input signup-gate-check" type="checkbox" id="gate-idcheck">
+                                <label class="form-check-label" for="gate-idcheck">
+                                    Be ready for an in-person <a href="https://wiki.pumpingstationone.org/wiki/Age_Verification" target="_blank" rel="noopener noreferrer">age verification check</a> at the space,
+                                    our <a href="https://pumpingstationone.org/events/" target="_blank" rel="noopener noreferrer">Tuesday 8&nbsp;PM open house tours</a>
+                                    are a great time to do it.
+                                </label>
+                            </div>
+                        </div>
 
                         {% with messages = get_flashed_messages(with_categories=true) %}
                         {% if messages %}
@@ -29,16 +58,21 @@
 
                         <form method="POST" action="{{ url_for('signup_check_email') }}" class="dh-validate">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <div class="mb-3">
-                                <label for="email" class="form-label">Email Address <span class="badge bg-danger required-badge">Required</span></label>
-                                <span class="info-label-desc">Please use the same email address you used for the waiver form.</span>
-                                <input type="email" class="form-control" id="email" name="email" required
-                                       data-label="Email Address"
-                                       placeholder="your.email@example.com" autofocus
-                                       oninput="this.value = this.value.replace(/[^a-zA-Z0-9@._+\-]/g, '')">
-                            </div>
+                            <!-- Controls ship ENABLED; the gate script disables them on load (see
+                                 scripts block). If JS never runs, the form stays usable instead of
+                                 a permanent dead end. -->
+                            <div id="signup-gated">
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">Email Address <span class="badge bg-danger required-badge">Required</span></label>
+                                    <span class="info-label-desc">Please use the same email address you used for the waiver form.</span>
+                                    <input type="email" class="form-control" id="email" name="email" required
+                                           data-label="Email Address"
+                                           placeholder="your.email@example.com"
+                                           oninput="this.value = this.value.replace(/[^a-zA-Z0-9@._+\-]/g, '')">
+                                </div>
 
-                            <button type="submit" class="btn btn-primary w-100">Next</button>
+                                <button type="submit" id="signup-next" class="btn btn-primary w-100">Next</button>
+                            </div>
                         </form>
 
                         <div class="text-center mt-3">
@@ -47,4 +81,122 @@
                     </div>
                 </div>
             </div>
+{% endblock %}
+{% block scripts %}
+<script>
+/* Rotating "Are you ready to start ___?" heading — subtle cross-fade, new word every 4s */
+(function () {
+    var box = document.getElementById('signup-ready-word');
+    var term = box && box.querySelector('.signup-ready-term');
+    if (!box || !term) return;
+    var words = [
+        'hacking', 'making', 'sewing', 'welding', 'soldering', 'painting',
+        '3D printing', 'dreaming', 'laughing', 'building', 'developing',
+        'roaring', 'cooking', 'roasting', 'grinding', 'gluing', 'turning',
+        'knitting', 'casting', 'recharging', 'brewing', 'radioing', 'spinning',
+        'melting', 'drilling', 'planting', 'etching', 'hammering', 'rocking',
+        'repairing', 'attenuating', 'coding', 'sanding', 'torching', 'honking',
+        'cheering', 'burning', 'clicking', 'riveting', 'grommeting', 'riding',
+        'lasering', 'machining', 'milling', 'printing', 'forging', 'routing',
+        'lathing', 'tinkering', 'prototyping', 'fabricating', 'engraving',
+        'quilting', 'crocheting', 'dyeing', 'wiring', 'flashing', 'inventing',
+        'creating', 'fixing', 'learning', 'teaching', 'coexisting', 'exploring',
+        'discovering', 'geeking', 'crafting', 'nerding', 'crimping', 'sawing',
+        'playing'
+    ];
+    /* Always lead with "making" then "hacking", then switch to random. */
+    var idx = 1;
+    var introQueue = [0];
+    term.textContent = words[idx];
+
+    /* Reserve the heading slot at the widest word's width so swapping words never
+     * reflows the line (no page shift on narrow screens). Re-measured after fonts
+     * load and on resize, since the h2 font-size is viewport-scaled. */
+    function reserveWidth() {
+        var prev = term.textContent;
+        var max = 0;
+        box.style.minWidth = '0px';
+        for (var i = 0; i < words.length; i++) {
+            term.textContent = words[i];
+            var w = box.getBoundingClientRect().width;
+            if (w > max) max = w;
+        }
+        term.textContent = prev;
+        box.style.minWidth = Math.ceil(max) + 'px';
+    }
+    if (document.fonts && document.fonts.ready) { document.fonts.ready.then(reserveWidth); }
+    else { reserveWidth(); }
+    var resizeTimer;
+    window.addEventListener('resize', function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(reserveWidth, 150);
+    });
+
+    /* Respect reduced-motion: show one word, don't auto-rotate */
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    function nextIndex() {
+        var n = idx;
+        while (n === idx) { n = Math.floor(Math.random() * words.length); }
+        return n;
+    }
+
+    setInterval(function () {
+        box.classList.add('is-fading');
+        setTimeout(function () {
+            idx = introQueue.length ? introQueue.shift() : nextIndex();
+            term.textContent = words[idx];
+            box.classList.remove('is-fading');
+        }, 400); /* matches the CSS opacity transition */
+    }, 4000);
+})();
+
+/* Checklist gate — controls ship enabled (progressive enhancement); this script
+ * disables them until all boxes are ticked. Tick state is mirrored to
+ * sessionStorage so it survives a submit-error re-render within the tab. */
+(function () {
+    var boxes = Array.prototype.slice.call(document.querySelectorAll('.signup-gate-check'));
+    var gated = document.getElementById('signup-gated');
+    var email = document.getElementById('email');
+    var next = document.getElementById('signup-next');
+    if (!boxes.length || !gated || !email || !next) return;
+
+    var STORAGE_KEY = 'ps1-signup-gate-checks';
+
+    function saveState() {
+        try {
+            var checkedIds = boxes.filter(function (b) { return b.checked; })
+                                  .map(function (b) { return b.id; });
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(checkedIds));
+        } catch (e) { /* storage unavailable (private mode, quota) — non-fatal */ }
+    }
+
+    function restoreState() {
+        try {
+            var raw = sessionStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            var checkedIds = JSON.parse(raw);
+            if (!Array.isArray(checkedIds)) return;
+            boxes.forEach(function (b) {
+                if (checkedIds.indexOf(b.id) !== -1) { b.checked = true; }
+            });
+        } catch (e) { /* missing/corrupt/unavailable storage — start unchecked */ }
+    }
+
+    function update() {
+        var allChecked = boxes.every(function (b) { return b.checked; });
+        var wasLocked = email.disabled;
+        email.disabled = !allChecked;
+        next.disabled = !allChecked;
+        gated.classList.toggle('signup-locked', !allChecked);
+        if (allChecked && wasLocked) { email.focus(); }
+    }
+
+    restoreState();
+    boxes.forEach(function (b) {
+        b.addEventListener('change', function () { saveState(); update(); });
+    });
+    update();
+})();
+</script>
 {% endblock %}
