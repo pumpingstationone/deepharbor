@@ -1185,50 +1185,10 @@ def api_update_member_status():
         logger.error(f"Error updating member status: {e}")
         return {"error": str(e)}, 500
 
-@app.route("/api/member/roles", methods=["POST"])
-@requires_change_permission("member.roles")
-def api_update_member_roles():
-    if not session.get("user"):
-        return {"error": "Not authenticated"}, 401
-    
-    member_id = request.args.get("member_id", "")
-    if not member_id:
-        return {"error": "member_id parameter required"}, 400
-    
-    try:
-        access_token = dhservices.get_access_token(
-            dhservices.DH_CLIENT_ID, 
-            dhservices.DH_CLIENT_SECRET
-        )
-        # Get logged-in user's member ID
-        user_email = session["user"].get("email") or session["user"].get("preferred_username")
-        member_data = dhservices.get_member_id(access_token, user_email)
-        logged_in_member_id = member_data.get("member_id")
-        
-        data = request.get_json()
-        data["modified_by"] = logged_in_member_id
-        result = dhservices.update_member_roles(access_token, member_id, data)
-        
-        # Log update activity
-        try:
-            dhservices.log_user_activity(
-                access_token,
-                str(logged_in_member_id),
-                {
-                    "activity_details": {
-                        "action": "update_roles",
-                        "target_member_id": member_id,
-                        "fields_updated": list(data.keys())
-                    }
-                }
-            )
-        except Exception as log_error:
-            logger.error(f"Failed to log update activity: {log_error}")
-        
-        return result
-    except Exception as e:
-        logger.error(f"Error updating member roles: {e}")
-        return {"error": str(e)}, 500
+# NOTE: there is intentionally no POST /api/member/roles route. The member-detail
+# Roles tab is read-only; role assignment is handled by Systems -> Assign Roles
+# (POST /api/admin/assign_role -> DHService /v1/admin/assign_role/). DHService's
+# /v1/member/roles/ is GET-only, so the old write path always 405'd.
 
 @app.route("/api/member/extras", methods=["POST"])
 @requires_change_permission("member.extras")

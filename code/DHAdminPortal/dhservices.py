@@ -242,14 +242,9 @@ def update_member_identity(access_token: str, member_id: str, identity_data: dic
     response.raise_for_status()
     return response.json()
 
-def update_member_roles(access_token: str, member_id: str, roles_data: dict):
-    url = f"{DH_API_BASE_URL}/v1/member/roles/"
-    headers = {"Authorization": f"Bearer {access_token}"}
-    headers["X-Member-ID"] = str(member_id)
-    params = {"member_id": member_id}
-    response = requests.post(url, headers=headers, params=params, json=roles_data)
-    response.raise_for_status()
-    return response.json()
+# NOTE: no update_member_roles() — the member-detail Roles tab is read-only and
+# DHService's /v1/member/roles/ is GET-only. Role assignment goes through
+# assign_role_to_member() (POST /v1/admin/assign_role/) instead.
 
 def update_member_extras(access_token: str, member_id: str, extras_data: dict):
     url = f"{DH_API_BASE_URL}/v1/member/extras/"
