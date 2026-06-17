@@ -348,8 +348,10 @@
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h5 class="mb-0">Roles Information</h5>
-                                <span class="dh-btn-group"><button class="btn btn-primary btn-sm" id="rolesEditBtn" onclick="toggleEditMode('roles')">Edit</button></span>
                             </div>
+                            <p class="small mb-3" style="color: inherit; opacity: 0.85;">
+                                <i class="fa-solid fa-circle-info me-1"></i>To change a member's role, use <a href="#" onclick="showSection('assignRoles'); return false;">Systems &rarr; Assign Roles</a>.
+                            </p>
                             <div id="rolesLoading" class="text-center" style="display: none;">
                                 <div class="spinner-border" role="status">
                                     <span class="visually-hidden">Loading...</span>
@@ -789,9 +791,11 @@ document.addEventListener('click', function(e) {
     // Only show hint if the user has change permission for this tab
     if (!canChangeTab('member.' + tabName)) return;
 
-    // Don't show if already in edit mode
+    // Don't show if the tab has no edit button (read-only tabs like Roles —
+    // telling the user to "click Edit" when there's no Edit button is wrong),
+    // or if it's already in edit mode.
     var editBtn = document.getElementById(tabName + 'EditBtn');
-    if (editBtn && editBtn.textContent === 'Cancel') return;
+    if (!editBtn || editBtn.textContent === 'Cancel') return;
 
     // Show the hint toast
     var toastEl = document.getElementById('dh-validation-toast');
@@ -837,10 +841,16 @@ document.addEventListener('click', function(e) {
 
 // Toggle edit mode for a specific tab
 function toggleEditMode(tabName) {
+    // The roles tab is read-only (no edit button — role assignment lives on
+    // Systems -> Assign Roles). Backstop guard so it can never enter edit mode
+    // even if an edit button is ever re-added; the old edit path POSTed to a
+    // GET-only DHService route and 405'd.
+    if (tabName === 'roles') return;
+
     const editBtn = document.getElementById(`${tabName}EditBtn`);
     const tabPane = document.getElementById(tabName);
     const isNotesTab = tabName === 'notes';
-    
+
     if (!tabPane) return;
     
     // Check current mode
@@ -1372,7 +1382,10 @@ function filterTabsByPermissions() {
             console.log(`${isVisible ? 'Showing' : 'Hiding'} tab "${tabName}"`);
         }
 
-        // Show edit button or read-only indicator based on permissions
+        // Show edit button or read-only indicator based on permissions.
+        // Note: the roles tab has no edit button (it's read-only — role
+        // assignment lives on Systems -> Assign Roles), so editBtn is null
+        // for it and this block is skipped.
         if (editBtn) {
             if (canChange) {
                 editBtn.style.display = '';
@@ -3852,7 +3865,7 @@ function clearAutoRefresh() {
 const PERMISSION_SECTIONS = [
     { area: 'Member', key: 'member.identity',       changeAllowed: true  },
     { area: 'Member', key: 'member.status',          changeAllowed: true  },
-    { area: 'Member', key: 'member.roles',           changeAllowed: true  },
+    { area: 'Member', key: 'member.roles',           changeAllowed: false },
     { area: 'Member', key: 'member.forms',           changeAllowed: true  },
     { area: 'Member', key: 'member.connections',     changeAllowed: true  },
     { area: 'Member', key: 'member.extras',          changeAllowed: true  },
