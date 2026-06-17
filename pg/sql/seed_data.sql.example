@@ -11763,7 +11763,7 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
 
 /* ID 979 - Jade Watson */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Jade", "last_name": "Watson", "nickname": "jonespaul", "active_directory_username": "jwatson", "emails": [{"type": "primary", "email_address": "kimberly.nguyen589@hotmail.com"}], "birthday": "1992-01-12", "aliases": []}'::jsonb,
+    '{"first_name": "Jade", "last_name": "Watson", "nickname": "jonespaul", "active_directory_username": "jwatson", "emails": [{"type": "primary", "email_address": "test1@example.com"}], "birthday": "1992-01-12", "aliases": []}'::jsonb,
     '{"discord_handle": "", "phone": "", "wildapricot_id": 64192117}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "Stripe Member w/ Storage - $95", "member_since": "2020-12-03T02:46:42+00:00", "renewal_date": null, "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "MO DL M8913198", "id_check_2": "", "orientation_completed_date": "2023-09-25T00:00:00", "waiver_signed_date": "2022-10-11T00:00:00", "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -11811,7 +11811,7 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
 
 /* ID 983 - Donna Smith */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Donna", "last_name": "Smith", "nickname": "kvalenzuela", "active_directory_username": "dsmith2", "emails": [{"type": "primary", "email_address": "thomaswalker@yahoo.com"}], "birthday": "1986-11-18", "aliases": []}'::jsonb,
+    '{"first_name": "Donna", "last_name": "Smith", "nickname": "kvalenzuela", "active_directory_username": "dsmith2", "emails": [{"type": "primary", "email_address": "test2@example.com"}], "birthday": "1986-11-18", "aliases": []}'::jsonb,
     '{"discord_handle": "ecantu", "phone": "", "wildapricot_id": 56302720, "stripe_customer_id": "cus_S5FGj39K38zfMU", "stripe_id": "cus_S5FGj39K38zfMU"}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "Member - Grandfathered Price", "member_since": "2018-11-12T01:23:01+00:00", "renewal_date": "2024-03-10T10:26:55", "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "saw TX DL, looked legit", "id_check_2": "TH approved", "orientation_completed_date": "2023-08-20T00:00:00", "waiver_signed_date": null, "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -11859,7 +11859,7 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
 
 /* ID 987 - Daniel Johnson */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Daniel", "last_name": "Johnson", "nickname": null, "active_directory_username": "djohnson1", "emails": [{"type": "primary", "email_address": "ryan.jones@aol.com"}], "birthday": "1967-08-27", "aliases": []}'::jsonb,
+    '{"first_name": "Daniel", "last_name": "Johnson", "nickname": null, "active_directory_username": "djohnson1", "emails": [{"type": "primary", "email_address": "test3@example.com"}], "birthday": "1967-08-27", "aliases": []}'::jsonb,
     '{"discord_handle": "fitzgeraldjordan", "phone": "2258774104", "wildapricot_id": 85958825}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "Stripe Member - $65", "member_since": "2019-01-31T12:59:02+00:00", "renewal_date": null, "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "US", "id_check_2": "PP-Q28750860", "orientation_completed_date": "2024-04-03T00:00:00", "waiver_signed_date": "2021-10-05T00:00:00", "essentials_form_completed_date": "2021-09-28T00:00:00", "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -11907,7 +11907,7 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
 
 /* ID 991 - Robert Cannon */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Robert", "last_name": "Cannon", "nickname": null, "active_directory_username": "rcannon", "emails": [{"type": "primary", "email_address": "william.williams@alumni.iit.edu"}], "birthday": null, "aliases": [], "pronouns": "she/they"}'::jsonb,
+    '{"first_name": "Robert", "last_name": "Cannon", "nickname": null, "active_directory_username": "rcannon", "emails": [{"type": "primary", "email_address": "octocat@github.com"}], "birthday": null, "aliases": [], "pronouns": "she/they"}'::jsonb,
     '{"discord_handle": "", "phone": "2213448913", "wildapricot_id": 92346847, "stripe_customer_id": "cus_4YAKW9vLK7f4qq"}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "Stripe Member w/ Storage - $95", "member_since": "2025-07-13T03:00:53+00:00", "renewal_date": "2023-11-20T06:53:59", "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_date": "2022-05-14", "id_check_by": 2, "waiver_signed_date": "2024-04-24T00:00:00", "covid_vaccine_policy_acknowledged": null}'::jsonb,
@@ -11931,7 +11931,7 @@ INSERT INTO member (identity, connections, status, forms, access, authorizations
 
 /* ID 993 - Chelsea Villegas */
 INSERT INTO member (identity, connections, status, forms, access, authorizations, extras, notes) VALUES (
-    '{"first_name": "Chelsea", "last_name": "Villegas", "nickname": null, "active_directory_username": "cvillegas", "emails": [{"type": "primary", "email_address": "jennifer.lee@gmail.com"}], "birthday": "1994-02-15"}'::jsonb,
+    '{"first_name": "Chelsea", "last_name": "Villegas", "nickname": null, "active_directory_username": "cvillegas", "emails": [{"type": "primary", "email_address": "support@gravatar.com"}], "birthday": "1994-02-15"}'::jsonb,
     '{"discord_handle": "", "phone": "3277147263", "wildapricot_id": 90980826}'::jsonb,
     '{"membership_status": "suspended", "membership_level": "Stripe Volunteer w/ Paid Storage - $30", "member_since": "2021-04-27T01:50:21+00:00", "renewal_date": "2021-09-18T12:22:22", "balance": 0, "donations": 0, "donor": false}'::jsonb,
     '{"terms_of_use_accepted": true, "essentials_form": "completed", "id_check_1": "WI", "id_check_2": "DL-7542", "waiver_signed_date": null, "covid_vaccine_policy_acknowledged": "2023-01-10"}'::jsonb,

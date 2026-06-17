@@ -96,6 +96,7 @@
                                 <i class="fa-solid fa-circle-half-stroke" id="statusLegendIcon" aria-label="Status"></i>
                                 <span id="sort-membership_status"></span>
                             </th>
+                            <th class="dh-avatar-col" aria-label="Avatar"></th>
                             <th onclick="sortTable('id')" style="cursor: pointer;">
                                 ID <span id="sort-id"></span>
                             </th>
@@ -138,10 +139,13 @@
             <!-- Member identity bar with close button -->
             <div id="memberHeaderInfo" class="dh-sidebar-header" style="display: none;">
                 <div class="d-flex justify-content-between align-items-stretch">
-                    <div>
-                        <div id="memberHeaderName" class="fw-bold"></div>
-                        <div id="memberHeaderEmail" class="text-muted small"></div>
-                        <div id="memberHeaderId" class="text-muted small"></div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="memberHeaderAvatar" class="dh-member-header-avatar"></span>
+                        <div>
+                            <div id="memberHeaderName" class="fw-bold"></div>
+                            <div id="memberHeaderEmail" class="text-muted small"></div>
+                            <div id="memberHeaderId" class="text-muted small"></div>
+                        </div>
                     </div>
                     <div class="d-flex flex-column align-items-end justify-content-between">
                         <div class="d-flex align-items-center gap-2">
@@ -753,6 +757,10 @@ const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute
 
 // Store current member ID
 let currentMemberId = null;
+// Server-resolved avatar ({source, url} or null) for the selected member, kept so
+// the in-place header refresh can re-render it without re-resolving (and without
+// dropping a future Discord-sourced avatar back to a Gravatar/initials guess).
+let selectedMemberAvatar = null;
 let membershipLevelsCache = null;
 let membershipLevelsPromise = null;
 const loggedInUserName = {{ (
@@ -1638,6 +1646,99 @@ function buildStatusCell(rawStatus) {
     return td;
 }
 
+// --- Member avatars -------------------------------------------------------
+// Avatar provider seam mirror of the backend resolve_avatar(): the server
+// attaches member.avatar = {source, url} (sizeless URL, d=404) or null. The
+// frontend appends `&s=` (2x density) and falls back to a theme-primary
+// initials square when there is no registered photo. XSS-safe throughout:
+// createElement + textContent only; the badge mark comes from an allowlist.
+
+// Source -> human label allowlist. Badge text is derived from this, never from
+// the raw server value.
+const AVATAR_SOURCE_LABELS = { gravatar: 'Gravatar' };
+
+// Up-to-2-char initials; falls back to the member ID, then "?".
+function avatarInitials(member) {
+    const first = ((member && member.first_name) || '').trim();
+    const last = ((member && member.last_name) || '').trim();
+    let initials = '';
+    if (first) initials += first[0];
+    if (last) initials += last[0];
+    initials = initials.toUpperCase();
+    if (initials) return initials;
+    const id = (member && member.member_id != null) ? String(member.member_id) : '';
+    return id || '?';
+}
+
+// Style an element (fresh span, or a wrapper being converted after img error)
+// as the rounded-square initials placeholder.
+function styleAsInitials(el, member, cssPx) {
+    el.className = 'dh-avatar dh-avatar-initials';
+    el.style.width = cssPx + 'px';
+    el.style.height = cssPx + 'px';
+    el.style.fontSize = Math.round(cssPx * 0.42) + 'px';
+    el.replaceChildren(document.createTextNode(avatarInitials(member)));
+}
+
+function buildAvatarInitials(member, cssPx) {
+    const span = document.createElement('span');
+    styleAsInitials(span, member, cssPx);
+    return span;
+}
+
+// Build a member avatar node sized to `cssPx`, reused by the list and header.
+function buildAvatar(member, cssPx) {
+    const avatar = member && member.avatar;
+    if (!avatar || !avatar.url) {
+        return buildAvatarInitials(member, cssPx);
+    }
+
+    const wrap = document.createElement('span');
+    wrap.className = 'dh-avatar-wrap';
+    wrap.style.width = cssPx + 'px';
+    wrap.style.height = cssPx + 'px';
+
+    const sourceLabel = AVATAR_SOURCE_LABELS[avatar.source] || '';
+    const fullName = `${((member.first_name) || '').trim()} ${((member.last_name) || '').trim()}`.trim();
+
+    const img = document.createElement('img');
+    img.className = 'dh-avatar';
+    img.width = cssPx;
+    img.height = cssPx;
+    img.loading = 'lazy';
+    img.alt = fullName || 'Member avatar';
+    if (sourceLabel) img.title = `Avatar source: ${sourceLabel}`;
+    // Sizeless URL from the server; request 2x for a crisp rounded square.
+    img.src = `${avatar.url}&s=${cssPx * 2}`;
+    // d=404 (no registered avatar) or any network error -> initials fallback.
+    // Convert the wrapper in place so it works whether or not it's in the DOM
+    // yet (a cached 404 can fire onerror synchronously) and drops the badge.
+    img.onerror = function() { styleAsInitials(wrap, member, cssPx); };
+    wrap.appendChild(img);
+
+    // Corner source badge — only meaningful once a real photo actually loads,
+    // and revealed on hover via CSS.
+    if (sourceLabel) {
+        const badge = document.createElement('span');
+        badge.className = 'dh-avatar-badge';
+        badge.textContent = sourceLabel.charAt(0);  // "G" for Gravatar
+        badge.title = `Avatar source: ${sourceLabel}`;
+        badge.setAttribute('aria-hidden', 'true');
+        badge.style.display = 'none';
+        img.addEventListener('load', function() { badge.style.display = ''; });
+        wrap.appendChild(badge);
+    }
+    return wrap;
+}
+
+// Build the list <td> for the avatar column (sits between status and ID).
+function buildAvatarCell(member) {
+    const td = document.createElement('td');
+    td.className = 'dh-avatar-col';
+    td.appendChild(buildAvatar(member, 28));
+    return td;
+}
+
 // Append `value` into `container`, bolding any occurrence of a query token.
 // Builds DOM nodes only (text nodes + <strong>) — never innerHTML — so member
 // data can never inject markup. Fuzzy/typo matches have no literal substring to
@@ -1718,7 +1819,7 @@ function displayResults(members) {
     tbody.innerHTML = '';
 
     if (members.length === 0) {
-        const colspan = searching ? 5 : 4;
+        const colspan = searching ? 6 : 5;
         tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center">No members found</td></tr>`;
     } else {
         members.forEach(member => {
@@ -1727,8 +1828,10 @@ function displayResults(members) {
             if (selectedMemberId && member.member_id == selectedMemberId) {
                 row.classList.add('selected-row');
             }
-            // Status icon first (allowlist-driven class — safe), then text columns.
+            // Status icon first (allowlist-driven class — safe), then avatar, then
+            // text columns. Layout: status | avatar | id | first | last | matched.
             row.appendChild(buildStatusCell(member.membership_status));
+            row.appendChild(buildAvatarCell(member));
             // Use textContent to prevent XSS from member data
             const cells = [
                 member.member_id,
@@ -2561,6 +2664,7 @@ function updateMemberHeaderInfo(member) {
     const emailEl = document.getElementById('memberHeaderEmail');
     const memberIdEl = document.getElementById('memberHeaderId');
     const badgeEl = document.getElementById('memberHeaderAgeBadge');
+    const avatarEl = document.getElementById('memberHeaderAvatar');
 
     if (!header || !nameEl || !emailEl || !memberIdEl) {
         return;
@@ -2571,6 +2675,7 @@ function updateMemberHeaderInfo(member) {
         nameEl.textContent = '';
         emailEl.textContent = '';
         memberIdEl.textContent = '';
+        if (avatarEl) avatarEl.replaceChildren();
         if (badgeEl) badgeEl.style.display = 'none';
         return;
     }
@@ -2584,6 +2689,9 @@ function updateMemberHeaderInfo(member) {
     memberIdEl.textContent = `Member ID: ${memberId}`;
     nameEl.textContent = fullName || 'Member';
     emailEl.textContent = email || 'No email on file';
+    // Same member row object carries member.avatar ({source,url} or null), so
+    // no extra fetch is needed here. 48px header avatar.
+    if (avatarEl) avatarEl.replaceChildren(buildAvatar(member, 48));
     header.style.display = '';
 
     // Members API doesn't include birthday; fetch identity to set the 21+ badge.
@@ -2672,22 +2780,23 @@ function refreshMemberProfile() {
                 first_name: firstName,
                 last_name: lastName,
                 primary_email_address: email,
+                avatar: selectedMemberAvatar,
                 membership_status: membershipStatus,
             });
         }
 
         // Sync this member's row in the results table (status icon + names).
         // Only overwrite cells whose source fetch actually succeeded, so a
-        // failed fetch never blanks a known value. Cells: 0=status, 1=id,
-        // 2=first, 3=last.
+        // failed fetch never blanks a known value. Cells: 0=status, 1=avatar,
+        // 2=id, 3=first, 4=last.
         document.querySelectorAll('#resultsTableBody tr').forEach(r => {
-            if (!r.cells[1] || r.cells[1].textContent != reqMemberId) return;
+            if (!r.cells[2] || r.cells[2].textContent != reqMemberId) return;
             if (hasStatus && r.cells[0]) {
                 r.replaceChild(buildStatusCell(membershipStatus), r.cells[0]);
             }
             if (hasIdentity) {
-                if (r.cells[2]) r.cells[2].textContent = firstName;
-                if (r.cells[3]) r.cells[3].textContent = lastName;
+                if (r.cells[3]) r.cells[3].textContent = firstName;
+                if (r.cells[4]) r.cells[4].textContent = lastName;
             }
         });
 
@@ -2727,12 +2836,14 @@ function loadMemberData(memberOrId) {
     const memberId = member ? member.member_id : memberOrId;
     currentMemberId = memberId;
     selectedMemberId = memberId;
+    // Remember the resolved avatar so refreshMemberProfile() can re-render it.
+    selectedMemberAvatar = member ? (member.avatar || null) : null;
 
     // Highlight the selected row
     document.querySelectorAll('#resultsTableBody tr.selected-row').forEach(r => r.classList.remove('selected-row'));
     document.querySelectorAll('#resultsTableBody tr').forEach(r => {
-        // cells[0] is now the status-icon column; the ID lives in cells[1].
-        if (r.cells[1] && r.cells[1].textContent == memberId) {
+        // Layout: cells[0]=status, cells[1]=avatar; the ID lives in cells[2].
+        if (r.cells[2] && r.cells[2].textContent == memberId) {
             r.classList.add('selected-row');
         }
     });
