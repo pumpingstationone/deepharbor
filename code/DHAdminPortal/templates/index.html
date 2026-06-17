@@ -791,9 +791,11 @@ document.addEventListener('click', function(e) {
     // Only show hint if the user has change permission for this tab
     if (!canChangeTab('member.' + tabName)) return;
 
-    // Don't show if already in edit mode
+    // Don't show if the tab has no edit button (read-only tabs like Roles —
+    // telling the user to "click Edit" when there's no Edit button is wrong),
+    // or if it's already in edit mode.
     var editBtn = document.getElementById(tabName + 'EditBtn');
-    if (editBtn && editBtn.textContent === 'Cancel') return;
+    if (!editBtn || editBtn.textContent === 'Cancel') return;
 
     // Show the hint toast
     var toastEl = document.getElementById('dh-validation-toast');
@@ -3863,7 +3865,7 @@ function clearAutoRefresh() {
 const PERMISSION_SECTIONS = [
     { area: 'Member', key: 'member.identity',       changeAllowed: true  },
     { area: 'Member', key: 'member.status',          changeAllowed: true  },
-    { area: 'Member', key: 'member.roles',           changeAllowed: true  },
+    { area: 'Member', key: 'member.roles',           changeAllowed: false },
     { area: 'Member', key: 'member.forms',           changeAllowed: true  },
     { area: 'Member', key: 'member.connections',     changeAllowed: true  },
     { area: 'Member', key: 'member.extras',          changeAllowed: true  },
