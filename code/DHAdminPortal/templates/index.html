@@ -41,6 +41,15 @@
                     <button class="btn btn-primary cute-signin" type="button" id="searchButton" onclick="searchMembers()" aria-label="Search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
                 </div>
                 <span class="dh-refresh-btn" onclick="refreshResultsAndProfile()" title="Refresh results"><i class="fa-solid fa-arrow-rotate-right"></i></span>
+                <!-- Column picker: toggle which result columns show. data-bs-auto-close="outside"
+                     keeps the menu open while ticking checkboxes; clicking away closes it.
+                     The checklist + Reset item are populated by initColumnPicker(). -->
+                <div class="dropdown" id="columnPicker">
+                    <button type="button" class="dh-search-help-btn" id="columnPickerBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Choose columns" title="Choose columns">
+                        <i class="fa-solid fa-table-columns"></i>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end dh-columns-menu p-2" id="columnPickerMenu" aria-labelledby="columnPickerBtn"></div>
+                </div>
             </div>
             <!-- Hidden content for the search-tips info popover (#searchHelpBtn) -->
             <template id="searchHelpContent">
@@ -88,27 +97,13 @@
     <!-- Left panel: results table + pagination -->
     <div id="resultsPanel" class="flex-grow-1" style="min-width: 0;">
         <div id="resultsSection" style="display: none;">
-            <div class="table-responsive" style="overflow-x: hidden;">
+            <div class="table-responsive" style="overflow-x: auto;">
                 <table class="table table-striped table-hover mb-0">
                     <thead class="sticky-top bg-white">
-                        <tr>
-                            <th class="dh-status-col" onclick="sortTable('membership_status')">
-                                <i class="fa-solid fa-circle-half-stroke" id="statusLegendIcon" aria-label="Status"></i>
-                                <span id="sort-membership_status"></span>
-                            </th>
-                            <th class="dh-avatar-col" aria-label="Avatar"></th>
-                            <th onclick="sortTable('id')" style="cursor: pointer;">
-                                ID <span id="sort-id"></span>
-                            </th>
-                            <th onclick="sortTable('first_name')" style="cursor: pointer;">
-                                First Name <span id="sort-first_name"></span>
-                            </th>
-                            <th onclick="sortTable('last_name')" style="cursor: pointer;">
-                                Last Name <span id="sort-last_name"></span>
-                            </th>
-                            <!-- Search-only column; shown/hidden in displayResults() -->
-                            <th id="matchHeader" style="display: none;">Matched on</th>
-                        </tr>
+                        <!-- Header cells are built dynamically from the visible columns
+                             by renderTableHead(); the search-only "Matched on" th is
+                             appended there too. -->
+                        <tr id="resultsHeadRow"></tr>
                     </thead>
                     <tbody id="resultsTableBody">
                     </tbody>
@@ -1455,6 +1450,323 @@ function activateFirstVisibleTab(permissions) {
     }
 }
 
+// --- Member-list column registry -----------------------------------------
+// Single source of truth for the results table: order, labels, default
+// visibility, locking, sortability and per-cell rendering all derive from
+// here. The <thead>, row cells, the column-picker checklist and the
+// empty-state colspan are all generated from this list (canonical left-to-
+// right order). Sort keys must match the DHService allowlists
+// (_MEMBER_SORT_COLUMNS / _SEARCH_SORT_COLUMNS).
+//
+// Per column:
+//   key            stable id (also the localStorage value + checkbox id)
+//   label          header text + picker label
+//   defaultVisible shown before the admin customizes
+//   locked         can't be hidden (Status — also keeps the table non-empty)
+//   sortable       header is click-to-sort (Avatar is not — image only)
+//   sortKey        the ?sort= value sent to the API
+//   buildTd(m)     custom full-<td> builder (status icon / avatar)
+//   get(m)         text accessor for plain columns
+//   truncate       wrap the value in an ellipsizing span + title tooltip
+//   widthClass     CSS max-width class for the truncating span
+//   perm           member.<tab> view permission the column's data requires
+//                  (omitted = rides this list's member.identity gate). Columns
+//                  the user can't view are filtered out below (MEMBER_COLUMNS).
+const ALL_MEMBER_COLUMNS = [
+    { key: 'status',        label: 'Status',        defaultVisible: true,  locked: true,  sortable: true,  sortKey: 'membership_status',          buildTd: m => buildStatusCell(m.membership_status) },
+    { key: 'avatar',        label: 'Avatar',        defaultVisible: true,  locked: false, sortable: false,                                        buildTd: m => buildAvatarCell(m) },
+    // ID is locked on: it's the browse-mode default-sort fallback target
+    // (defaultSortForMode), so keeping it always-visible guarantees that target
+    // is never itself a hidden column.
+    { key: 'id',            label: 'ID',            defaultVisible: true,  locked: true,  sortable: true,  sortKey: 'id',                          get: m => m.member_id },
+    // Header shows in full ("Nick / First Name"); the CELL truncates via
+    // buildNickFirstCell's own span, so no header truncate class here.
+    { key: 'nick_first',    label: 'Nick/First Name', defaultVisible: true, locked: false, sortable: true, sortKey: 'nick_first', widthClass: 'dh-w-name', buildTd: (m, col) => buildNickFirstCell(m, col), buildLabel: span => buildNickFirstHeader(span) },
+    { key: 'first',         label: 'First Name',    defaultVisible: false, locked: false, sortable: true,  sortKey: 'first_name',                  get: m => m.first_name, truncate: true, widthClass: 'dh-w-name' },
+    { key: 'nickname',      label: 'Nickname',      defaultVisible: false, locked: false, sortable: true,  sortKey: 'nickname',                    get: m => m.nickname,   truncate: true, widthClass: 'dh-w-name' },
+    { key: 'last',          label: 'Last Name',     defaultVisible: true,  locked: false, sortable: true,  sortKey: 'last_name',                   get: m => m.last_name,  truncate: true, widthClass: 'dh-w-name' },
+    { key: 'pronouns',      label: 'Pronouns',      defaultVisible: true,  locked: false, sortable: true,  sortKey: 'pronouns',                    get: m => m.pronouns,   truncate: true, widthClass: 'dh-w-pronouns' },
+    { key: 'ad_username',   label: 'AD Username',   defaultVisible: false, locked: false, sortable: true,  sortKey: 'active_directory_username',    get: m => m.active_directory_username, truncate: true, widthClass: 'dh-w-username' },
+    { key: 'email',         label: 'Email',         defaultVisible: false, locked: false, sortable: true,  sortKey: 'primary_email_address',        get: m => m.primary_email_address,     truncate: true, widthClass: 'dh-w-email' },
+    { key: 'member_level',  label: 'Member Level',  defaultVisible: false, locked: false, sortable: true,  sortKey: 'membership_level',             get: m => m.membership_level,          truncate: true, widthClass: 'dh-w-level',  perm: 'member.status' },
+    { key: 'member_since',  label: 'Member Since',  defaultVisible: false, locked: false, sortable: true,  sortKey: 'member_since',                 get: m => memberSinceDisplay(m.member_since), truncate: true, widthClass: 'dh-w-date', perm: 'member.status' },
+    { key: 'stripe_sub_id', label: 'Stripe Sub ID', defaultVisible: false, locked: false, sortable: true,  sortKey: 'stripe_subscription_id',       get: m => m.stripe_subscription_id,    truncate: true, widthClass: 'dh-w-subid', perm: 'member.status' },
+];
+
+// The user's available columns: drop any column whose `perm` (the member.<tab>
+// permission its data requires) the logged-in admin lacks. Mirror the backend
+// gate exactly — has_view_permission() grants on view OR change, so an admin
+// with change-but-not-view on member.status still gets the data and must get
+// the column. Columns without a `perm` ride this list's own member.identity
+// gate. The backend ALSO strips the gated fields from the response — this filter
+// is the UX half (no checkbox, not default-visible, not sortable), the server
+// strip is the real boundary.
+const MEMBER_COLUMNS = ALL_MEMBER_COLUMNS.filter(c => !c.perm || canViewTab(c.perm) || canChangeTab(c.perm));
+
+const DEFAULT_VISIBLE_COLUMNS = MEMBER_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
+const COLUMN_PREFS_KEY = 'dh-visible-columns';
+
+function colByKey(key) { return MEMBER_COLUMNS.find(c => c.key === key); }
+
+// Validate a stored preference: keep only known keys, force locked columns on,
+// fall back to the default set if missing/corrupt. Order is always the registry
+// order (getVisibleColumns filters MEMBER_COLUMNS), so we only track membership.
+function loadColumnPrefs() {
+    try {
+        const raw = localStorage.getItem(COLUMN_PREFS_KEY);
+        if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+                const valid = MEMBER_COLUMNS.map(c => c.key);
+                let keys = arr.filter(k => valid.includes(k));
+                MEMBER_COLUMNS.forEach(c => { if (c.locked && !keys.includes(c.key)) keys.push(c.key); });
+                if (keys.length) return keys;
+            }
+        }
+    } catch (e) { /* corrupt JSON / storage blocked — fall through to defaults */ }
+    return DEFAULT_VISIBLE_COLUMNS.slice();
+}
+
+function saveColumnPrefs() {
+    try { localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(visibleColumnKeys)); }
+    catch (e) { /* storage full/blocked — visibility still works for this session */ }
+}
+
+let visibleColumnKeys = loadColumnPrefs();
+
+function isColumnVisible(key) { return visibleColumnKeys.includes(key); }
+function getVisibleColumns() { return MEMBER_COLUMNS.filter(c => isColumnVisible(c.key)); }
+
+// Default sort to fall back to when the active sort column is hidden: search
+// rank in search mode, id desc in browse mode.
+function defaultSortForMode() {
+    return currentQuery ? { sort: 'rank', order: 'desc' } : { sort: 'id', order: 'desc' };
+}
+
+// If the active sort targets a known sortable column that is NOT currently
+// visible, fall back to the mode's default sort so the table never renders
+// sorted by a hidden column (which would show no sort indicator). The mode
+// defaults ('rank'/'date_added'/'id') aren't column sortKeys, so they're left
+// alone. Returns true if currentSort/currentOrder changed (caller should
+// refetch). Shared by the picker toggle, reset, and URL-restore paths.
+function fallbackSortIfActiveColumnHidden() {
+    const activeCol = MEMBER_COLUMNS.find(c => c.sortable && c.sortKey === currentSort);
+    if (activeCol && !isColumnVisible(activeCol.key)) {
+        const d = defaultSortForMode();
+        currentSort = d.sort;
+        currentOrder = d.order;
+        return true;
+    }
+    return false;
+}
+
+// Populate the column-picker dropdown checklist + Reset action (once, on load).
+function initColumnPicker() {
+    const menu = document.getElementById('columnPickerMenu');
+    if (!menu) return;
+    menu.innerHTML = '';
+    MEMBER_COLUMNS.forEach(col => {
+        const wrap = document.createElement('div');
+        wrap.className = 'form-check';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'form-check-input';
+        input.id = 'colchk-' + col.key;
+        input.checked = isColumnVisible(col.key);
+        if (col.locked) input.disabled = true;  // Status stays on
+        input.addEventListener('change', () => onColumnToggle(col.key, input.checked));
+        const label = document.createElement('label');
+        label.className = 'form-check-label';
+        label.htmlFor = 'colchk-' + col.key;
+        label.textContent = col.label;
+        wrap.appendChild(input);
+        wrap.appendChild(label);
+        menu.appendChild(wrap);
+    });
+    const divider = document.createElement('div');
+    divider.className = 'dropdown-divider';
+    menu.appendChild(divider);
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'btn btn-sm btn-link p-0 dh-columns-reset';
+    reset.textContent = 'Reset to defaults';
+    reset.addEventListener('click', resetColumnsToDefault);
+    menu.appendChild(reset);
+}
+
+function syncColumnCheckboxes() {
+    MEMBER_COLUMNS.forEach(col => {
+        const input = document.getElementById('colchk-' + col.key);
+        if (input) input.checked = isColumnVisible(col.key);
+    });
+}
+
+// Toggle a column's visibility from the picker. Hiding the column you're
+// currently sorting by reverts to the default sort (and refetches); otherwise
+// we just re-render head + body from the cached rows (no refetch needed).
+function onColumnToggle(key, checked) {
+    const col = colByKey(key);
+    if (!col || col.locked) return;
+    if (checked) {
+        if (!visibleColumnKeys.includes(key)) visibleColumnKeys.push(key);
+    } else {
+        visibleColumnKeys = visibleColumnKeys.filter(k => k !== key);
+    }
+    saveColumnPrefs();
+    // Hiding the active sort column reverts to the default sort and refetches;
+    // otherwise just re-render head + body from the cached rows (no refetch).
+    if (fallbackSortIfActiveColumnHidden()) {
+        loadMembers(currentPage);
+    } else {
+        displayResults(currentMembers);
+    }
+}
+
+function resetColumnsToDefault() {
+    visibleColumnKeys = DEFAULT_VISIBLE_COLUMNS.slice();
+    try { localStorage.removeItem(COLUMN_PREFS_KEY); } catch (e) { /* ignore */ }
+    syncColumnCheckboxes();
+    // If the active sort column is no longer visible, fall back to default sort
+    // and refetch; otherwise just re-render from cached rows.
+    if (fallbackSortIfActiveColumnHidden()) {
+        loadMembers(currentPage);
+    } else {
+        displayResults(currentMembers);
+    }
+}
+
+// (Re)attach the Status-column legend popover to the (freshly rebuilt) header
+// icon. Hover-only; header click still sorts. Idempotent per icon element.
+function attachStatusLegendPopover() {
+    const statusIcon = document.getElementById('statusLegendIcon');
+    const statusTpl = document.getElementById('statusLegendContent');
+    if (statusIcon && statusTpl && window.bootstrap && bootstrap.Popover) {
+        if (bootstrap.Popover.getInstance(statusIcon)) return;
+        new bootstrap.Popover(statusIcon, {
+            html: true,
+            trigger: 'hover focus',
+            placement: 'bottom',
+            container: 'body',
+            customClass: 'dh-status-legend-popover',
+            title: 'Status',
+            content: () => statusTpl.innerHTML,
+        });
+    }
+}
+
+// Rebuild the results <thead> from the currently-visible columns; appends the
+// search-only "Matched on" th (not a picker column) when searching. Returns the
+// visible-column list so the caller can reuse it for the body (avoids a second
+// getVisibleColumns() pass per render); returns [] if the head row is missing.
+function renderTableHead(searching) {
+    const row = document.getElementById('resultsHeadRow');
+    if (!row) return [];
+    const columns = getVisibleColumns();
+    // Dispose the old status-legend popover — its icon element is about to be
+    // replaced (Bootstrap keys instances by element and would otherwise leak).
+    const oldIcon = document.getElementById('statusLegendIcon');
+    if (oldIcon && window.bootstrap && bootstrap.Popover) {
+        const inst = bootstrap.Popover.getInstance(oldIcon);
+        if (inst) inst.dispose();
+    }
+    row.innerHTML = '';
+    columns.forEach(col => {
+        const th = document.createElement('th');
+        if (col.sortable) {
+            th.style.cursor = 'pointer';
+            th.addEventListener('click', () => sortTable(col.sortKey));
+        }
+        if (col.key === 'status') {
+            th.className = 'dh-status-col';
+            const icon = document.createElement('i');
+            icon.className = 'fa-solid fa-circle-half-stroke';
+            icon.id = 'statusLegendIcon';
+            icon.setAttribute('aria-label', 'Status');
+            th.appendChild(icon);
+            th.appendChild(document.createTextNode(' '));
+            const span = document.createElement('span');
+            span.id = 'sort-membership_status';
+            th.appendChild(span);
+        } else if (col.key === 'avatar') {
+            th.className = 'dh-avatar-col';
+            th.setAttribute('aria-label', 'Avatar');
+        } else {
+            const lbl = document.createElement('span');
+            lbl.className = col.truncate ? ('dh-cell-truncate ' + (col.widthClass || '')) : '';
+            if (col.buildLabel) col.buildLabel(lbl); else lbl.textContent = col.label;
+            th.appendChild(lbl);
+            if (col.sortable) {
+                th.appendChild(document.createTextNode(' '));
+                const span = document.createElement('span');
+                span.id = 'sort-' + col.sortKey;
+                th.appendChild(span);
+            }
+        }
+        row.appendChild(th);
+    });
+    // Search-only "Matched on" column (kept out of the picker).
+    const mth = document.createElement('th');
+    mth.id = 'matchHeader';
+    mth.textContent = 'Matched on';
+    mth.style.display = searching ? '' : 'none';
+    row.appendChild(mth);
+
+    attachStatusLegendPopover();
+    updateSortIndicators();
+    return columns;
+}
+
+// Build one <td> for a column. Truncating columns wrap the value in an
+// ellipsizing span (mirrors the .dh-match-line idiom) with the full value in a
+// title tooltip. textContent only — never innerHTML — keeps member data inert.
+function buildCell(col, member) {
+    if (col.buildTd) return col.buildTd(member, col);
+    const td = document.createElement('td');
+    const raw = col.get ? col.get(member) : '';
+    const text = (raw == null) ? '' : String(raw);
+    if (col.truncate) {
+        const span = document.createElement('span');
+        span.className = 'dh-cell-truncate ' + (col.widthClass || '');
+        span.textContent = text;
+        if (text) td.title = text;
+        td.appendChild(span);
+    } else {
+        td.textContent = text;
+    }
+    return td;
+}
+
+// Merged "Nick / First Name" cell: show the nickname in italics when present,
+// otherwise the plain legal first name. When the nickname is shown, the title
+// tooltip reveals the legal first name. createElement/textContent only.
+function buildNickFirstCell(member, col) {
+    const td = document.createElement('td');
+    const span = document.createElement('span');
+    span.className = 'dh-cell-truncate ' + ((col && col.widthClass) || 'dh-w-name');
+    const nick = ((member.nickname) || '').trim();
+    const first = ((member.first_name) || '').trim();
+    if (nick) {
+        const em = document.createElement('em');
+        em.textContent = nick;
+        span.appendChild(em);
+        td.title = first ? ('First name: ' + first) : nick;
+    } else {
+        span.textContent = first;
+        if (first) td.title = first;
+    }
+    td.appendChild(span);
+    return td;
+}
+
+// Header label for the merged column: "Nick / First Name" with "Nick" italic,
+// mirroring the italic nickname in the cell.
+function buildNickFirstHeader(span) {
+    const em = document.createElement('em');
+    em.textContent = 'Nick';
+    span.appendChild(em);
+    span.appendChild(document.createTextNode('/First Name'));
+}
+
 // Pagination state
 
 let currentMembers = [];
@@ -1590,19 +1902,21 @@ function sortTable(field) {
         currentSort = field;
         currentOrder = 'asc';
     }
-    updateSortIndicators();
+    // No updateSortIndicators() here: loadMembers -> displayResults ->
+    // renderTableHead rebuilds the <thead> and refreshes the indicators, so an
+    // update now would only write into spans about to be discarded.
     loadMembers(1);
 }
 
 function updateSortIndicators() {
-    ['id', 'first_name', 'last_name', 'membership_status'].forEach(f => {
-        const indicator = document.getElementById(`sort-${f}`);
+    // Only visible sortable columns have a sort-<key> span in the DOM; hidden
+    // ones return null from getElementById and are skipped.
+    MEMBER_COLUMNS.filter(c => c.sortable).forEach(c => {
+        const indicator = document.getElementById(`sort-${c.sortKey}`);
         if (indicator) {
-            if (f === currentSort) {
-                indicator.textContent = currentOrder === 'asc' ? '▲' : '▼';
-            } else {
-                indicator.textContent = '';
-            }
+            indicator.textContent = (c.sortKey === currentSort)
+                ? (currentOrder === 'asc' ? '▲' : '▼')
+                : '';
         }
     });
 }
@@ -1666,7 +1980,10 @@ const AVATAR_SOURCES = {
 
 // Up-to-2-char initials; falls back to the member ID, then "?".
 function avatarInitials(member) {
-    const first = ((member && member.first_name) || '').trim();
+    // First initial prioritizes the nickname (the name they go by), falling back
+    // to the legal first name; second initial stays the last name.
+    const nick = ((member && member.nickname) || '').trim();
+    const first = nick || ((member && member.first_name) || '').trim();
     const last = ((member && member.last_name) || '').trim();
     let initials = '';
     if (first) initials += first[0];
@@ -1940,11 +2257,15 @@ function buildMatchCell(matches, query) {
 function displayResults(members) {
     const tbody = document.getElementById('resultsTableBody');
     const resultsSection = document.getElementById('resultsSection');
-    const matchHeader = document.getElementById('matchHeader');
 
     // The "Matched on" column only makes sense for an active search.
     const searching = !!currentQuery;
-    matchHeader.style.display = searching ? 'table-cell' : 'none';
+
+    // Rebuild the header for the current visible-column set (also toggles the
+    // search-only "Matched on" th and refreshes the sort indicators — so no
+    // second updateSortIndicators() call is needed here) and reuse the
+    // visible-column list it returns for the row build below.
+    const columns = renderTableHead(searching);
 
     // Dispose avatar popovers on the outgoing rows before discarding them, so
     // Bootstrap's element-keyed instances don't leak across re-renders.
@@ -1952,42 +2273,38 @@ function displayResults(members) {
     tbody.innerHTML = '';
 
     if (members.length === 0) {
-        const colspan = searching ? 6 : 5;
+        const colspan = columns.length + (searching ? 1 : 0);
         tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center">No members found</td></tr>`;
     } else {
-        members.forEach(member => {
-            const row = document.createElement('tr');
-            row.style.cursor = 'pointer';
-            if (selectedMemberId && member.member_id == selectedMemberId) {
-                row.classList.add('selected-row');
-            }
-            // Status icon first (allowlist-driven class — safe), then avatar, then
-            // text columns. Layout: status | avatar | id | first | last | matched.
-            row.appendChild(buildStatusCell(member.membership_status));
-            row.appendChild(buildAvatarCell(member));
-            // Use textContent to prevent XSS from member data
-            const cells = [
-                member.member_id,
-                member.first_name || '',
-                member.last_name || '',
-            ];
-            cells.forEach(text => {
-                const td = document.createElement('td');
-                td.textContent = text;
-                row.appendChild(td);
-            });
-            if (searching) {
-                row.appendChild(buildMatchCell(member.matches, currentQuery));
-            }
-            row.onclick = function() {
-                loadMemberData(member);
-            };
-            tbody.appendChild(row);
-        });
+        // Reuse the already-computed visible-column list for every row.
+        members.forEach(member => tbody.appendChild(buildMemberRow(member, columns)));
     }
 
     resultsSection.style.display = 'block';
-    updateSortIndicators();
+}
+
+// Build one results <tr> for a member from the visible columns (+ the search-only
+// "Matched on" cell). Tagged with data-member-id so a single row can be re-synced
+// in place after an edit without relying on fixed cell indices. `columns` may be
+// passed in to avoid recomputing getVisibleColumns() per row.
+function buildMemberRow(member, columns) {
+    const cols = columns || getVisibleColumns();
+    const row = document.createElement('tr');
+    row.style.cursor = 'pointer';
+    row.dataset.memberId = member.member_id;
+    if (selectedMemberId && member.member_id == selectedMemberId) {
+        row.classList.add('selected-row');
+    }
+    // One <td> per visible column, in registry order. Each column's builder is
+    // XSS-safe (createElement + textContent only).
+    cols.forEach(col => row.appendChild(buildCell(col, member)));
+    if (currentQuery) {
+        row.appendChild(buildMatchCell(member.matches, currentQuery));
+    }
+    row.onclick = function() {
+        loadMemberData(member);
+    };
+    return row;
 }
 
 // Pagination controls
@@ -2137,6 +2454,11 @@ function restoreFromURL() {
     currentOrder = params.get('order') || 'desc';
     const memberId = params.get('member');
 
+    // A URL can carry a sort for a column the saved column prefs don't show
+    // (e.g. a shared link, or columns were since hidden). Reconcile so we never
+    // render sorted by a hidden column with no visible sort indicator.
+    fallbackSortIfActiveColumnHidden();
+
     // Sync search input
     document.getElementById('memberSearch').value = currentQuery;
 
@@ -2179,21 +2501,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Status-column header legend: hover the header icon to see the icon/color
-    // key. Header click still sorts (hover-only, never pins).
-    const statusIcon = document.getElementById('statusLegendIcon');
-    const statusTpl = document.getElementById('statusLegendContent');
-    if (statusIcon && statusTpl && window.bootstrap && bootstrap.Popover) {
-        new bootstrap.Popover(statusIcon, {
-            html: true,
-            trigger: 'hover focus',
-            placement: 'bottom',
-            container: 'body',
-            customClass: 'dh-status-legend-popover',
-            title: 'Status',
-            content: () => statusTpl.innerHTML,
-        });
-    }
+    // The Status-column header legend popover is (re)attached in renderTableHead()
+    // because the header icon is rebuilt whenever the visible columns change.
+
+    // Populate the column-picker checklist.
+    initColumnPicker();
 });
 window.addEventListener('popstate', restoreFromURL);
 
@@ -2613,6 +2925,15 @@ function birthdayToDateValue(v) {
     return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : '';
 }
 
+// Display value for the Member Since column: a clean YYYY-MM-DD for ISO-prefixed
+// values (incl. legacy "YYYY-MM-DDT00:00:00"), but falls back to the RAW stored
+// string for non-ISO/legacy formats so the cell never blanks out a value that
+// actually exists (prod-only; dev seed is clean ISO). The truncation + title
+// tooltip still apply via the column's `truncate` flag.
+function memberSinceDisplay(v) {
+    return birthdayToDateValue(v) || (v == null ? '' : String(v));
+}
+
 // True iff birthdayStr is on or before today minus 21 years. Tolerates a
 // legacy datetime suffix by reading the leading date.
 function isOver21(birthdayStr) {
@@ -2925,36 +3246,42 @@ function refreshMemberProfile() {
             });
         }
 
-        // Sync this member's row in the results table (status icon + names +
-        // avatar). Only overwrite cells whose source fetch actually succeeded, so
-        // a failed fetch never blanks a known value. Cells: 0=status, 1=avatar,
-        // 2=id, 3=first, 4=last.
-        document.querySelectorAll('#resultsTableBody tr').forEach(r => {
-            if (!r.cells[2] || r.cells[2].textContent != reqMemberId) return;
-            if (hasStatus && r.cells[0]) {
-                r.replaceChild(buildStatusCell(membershipStatus), r.cells[0]);
+        // Sync this member's row in the results table after the edit. Cell
+        // positions are no longer fixed (column picker), so we merge the freshly
+        // fetched fields into the cached row and rebuild the whole <tr> from the
+        // registry — column-visibility-agnostic. Only patch fields whose source
+        // fetch succeeded, so a failed fetch never blanks a known value.
+        // Patch EVERY registry-backed display field whose source fetch succeeded
+        // — not just the original five — so editing any visible column (e.g. the
+        // default-visible Pronouns, or an opt-in Member Level) updates the row
+        // instead of leaving it stale until a full reload.
+        const patch = {};
+        if (hasStatus) {
+            patch.membership_status = membershipStatus;
+            patch.membership_level = status.membership_level || '';
+            patch.member_since = status.member_since || '';
+            patch.stripe_subscription_id = status.stripe_subscription_id || '';
+        }
+        if (hasIdentity) {
+            patch.first_name = firstName;
+            patch.last_name = lastName;
+            patch.nickname = nickname;
+            patch.pronouns = identity.pronouns || '';
+            patch.active_directory_username = identity.active_directory_username || '';
+            patch.primary_email_address = email;
+            // Avatar hover-preview content is baked at row-build time; refreshing
+            // the row rebuilds it from the cached avatar so the edited name shows.
+            patch.avatar = selectedMemberAvatar;
+        }
+        const cached = currentMembers.find(m => m.member_id == reqMemberId);
+        if (cached && Object.keys(patch).length) {
+            Object.assign(cached, patch);
+            const oldRow = document.querySelector(`#resultsTableBody tr[data-member-id="${reqMemberId}"]`);
+            if (oldRow) {
+                disposeAvatarPopoversIn(oldRow);
+                oldRow.replaceWith(buildMemberRow(cached));
             }
-            if (hasIdentity) {
-                if (r.cells[3]) r.cells[3].textContent = firstName;
-                if (r.cells[4]) r.cells[4].textContent = lastName;
-                // Rebuild the avatar cell so its hover-preview reflects the edited
-                // name/nickname (its popover content was baked at displayResults
-                // time and is otherwise never refreshed). Dispose the old popover
-                // first. Avatar URL comes from the cached selectedMemberAvatar.
-                if (r.cells[1]) {
-                    disposeAvatarPopoversIn(r.cells[1]);
-                    r.replaceChild(buildAvatarCell({
-                        member_id: reqMemberId,
-                        first_name: firstName,
-                        last_name: lastName,
-                        nickname: nickname,
-                        primary_email_address: email,
-                        avatar: selectedMemberAvatar,
-                        membership_status: membershipStatus,
-                    }), r.cells[1]);
-                }
-            }
-        });
+        }
 
         // Re-fetch the active tab's data.
         const activeTab = getActiveDetailTab();
@@ -2995,14 +3322,11 @@ function loadMemberData(memberOrId) {
     // Remember the resolved avatar so refreshMemberProfile() can re-render it.
     selectedMemberAvatar = member ? (member.avatar || null) : null;
 
-    // Highlight the selected row
+    // Highlight the selected row. Rows are tagged with data-member-id (cell
+    // positions vary with the column picker, so don't rely on a fixed index).
     document.querySelectorAll('#resultsTableBody tr.selected-row').forEach(r => r.classList.remove('selected-row'));
-    document.querySelectorAll('#resultsTableBody tr').forEach(r => {
-        // Layout: cells[0]=status, cells[1]=avatar; the ID lives in cells[2].
-        if (r.cells[2] && r.cells[2].textContent == memberId) {
-            r.classList.add('selected-row');
-        }
-    });
+    const selRow = document.querySelector(`#resultsTableBody tr[data-member-id="${memberId}"]`);
+    if (selRow) selRow.classList.add('selected-row');
 
     updateMemberHeaderInfo(member);
 

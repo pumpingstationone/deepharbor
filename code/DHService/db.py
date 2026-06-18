@@ -395,28 +395,60 @@ def search_members_by_identity_and_access(query: str) -> list[dict]:
 # Paginated Member Listing
 ###############################################################################
 
+# Wrap a TEXT sort expression so blank/whitespace-only values collapse to NULL;
+# combined with the NULLS LAST that _validate_sort appends, every empty/blank
+# value sinks to the bottom in BOTH directions (otherwise an empty string '' is
+# a real value that sorts to the top in ASC, and NULLs default to the top in
+# DESC — either way burying the populated rows). The input is always a fixed
+# literal built below, never user input, so the allowlist stays the SQL-
+# injection boundary.
+def _blank_to_null(expr: str) -> str:
+    return f"NULLIF(btrim({expr}), '')"
+
 # Allowlist for ORDER BY columns — maps API param names to SQL expressions.
 # Direct column interpolation into SQL is safe ONLY through this allowlist.
 _MEMBER_SORT_COLUMNS = {
     "date_added": "m.date_added",
     "id": "m.id",
-    "first_name": "m.identity ->> 'first_name'",
-    "last_name": "m.identity ->> 'last_name'",
-    "membership_status": "m.status ->> 'membership_status'",
+    "first_name": _blank_to_null("m.identity ->> 'first_name'"),
+    "last_name": _blank_to_null("m.identity ->> 'last_name'"),
+    "nickname": _blank_to_null("m.identity ->> 'nickname'"),
+    # Merged "Nick / First Name" column: sort by the displayed value
+    # (nickname when present, else first name).
+    "nick_first": _blank_to_null("COALESCE(NULLIF(m.identity ->> 'nickname', ''), m.identity ->> 'first_name')"),
+    "pronouns": _blank_to_null("m.identity ->> 'pronouns'"),
+    "active_directory_username": _blank_to_null("m.identity ->> 'active_directory_username'"),
+    "primary_email_address": _blank_to_null("m.identity -> 'emails' -> 0 ->> 'email_address'"),
+    "membership_status": _blank_to_null("m.status ->> 'membership_status'"),
+    "membership_level": _blank_to_null("m.status ->> 'membership_level'"),
+    "member_since": _blank_to_null("m.status ->> 'member_since'"),
+    "stripe_subscription_id": _blank_to_null("m.status ->> 'stripe_subscription_id'"),
 }
 
-# Search CTE uses plain column names (no table prefix, no date_added)
+# Search CTE uses plain column names (no table prefix, no date_added) — these
+# must match aliases SELECTed in the `base` CTE of search_members_paginated().
+# Same blank-to-NULL coercion as above (see _MEMBER_SORT_COLUMNS).
 _SEARCH_SORT_COLUMNS = {
     "rank": "rank",
     "id": "id",
-    "first_name": "first_name",
-    "last_name": "last_name",
-    "membership_status": "membership_status",
+    "first_name": _blank_to_null("first_name"),
+    "last_name": _blank_to_null("last_name"),
+    "nickname": _blank_to_null("nickname"),
+    "nick_first": _blank_to_null("COALESCE(NULLIF(nickname, ''), first_name)"),
+    "pronouns": _blank_to_null("pronouns"),
+    "active_directory_username": _blank_to_null("active_directory_username"),
+    "primary_email_address": _blank_to_null("primary_email_address"),
+    "membership_status": _blank_to_null("membership_status"),
+    "membership_level": _blank_to_null("membership_level"),
+    "member_since": _blank_to_null("member_since"),
+    "stripe_subscription_id": _blank_to_null("stripe_subscription_id"),
 }
 
 def _validate_sort(sort: str, order: str, allowlist: dict, default_sort: str) -> tuple[str, str]:
     col = allowlist.get(sort, allowlist[default_sort])
-    direction = "ASC" if order.lower() == "asc" else "DESC"
+    # NULLS LAST so blank/NULL values always sink to the bottom regardless of
+    # ASC/DESC (the text sort expressions above coerce blanks to NULL).
+    direction = "ASC NULLS LAST" if order.lower() == "asc" else "DESC NULLS LAST"
     return col, direction
 
 def _is_searchable_query(query: str) -> bool:
@@ -459,12 +491,24 @@ def list_members(page: int = 1, per_page: int = 25,
                            m.identity ->> 'first_name' AS first_name,
                            m.identity ->> 'last_name' AS last_name,
                            m.identity ->> 'nickname' AS nickname,
+                           m.identity ->> 'pronouns' AS pronouns,
+                           m.identity ->> 'active_directory_username' AS active_directory_username,
                            m.identity -> 'emails' -> 0 ->> 'email_address' AS primary_email_address,
                            m.status ->> 'membership_status' AS membership_status,
+                           m.status ->> 'membership_level' AS membership_level,
+                           m.status ->> 'member_since' AS member_since,
+                           m.status ->> 'stripe_subscription_id' AS stripe_subscription_id,
                            m.status ->> 'stripe_product_id' AS stripe_product_id,
                            COUNT(*) OVER() AS total_count
                     FROM   member m
-                    ORDER BY {sort_col} {direction}
+                    -- `, m.id ASC` is a deterministic tiebreaker: many sort
+                    -- columns are low-cardinality (pronouns, membership_level)
+                    -- and _blank_to_null collapses every blank into one NULL
+                    -- bucket, so ties are common. Without it, tied rows come
+                    -- back in arbitrary per-execution order and pagination can
+                    -- duplicate/skip members across pages. Mirrors the search
+                    -- path's `, id ASC`.
+                    ORDER BY {sort_col} {direction}, m.id ASC
                     LIMIT  %s OFFSET %s
                 """,
                 (per_page, offset),
@@ -472,15 +516,20 @@ def list_members(page: int = 1, per_page: int = 25,
             results = cur.fetchall()
 
             for result in results:
-                total = result[7]
+                total = result[12]
                 members.append({
                     "member_id": result[0],
                     "first_name": result[1],
                     "last_name": result[2],
                     "nickname": result[3],
-                    "primary_email_address": result[4],
-                    "membership_status": result[5],
-                    "stripe_product_id": result[6],
+                    "pronouns": result[4],
+                    "active_directory_username": result[5],
+                    "primary_email_address": result[6],
+                    "membership_status": result[7],
+                    "membership_level": result[8],
+                    "member_since": result[9],
+                    "stripe_subscription_id": result[10],
+                    "stripe_product_id": result[11],
                 })
 
             # A past-the-end page returns no rows, so the COUNT(*) OVER() total
@@ -523,8 +572,13 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
                                identity ->> 'first_name' AS first_name,
                                identity ->> 'last_name' AS last_name,
                                identity ->> 'nickname' AS nickname,
+                               identity ->> 'pronouns' AS pronouns,
+                               identity ->> 'active_directory_username' AS active_directory_username,
                                identity -> 'emails' -> 0 ->> 'email_address' AS primary_email_address,
                                status ->> 'membership_status' AS membership_status,
+                               status ->> 'membership_level' AS membership_level,
+                               status ->> 'member_since' AS member_since,
+                               status ->> 'stripe_subscription_id' AS stripe_subscription_id,
                                status ->> 'stripe_product_id' AS stripe_product_id,
                                rank
                         FROM   search_members_by_identity_and_access(%s)
@@ -538,8 +592,11 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
                         LIMIT  %s OFFSET %s
                     )
                     SELECT page.id, page.first_name, page.last_name, page.nickname,
+                           page.pronouns, page.active_directory_username,
                            page.primary_email_address, page.membership_status,
-                           page.stripe_product_id, tot.total_count,
+                           page.membership_level, page.member_since,
+                           page.stripe_subscription_id, page.stripe_product_id,
+                           tot.total_count,
                            ( SELECT jsonb_agg(
                                         jsonb_build_object('field', match_field, 'value', match_value)
                                         ORDER BY score DESC)
@@ -553,7 +610,7 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
             results = cur.fetchall()
 
     for result in results:
-        total = result[7]
+        total = result[12]
         # Skip the empty-page sentinel (NULL id) emitted by the tot LEFT JOIN
         # when the requested page is past the end — its only job is to carry total.
         if result[0] is None:
@@ -563,13 +620,18 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
             "first_name": result[1],
             "last_name": result[2],
             "nickname": result[3],
-            "primary_email_address": result[4],
-            "membership_status": result[5],
-            "stripe_product_id": result[6],
+            "pronouns": result[4],
+            "active_directory_username": result[5],
+            "primary_email_address": result[6],
+            "membership_status": result[7],
+            "membership_level": result[8],
+            "member_since": result[9],
+            "stripe_subscription_id": result[10],
+            "stripe_product_id": result[11],
             # Per-field attribution for the admin "Matched on" column: list of
             # {field, value} ordered strongest-first, or None when nothing
             # attributable (e.g. an access-blob-only digit match).
-            "matches": result[8],
+            "matches": result[13],
         })
 
     logger.debug(f"Paginated search found {len(members)} members (total={total})")

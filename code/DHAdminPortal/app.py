@@ -543,6 +543,17 @@ def requires_change_permission(tab_name):
     return decorator
 
 
+def has_view_permission(tab_name):
+    """Inline equivalent of the requires_view_permission decorator's check
+    (view OR change OR 'all'). Used to gate individual response fields within an
+    endpoint that's already permitted at a coarser level."""
+    permissions = session.get("user_permissions", {})
+    view_perms = permissions.get("view", [])
+    change_perms = permissions.get("change", [])
+    return ("all" in view_perms or tab_name in view_perms
+            or "all" in change_perms or tab_name in change_perms)
+
+
 def requires_view_permission(tab_name):
     """Check that the logged-in user has 'view' or 'change' permission for the given tab."""
     def decorator(f):
@@ -550,11 +561,7 @@ def requires_view_permission(tab_name):
         def decorated_function(*args, **kwargs):
             if not session.get("user"):
                 return {"error": "Not authenticated"}, 401
-            permissions = session.get("user_permissions", {})
-            view_perms = permissions.get("view", [])
-            change_perms = permissions.get("change", [])
-            if ("all" not in view_perms and tab_name not in view_perms and
-                    "all" not in change_perms and tab_name not in change_perms):
+            if not has_view_permission(tab_name):
                 user_email = session["user"].get("email") or session["user"].get("preferred_username")
                 logger.warning(
                     f"Permission denied: {user_email} attempted to view '{tab_name}'"
@@ -703,6 +710,18 @@ def api_log_activity():
         logger.error(f"Error logging user activity: {e}")
         return {"error": str(e)}, 500
 
+# Member-list row fields sourced from the `status` JSONB and gated behind
+# member.status view. /api/members only requires member.identity, so for callers
+# lacking member.status these are (a) stripped from each row and (b) barred as
+# sort keys — sorting by them would leak the field's ordering even with the
+# values stripped. Single source of truth for both halves; the frontend column
+# registry (ALL_MEMBER_COLUMNS) mirrors this via each column's `perm` attribute.
+_STATUS_GATED_LIST_FIELDS = ("membership_level", "member_since",
+                             "stripe_subscription_id", "stripe_product_id")
+# The subset that are valid ORDER BY keys (stripe_product_id isn't sortable).
+_STATUS_GATED_SORT_KEYS = frozenset(_STATUS_GATED_LIST_FIELDS) - {"stripe_product_id"}
+
+
 @app.route("/api/members")
 @requires_view_permission("member.identity")
 def api_members():
@@ -712,6 +731,15 @@ def api_members():
     per_page = request.args.get("per_page", 25, type=int)
     sort = request.args.get("sort", "date_added")
     order = request.args.get("order", "desc")
+
+    # Callers without member.status may neither receive nor SORT BY the gated
+    # status fields — a hand-crafted ?sort=member_since would order the roster by
+    # a field whose values we strip below, leaking its ordering. Bar those sort
+    # keys here (revert to the default sort) before the query runs.
+    status_gated = not has_view_permission("member.status")
+    if status_gated and sort in _STATUS_GATED_SORT_KEYS:
+        sort = "date_added"
+        order = "desc"
 
     try:
         access_token = dhservices.get_access_token(
@@ -727,6 +755,18 @@ def api_members():
         if isinstance(members, list):
             for member in members:
                 member["avatar"] = resolve_avatar(member)
+
+            # Status-derived billing/tenure fields are gated behind member.status
+            # view. This list endpoint only requires member.identity, so strip
+            # them for callers who lack member.status — they must not receive
+            # billing/status detail. (membership_status drives the long-standing
+            # Status icon and stays under member.identity.) The frontend also
+            # hides these columns; this strip is the authoritative boundary. The
+            # matching sort keys are barred above so ordering can't leak them.
+            if status_gated:
+                for member in members:
+                    for k in _STATUS_GATED_LIST_FIELDS:
+                        member.pop(k, None)
 
         # Log search activity only when an explicit search query is present
         if query:
