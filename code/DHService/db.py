@@ -397,45 +397,54 @@ def search_members_by_identity_and_access(query: str) -> list[dict]:
 
 # Allowlist for ORDER BY columns — maps API param names to SQL expressions.
 # Direct column interpolation into SQL is safe ONLY through this allowlist.
+#
+# Text columns are wrapped in NULLIF(btrim(...), '') so blank/whitespace-only
+# values collapse to NULL; combined with the NULLS LAST that _validate_sort
+# appends, every empty/blank value sinks to the bottom in BOTH directions
+# (otherwise an empty string '' is a real value that sorts to the top in ASC,
+# and NULLs default to the top in DESC — either way burying populated rows).
 _MEMBER_SORT_COLUMNS = {
     "date_added": "m.date_added",
     "id": "m.id",
-    "first_name": "m.identity ->> 'first_name'",
-    "last_name": "m.identity ->> 'last_name'",
-    "nickname": "m.identity ->> 'nickname'",
+    "first_name": "NULLIF(btrim(m.identity ->> 'first_name'), '')",
+    "last_name": "NULLIF(btrim(m.identity ->> 'last_name'), '')",
+    "nickname": "NULLIF(btrim(m.identity ->> 'nickname'), '')",
     # Merged "Nick / First Name" column: sort by the displayed value
     # (nickname when present, else first name).
-    "nick_first": "COALESCE(NULLIF(m.identity ->> 'nickname', ''), m.identity ->> 'first_name')",
-    "pronouns": "m.identity ->> 'pronouns'",
-    "active_directory_username": "m.identity ->> 'active_directory_username'",
-    "primary_email_address": "m.identity -> 'emails' -> 0 ->> 'email_address'",
-    "membership_status": "m.status ->> 'membership_status'",
-    "membership_level": "m.status ->> 'membership_level'",
-    "member_since": "m.status ->> 'member_since'",
-    "stripe_subscription_id": "m.status ->> 'stripe_subscription_id'",
+    "nick_first": "NULLIF(btrim(COALESCE(NULLIF(m.identity ->> 'nickname', ''), m.identity ->> 'first_name')), '')",
+    "pronouns": "NULLIF(btrim(m.identity ->> 'pronouns'), '')",
+    "active_directory_username": "NULLIF(btrim(m.identity ->> 'active_directory_username'), '')",
+    "primary_email_address": "NULLIF(btrim(m.identity -> 'emails' -> 0 ->> 'email_address'), '')",
+    "membership_status": "NULLIF(btrim(m.status ->> 'membership_status'), '')",
+    "membership_level": "NULLIF(btrim(m.status ->> 'membership_level'), '')",
+    "member_since": "NULLIF(btrim(m.status ->> 'member_since'), '')",
+    "stripe_subscription_id": "NULLIF(btrim(m.status ->> 'stripe_subscription_id'), '')",
 }
 
 # Search CTE uses plain column names (no table prefix, no date_added) — these
 # must match aliases SELECTed in the `base` CTE of search_members_paginated().
+# Same blank-to-NULL coercion as above (see _MEMBER_SORT_COLUMNS).
 _SEARCH_SORT_COLUMNS = {
     "rank": "rank",
     "id": "id",
-    "first_name": "first_name",
-    "last_name": "last_name",
-    "nickname": "nickname",
-    "nick_first": "COALESCE(NULLIF(nickname, ''), first_name)",
-    "pronouns": "pronouns",
-    "active_directory_username": "active_directory_username",
-    "primary_email_address": "primary_email_address",
-    "membership_status": "membership_status",
-    "membership_level": "membership_level",
-    "member_since": "member_since",
-    "stripe_subscription_id": "stripe_subscription_id",
+    "first_name": "NULLIF(btrim(first_name), '')",
+    "last_name": "NULLIF(btrim(last_name), '')",
+    "nickname": "NULLIF(btrim(nickname), '')",
+    "nick_first": "NULLIF(btrim(COALESCE(NULLIF(nickname, ''), first_name)), '')",
+    "pronouns": "NULLIF(btrim(pronouns), '')",
+    "active_directory_username": "NULLIF(btrim(active_directory_username), '')",
+    "primary_email_address": "NULLIF(btrim(primary_email_address), '')",
+    "membership_status": "NULLIF(btrim(membership_status), '')",
+    "membership_level": "NULLIF(btrim(membership_level), '')",
+    "member_since": "NULLIF(btrim(member_since), '')",
+    "stripe_subscription_id": "NULLIF(btrim(stripe_subscription_id), '')",
 }
 
 def _validate_sort(sort: str, order: str, allowlist: dict, default_sort: str) -> tuple[str, str]:
     col = allowlist.get(sort, allowlist[default_sort])
-    direction = "ASC" if order.lower() == "asc" else "DESC"
+    # NULLS LAST so blank/NULL values always sink to the bottom regardless of
+    # ASC/DESC (the text sort expressions above coerce blanks to NULL).
+    direction = "ASC NULLS LAST" if order.lower() == "asc" else "DESC NULLS LAST"
     return col, direction
 
 def _is_searchable_query(query: str) -> bool:
