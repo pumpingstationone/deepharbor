@@ -1655,12 +1655,14 @@ function buildStatusCell(rawStatus) {
 // the member's name, and the source. XSS-safe throughout: createElement +
 // textContent only; the source label comes from an allowlist.
 
-// Source -> human label allowlist. The card label is derived from this, never
-// from the raw server value.
-const AVATAR_SOURCE_LABELS = { gravatar: 'Gravatar' };
-// Source -> largest size the provider serves, used for the header click-through
-// (opens the full-size image in a new tab). Gravatar caps at 2048; Discord 4096.
-const AVATAR_SOURCE_MAX = { gravatar: 2048 };
+// Per-source config allowlist. `label` is what the card shows (derived from
+// this, never the raw server value); `maxSize` is the largest size the provider
+// serves, used for the header click-through (full-size image in a new tab).
+// Keep label + maxSize together so a new source can't be half-registered — add
+// the whole entry in one place. Discord (next): { label: 'Discord', maxSize: 4096 }.
+const AVATAR_SOURCES = {
+    gravatar: { label: 'Gravatar', maxSize: 2048 },
+};
 
 // Up-to-2-char initials; falls back to the member ID, then "?".
 function avatarInitials(member) {
@@ -1813,7 +1815,8 @@ function buildAvatar(member, cssPx, opts) {
     wrap.style.width = cssPx + 'px';
     wrap.style.height = cssPx + 'px';
 
-    const sourceLabel = AVATAR_SOURCE_LABELS[avatar.source] || '';
+    const sourceConfig = AVATAR_SOURCES[avatar.source] || {};
+    const sourceLabel = sourceConfig.label || '';
     const fullName = `${((member.first_name) || '').trim()} ${((member.last_name) || '').trim()}`.trim();
 
     const img = document.createElement('img');
@@ -1840,7 +1843,7 @@ function buildAvatar(member, cssPx, opts) {
 
     // Header click-through: wrap the photo in a link to the largest remote size.
     let imgHost = wrap;
-    const maxPx = opts.linkFullSize ? AVATAR_SOURCE_MAX[avatar.source] : null;
+    const maxPx = opts.linkFullSize ? sourceConfig.maxSize : null;
     if (maxPx) {
         const link = document.createElement('a');
         link.className = 'dh-avatar-link';
@@ -2922,9 +2925,9 @@ function refreshMemberProfile() {
             });
         }
 
-        // Sync this member's row in the results table (status icon + names).
-        // Only overwrite cells whose source fetch actually succeeded, so a
-        // failed fetch never blanks a known value. Cells: 0=status, 1=avatar,
+        // Sync this member's row in the results table (status icon + names +
+        // avatar). Only overwrite cells whose source fetch actually succeeded, so
+        // a failed fetch never blanks a known value. Cells: 0=status, 1=avatar,
         // 2=id, 3=first, 4=last.
         document.querySelectorAll('#resultsTableBody tr').forEach(r => {
             if (!r.cells[2] || r.cells[2].textContent != reqMemberId) return;
@@ -2934,6 +2937,22 @@ function refreshMemberProfile() {
             if (hasIdentity) {
                 if (r.cells[3]) r.cells[3].textContent = firstName;
                 if (r.cells[4]) r.cells[4].textContent = lastName;
+                // Rebuild the avatar cell so its hover-preview reflects the edited
+                // name/nickname (its popover content was baked at displayResults
+                // time and is otherwise never refreshed). Dispose the old popover
+                // first. Avatar URL comes from the cached selectedMemberAvatar.
+                if (r.cells[1]) {
+                    disposeAvatarPopoversIn(r.cells[1]);
+                    r.replaceChild(buildAvatarCell({
+                        member_id: reqMemberId,
+                        first_name: firstName,
+                        last_name: lastName,
+                        nickname: nickname,
+                        primary_email_address: email,
+                        avatar: selectedMemberAvatar,
+                        membership_status: membershipStatus,
+                    }), r.cells[1]);
+                }
             }
         });
 
