@@ -402,16 +402,35 @@ _MEMBER_SORT_COLUMNS = {
     "id": "m.id",
     "first_name": "m.identity ->> 'first_name'",
     "last_name": "m.identity ->> 'last_name'",
+    "nickname": "m.identity ->> 'nickname'",
+    # Merged "Nick / First Name" column: sort by the displayed value
+    # (nickname when present, else first name).
+    "nick_first": "COALESCE(NULLIF(m.identity ->> 'nickname', ''), m.identity ->> 'first_name')",
+    "pronouns": "m.identity ->> 'pronouns'",
+    "active_directory_username": "m.identity ->> 'active_directory_username'",
+    "primary_email_address": "m.identity -> 'emails' -> 0 ->> 'email_address'",
     "membership_status": "m.status ->> 'membership_status'",
+    "membership_level": "m.status ->> 'membership_level'",
+    "member_since": "m.status ->> 'member_since'",
+    "stripe_subscription_id": "m.status ->> 'stripe_subscription_id'",
 }
 
-# Search CTE uses plain column names (no table prefix, no date_added)
+# Search CTE uses plain column names (no table prefix, no date_added) — these
+# must match aliases SELECTed in the `base` CTE of search_members_paginated().
 _SEARCH_SORT_COLUMNS = {
     "rank": "rank",
     "id": "id",
     "first_name": "first_name",
     "last_name": "last_name",
+    "nickname": "nickname",
+    "nick_first": "COALESCE(NULLIF(nickname, ''), first_name)",
+    "pronouns": "pronouns",
+    "active_directory_username": "active_directory_username",
+    "primary_email_address": "primary_email_address",
     "membership_status": "membership_status",
+    "membership_level": "membership_level",
+    "member_since": "member_since",
+    "stripe_subscription_id": "stripe_subscription_id",
 }
 
 def _validate_sort(sort: str, order: str, allowlist: dict, default_sort: str) -> tuple[str, str]:
@@ -459,8 +478,13 @@ def list_members(page: int = 1, per_page: int = 25,
                            m.identity ->> 'first_name' AS first_name,
                            m.identity ->> 'last_name' AS last_name,
                            m.identity ->> 'nickname' AS nickname,
+                           m.identity ->> 'pronouns' AS pronouns,
+                           m.identity ->> 'active_directory_username' AS active_directory_username,
                            m.identity -> 'emails' -> 0 ->> 'email_address' AS primary_email_address,
                            m.status ->> 'membership_status' AS membership_status,
+                           m.status ->> 'membership_level' AS membership_level,
+                           m.status ->> 'member_since' AS member_since,
+                           m.status ->> 'stripe_subscription_id' AS stripe_subscription_id,
                            m.status ->> 'stripe_product_id' AS stripe_product_id,
                            COUNT(*) OVER() AS total_count
                     FROM   member m
@@ -472,15 +496,20 @@ def list_members(page: int = 1, per_page: int = 25,
             results = cur.fetchall()
 
             for result in results:
-                total = result[7]
+                total = result[12]
                 members.append({
                     "member_id": result[0],
                     "first_name": result[1],
                     "last_name": result[2],
                     "nickname": result[3],
-                    "primary_email_address": result[4],
-                    "membership_status": result[5],
-                    "stripe_product_id": result[6],
+                    "pronouns": result[4],
+                    "active_directory_username": result[5],
+                    "primary_email_address": result[6],
+                    "membership_status": result[7],
+                    "membership_level": result[8],
+                    "member_since": result[9],
+                    "stripe_subscription_id": result[10],
+                    "stripe_product_id": result[11],
                 })
 
             # A past-the-end page returns no rows, so the COUNT(*) OVER() total
@@ -523,8 +552,13 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
                                identity ->> 'first_name' AS first_name,
                                identity ->> 'last_name' AS last_name,
                                identity ->> 'nickname' AS nickname,
+                               identity ->> 'pronouns' AS pronouns,
+                               identity ->> 'active_directory_username' AS active_directory_username,
                                identity -> 'emails' -> 0 ->> 'email_address' AS primary_email_address,
                                status ->> 'membership_status' AS membership_status,
+                               status ->> 'membership_level' AS membership_level,
+                               status ->> 'member_since' AS member_since,
+                               status ->> 'stripe_subscription_id' AS stripe_subscription_id,
                                status ->> 'stripe_product_id' AS stripe_product_id,
                                rank
                         FROM   search_members_by_identity_and_access(%s)
@@ -538,8 +572,11 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
                         LIMIT  %s OFFSET %s
                     )
                     SELECT page.id, page.first_name, page.last_name, page.nickname,
+                           page.pronouns, page.active_directory_username,
                            page.primary_email_address, page.membership_status,
-                           page.stripe_product_id, tot.total_count,
+                           page.membership_level, page.member_since,
+                           page.stripe_subscription_id, page.stripe_product_id,
+                           tot.total_count,
                            ( SELECT jsonb_agg(
                                         jsonb_build_object('field', match_field, 'value', match_value)
                                         ORDER BY score DESC)
@@ -553,7 +590,7 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
             results = cur.fetchall()
 
     for result in results:
-        total = result[7]
+        total = result[12]
         # Skip the empty-page sentinel (NULL id) emitted by the tot LEFT JOIN
         # when the requested page is past the end — its only job is to carry total.
         if result[0] is None:
@@ -563,13 +600,18 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
             "first_name": result[1],
             "last_name": result[2],
             "nickname": result[3],
-            "primary_email_address": result[4],
-            "membership_status": result[5],
-            "stripe_product_id": result[6],
+            "pronouns": result[4],
+            "active_directory_username": result[5],
+            "primary_email_address": result[6],
+            "membership_status": result[7],
+            "membership_level": result[8],
+            "member_since": result[9],
+            "stripe_subscription_id": result[10],
+            "stripe_product_id": result[11],
             # Per-field attribution for the admin "Matched on" column: list of
             # {field, value} ordered strongest-first, or None when nothing
             # attributable (e.g. an access-blob-only digit match).
-            "matches": result[8],
+            "matches": result[13],
         })
 
     logger.debug(f"Paginated search found {len(members)} members (total={total})")

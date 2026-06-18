@@ -142,6 +142,58 @@ th.dh-status-col { cursor: pointer; }
 .dh-match-field { opacity: 0.65; }
 .dh-match-value strong { font-weight: 700; }
 
+/* Truncating result cells: an inline-block span with a per-column max-width that
+   ellipsizes long values; the full value sits in the <td> title tooltip. Mirrors
+   the .dh-match-line idiom. Applied to both the header label and the data cell so
+   the column width stays capped (headers ellipsize too). */
+.dh-cell-truncate {
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+}
+.dh-w-name     { max-width: 11ch; }
+.dh-w-pronouns { max-width: 9ch; }
+.dh-w-username { max-width: 14ch; }
+.dh-w-email    { max-width: 22ch; }
+.dh-w-level    { max-width: 16ch; }
+.dh-w-date     { max-width: 11ch; }
+.dh-w-subid    { max-width: 22ch; }
+
+/* Column-picker dropdown (choose which result columns are shown). Themed through
+   Bootstrap's own --bs-dropdown-* vars so the menu follows the active theme; all
+   five themes define the --*-color palette so bare var() resolves. */
+/* The picker's .dropdown wrapper is taller than its button (line-height),
+   which top-aligns the button and nudges the icon a couple px high relative to
+   the adjacent search/refresh icons. Flex-center the button within it. */
+#columnPicker {
+    display: flex;
+    align-items: center;
+}
+
+.dh-columns-menu {
+    --bs-dropdown-bg: var(--card-bg);
+    --bs-dropdown-color: var(--text-color);
+    --bs-dropdown-border-color: var(--border-color);
+    --bs-dropdown-link-color: var(--text-color);
+    --bs-dropdown-divider-bg: var(--border-color);
+    /* The results <thead> is .sticky-top (z-index 1020); lift the menu above it
+       so the sticky header doesn't bleed over the open dropdown. */
+    --bs-dropdown-zindex: 1030;
+    min-width: 12rem;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+.dh-columns-menu .form-check { margin-bottom: 0.15rem; }
+.dh-columns-menu .form-check-label { cursor: pointer; }
+.dh-columns-menu .form-check-input:disabled { opacity: 0.6; }
+.dh-columns-reset {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+.dh-columns-reset:hover { text-decoration: underline; }
+
 /* ===================================================================
    SHARED BASE (theme-neutral — layout, structure, resets)
    =================================================================== */
