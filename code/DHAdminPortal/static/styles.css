@@ -678,6 +678,18 @@ body {
     align-items: center;
 }
 
+/* Easter egg: this "Dismiss" speaks its mind on hover too. "Fuckoff" is the same
+   7-char width as "Dismiss" so the swap never reflows the flex row. */
+#onboardWikiNoticeRow .dh-notice-dismiss .dh-dismiss-hover {
+    display: none;
+}
+#onboardWikiNoticeRow .dh-notice-dismiss:hover .dh-dismiss-default {
+    display: none;
+}
+#onboardWikiNoticeRow .dh-notice-dismiss:hover .dh-dismiss-hover {
+    display: inline;
+}
+
 [data-theme="bubblegum"] .dh-member-bar + .dh-suspended-warning {
     border-right: 1px solid #ff69b4;
 }
