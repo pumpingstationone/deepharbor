@@ -67,7 +67,7 @@ th.dh-status-col { cursor: pointer; }
 [data-theme="midnight"] .dh-avatar-initials,
 [data-theme="hacker"] .dh-avatar-initials { color: #111; }
 
-/* Wrapper around a real photo — positioning context for the corner badge. */
+/* Wrapper around a real photo — hover trigger for the preview popover. */
 .dh-avatar-wrap {
     position: relative;
     display: inline-block;
@@ -75,34 +75,55 @@ th.dh-status-col { cursor: pointer; }
     line-height: 0;
 }
 
-/* Corner provider badge ("G" for Gravatar). JS keeps it hidden until the photo
-   actually loads; CSS then reveals it only on hover. */
-.dh-avatar-badge {
-    position: absolute;
-    right: -2px;
-    bottom: -2px;
-    min-width: 12px;
-    height: 12px;
-    padding: 0 2px;
-    border-radius: 4px;
-    background: var(--card-bg);
-    color: var(--text-color);
-    border: 1px solid var(--border-color);
-    font-size: 8px;
-    font-weight: 700;
-    line-height: 12px;
-    text-align: center;
-    opacity: 0;
-    transition: opacity 0.12s ease-in-out;
-    pointer-events: none;
+/* Header click-through link wrapping the photo (opens full size in a new tab). */
+.dh-avatar-link {
+    display: inline-block;
+    line-height: 0;
+    cursor: pointer;
 }
-.dh-avatar-wrap:hover .dh-avatar-badge { opacity: 1; }
 
 /* Detail-header avatar slot — keep it vertically centered with the text block. */
 .dh-member-header-avatar {
     display: inline-flex;
     flex: 0 0 auto;
     line-height: 0;
+}
+
+/* Avatar hover-preview popover — themed through Bootstrap's own CSS vars, same
+   pattern as the search-tips / status-legend popovers (all five themes define
+   the palette). Body-only (no header); max-width fits the 512 header image. */
+.dh-avatar-preview-popover {
+    --bs-popover-max-width: 560px;
+    --bs-popover-bg: var(--card-bg);
+    --bs-popover-border-color: var(--border-color);
+    --bs-popover-body-color: var(--text-color);
+}
+.dh-avatar-preview {
+    text-align: center;
+    max-width: 512px;
+}
+.dh-avatar-preview-img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+    margin: 0 auto 0.5rem;
+}
+.dh-avatar-preview-name {
+    font-weight: 700;
+    line-height: 1.25;
+}
+.dh-avatar-preview-discord {
+    font-size: 0.85rem;
+    opacity: 0.8;
+    line-height: 1.25;
+}
+.dh-avatar-preview-source {
+    margin-top: 0.3rem;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--primary-color);
 }
 
 /* "Matched on" column in the results table (search mode only). Lists each
