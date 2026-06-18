@@ -1475,10 +1475,13 @@ function activateFirstVisibleTab(permissions) {
 const ALL_MEMBER_COLUMNS = [
     { key: 'status',        label: 'Status',        defaultVisible: true,  locked: true,  sortable: true,  sortKey: 'membership_status',          buildTd: m => buildStatusCell(m.membership_status) },
     { key: 'avatar',        label: 'Avatar',        defaultVisible: true,  locked: false, sortable: false,                                        buildTd: m => buildAvatarCell(m) },
-    { key: 'id',            label: 'ID',            defaultVisible: true,  locked: false, sortable: true,  sortKey: 'id',                          get: m => m.member_id },
+    // ID is locked on: it's the browse-mode default-sort fallback target
+    // (defaultSortForMode), so keeping it always-visible guarantees that target
+    // is never itself a hidden column.
+    { key: 'id',            label: 'ID',            defaultVisible: true,  locked: true,  sortable: true,  sortKey: 'id',                          get: m => m.member_id },
     // Header shows in full ("Nick / First Name"); the CELL truncates via
     // buildNickFirstCell's own span, so no header truncate class here.
-    { key: 'nick_first',    label: 'Nick/First Name', defaultVisible: true, locked: false, sortable: true, sortKey: 'nick_first', buildTd: m => buildNickFirstCell(m), buildLabel: span => buildNickFirstHeader(span) },
+    { key: 'nick_first',    label: 'Nick/First Name', defaultVisible: true, locked: false, sortable: true, sortKey: 'nick_first', widthClass: 'dh-w-name', buildTd: (m, col) => buildNickFirstCell(m, col), buildLabel: span => buildNickFirstHeader(span) },
     { key: 'first',         label: 'First Name',    defaultVisible: false, locked: false, sortable: true,  sortKey: 'first_name',                  get: m => m.first_name, truncate: true, widthClass: 'dh-w-name' },
     { key: 'nickname',      label: 'Nickname',      defaultVisible: false, locked: false, sortable: true,  sortKey: 'nickname',                    get: m => m.nickname,   truncate: true, widthClass: 'dh-w-name' },
     { key: 'last',          label: 'Last Name',     defaultVisible: true,  locked: false, sortable: true,  sortKey: 'last_name',                   get: m => m.last_name,  truncate: true, widthClass: 'dh-w-name' },
@@ -1491,11 +1494,14 @@ const ALL_MEMBER_COLUMNS = [
 ];
 
 // The user's available columns: drop any column whose `perm` (the member.<tab>
-// view permission its data requires) the logged-in admin lacks. Columns without
-// a `perm` ride this list's own member.identity gate. The backend ALSO strips
-// the gated fields from the response — this filter is the UX half (no checkbox,
-// not default-visible, not sortable), the server strip is the real boundary.
-const MEMBER_COLUMNS = ALL_MEMBER_COLUMNS.filter(c => !c.perm || canViewTab(c.perm));
+// permission its data requires) the logged-in admin lacks. Mirror the backend
+// gate exactly — has_view_permission() grants on view OR change, so an admin
+// with change-but-not-view on member.status still gets the data and must get
+// the column. Columns without a `perm` ride this list's own member.identity
+// gate. The backend ALSO strips the gated fields from the response — this filter
+// is the UX half (no checkbox, not default-visible, not sortable), the server
+// strip is the real boundary.
+const MEMBER_COLUMNS = ALL_MEMBER_COLUMNS.filter(c => !c.perm || canViewTab(c.perm) || canChangeTab(c.perm));
 
 const DEFAULT_VISIBLE_COLUMNS = MEMBER_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
 const COLUMN_PREFS_KEY = 'dh-visible-columns';
@@ -1648,11 +1654,14 @@ function attachStatusLegendPopover() {
     }
 }
 
-// Rebuild the results <thead> from the currently-visible columns. Appends the
-// search-only "Matched on" th (not a picker column) when searching.
+// Rebuild the results <thead> from the currently-visible columns; appends the
+// search-only "Matched on" th (not a picker column) when searching. Returns the
+// visible-column list so the caller can reuse it for the body (avoids a second
+// getVisibleColumns() pass per render); returns [] if the head row is missing.
 function renderTableHead(searching) {
     const row = document.getElementById('resultsHeadRow');
-    if (!row) return;
+    if (!row) return [];
+    const columns = getVisibleColumns();
     // Dispose the old status-legend popover — its icon element is about to be
     // replaced (Bootstrap keys instances by element and would otherwise leak).
     const oldIcon = document.getElementById('statusLegendIcon');
@@ -1661,7 +1670,7 @@ function renderTableHead(searching) {
         if (inst) inst.dispose();
     }
     row.innerHTML = '';
-    getVisibleColumns().forEach(col => {
+    columns.forEach(col => {
         const th = document.createElement('th');
         if (col.sortable) {
             th.style.cursor = 'pointer';
@@ -1704,13 +1713,14 @@ function renderTableHead(searching) {
 
     attachStatusLegendPopover();
     updateSortIndicators();
+    return columns;
 }
 
 // Build one <td> for a column. Truncating columns wrap the value in an
 // ellipsizing span (mirrors the .dh-match-line idiom) with the full value in a
 // title tooltip. textContent only — never innerHTML — keeps member data inert.
 function buildCell(col, member) {
-    if (col.buildTd) return col.buildTd(member);
+    if (col.buildTd) return col.buildTd(member, col);
     const td = document.createElement('td');
     const raw = col.get ? col.get(member) : '';
     const text = (raw == null) ? '' : String(raw);
@@ -1729,10 +1739,10 @@ function buildCell(col, member) {
 // Merged "Nick / First Name" cell: show the nickname in italics when present,
 // otherwise the plain legal first name. When the nickname is shown, the title
 // tooltip reveals the legal first name. createElement/textContent only.
-function buildNickFirstCell(member) {
+function buildNickFirstCell(member, col) {
     const td = document.createElement('td');
     const span = document.createElement('span');
-    span.className = 'dh-cell-truncate dh-w-name';
+    span.className = 'dh-cell-truncate ' + ((col && col.widthClass) || 'dh-w-name');
     const nick = ((member.nickname) || '').trim();
     const first = ((member.first_name) || '').trim();
     if (nick) {
@@ -1892,7 +1902,9 @@ function sortTable(field) {
         currentSort = field;
         currentOrder = 'asc';
     }
-    updateSortIndicators();
+    // No updateSortIndicators() here: loadMembers -> displayResults ->
+    // renderTableHead rebuilds the <thead> and refreshes the indicators, so an
+    // update now would only write into spans about to be discarded.
     loadMembers(1);
 }
 
@@ -2251,9 +2263,9 @@ function displayResults(members) {
 
     // Rebuild the header for the current visible-column set (also toggles the
     // search-only "Matched on" th and refreshes the sort indicators — so no
-    // second updateSortIndicators() call is needed here).
-    renderTableHead(searching);
-    const columns = getVisibleColumns();
+    // second updateSortIndicators() call is needed here) and reuse the
+    // visible-column list it returns for the row build below.
+    const columns = renderTableHead(searching);
 
     // Dispose avatar popovers on the outgoing rows before discarding them, so
     // Bootstrap's element-keyed instances don't leak across re-renders.

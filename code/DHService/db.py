@@ -501,7 +501,14 @@ def list_members(page: int = 1, per_page: int = 25,
                            m.status ->> 'stripe_product_id' AS stripe_product_id,
                            COUNT(*) OVER() AS total_count
                     FROM   member m
-                    ORDER BY {sort_col} {direction}
+                    -- `, m.id ASC` is a deterministic tiebreaker: many sort
+                    -- columns are low-cardinality (pronouns, membership_level)
+                    -- and _blank_to_null collapses every blank into one NULL
+                    -- bucket, so ties are common. Without it, tied rows come
+                    -- back in arbitrary per-execution order and pagination can
+                    -- duplicate/skip members across pages. Mirrors the search
+                    -- path's `, id ASC`.
+                    ORDER BY {sort_col} {direction}, m.id ASC
                     LIMIT  %s OFFSET %s
                 """,
                 (per_page, offset),
