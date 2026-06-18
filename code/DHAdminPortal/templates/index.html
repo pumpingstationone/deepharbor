@@ -36,6 +36,11 @@
                 <button type="button" class="dh-search-help-btn" id="searchHelpBtn" aria-label="Search tips">
                     <i class="fa-solid fa-circle-info"></i>
                 </button>
+                <!-- Toggle the member-list filter line (pills + level). Hidden by
+                     default; hiding it resets any active filters. -->
+                <button type="button" class="dh-search-help-btn" id="filterToggleBtn" onclick="toggleFilterBar()" aria-expanded="false" aria-label="Toggle filters" title="Filter members">
+                    <i class="fa-solid fa-filter"></i>
+                </button>
                 <div class="input-group">
                     <input type="search" class="form-control" id="memberSearch" placeholder="Search for a member..." autocapitalize="none" autocorrect="off" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')searchMembers()">
                     <button class="btn btn-primary cute-signin" type="button" id="searchButton" onclick="searchMembers()" aria-label="Search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
@@ -97,6 +102,23 @@
     <!-- Left panel: results table + pagination -->
     <div id="resultsPanel" class="flex-grow-1" style="min-width: 0;">
         <div id="resultsSection" style="display: none;">
+            <!-- Member-list filters: status pills (always) + level multi-select
+                 (only for member.status viewers). Pills built by buildStatusPills();
+                 the level checklist by initLevelFilter() from /api/member_levels.
+                 Filters compose with the search query and ride the URL. Hidden by
+                 default (no d-flex utility class — its !important would defeat the
+                 inline display toggle); flex/centering live in #memberFilterBar CSS. -->
+            <div id="memberFilterBar" class="mb-2 px-2 pt-2" style="display: none;">
+                <span class="dh-filter-label small">Filter:</span>
+                <div id="statusPills" class="d-flex gap-1 flex-wrap" role="group" aria-label="Filter by status"></div>
+                <div class="dropdown" id="levelFilter" style="display: none;">
+                    <button type="button" class="dh-status-pill dh-level-toggle" id="levelFilterBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Filter by membership level">
+                        <i class="fa-solid fa-person-arrow-up-from-line" aria-hidden="true"></i> <span id="levelFilterLabel">Level</span>
+                    </button>
+                    <div class="dropdown-menu dh-columns-menu p-2" id="levelFilterMenu" aria-labelledby="levelFilterBtn"></div>
+                </div>
+                <button type="button" class="btn btn-sm btn-link dh-clear-filters p-0" id="clearFiltersBtn" onclick="clearAllFilters()">Clear filters</button>
+            </div>
             <div class="table-responsive" style="overflow-x: auto;">
                 <table class="table table-striped table-hover mb-0">
                     <thead class="sticky-top bg-white">
@@ -1560,11 +1582,21 @@ function fallbackSortIfActiveColumnHidden() {
     return false;
 }
 
+// Small bold accent heading for the filter/column dropdown menus — mirrors the
+// search-tips popover's section-lead formatting.
+function buildMenuHeading(text) {
+    const h = document.createElement('div');
+    h.className = 'dh-menu-heading';
+    h.textContent = text;
+    return h;
+}
+
 // Populate the column-picker dropdown checklist + Reset action (once, on load).
 function initColumnPicker() {
     const menu = document.getElementById('columnPickerMenu');
     if (!menu) return;
     menu.innerHTML = '';
+    menu.appendChild(buildMenuHeading('Columns'));
     MEMBER_COLUMNS.forEach(col => {
         const wrap = document.createElement('div');
         wrap.className = 'form-check';
@@ -1779,6 +1811,12 @@ let currentOrder = 'desc';
 let perPage = parseInt(localStorage.getItem('dh-per-page'), 10) || 20;
 let selectedMemberId = null;
 
+// Member-list filter state (status pills + level multi-select). Both ride the URL
+// and compose with the search query. See buildStatusPills()/initLevelFilter().
+let activeStatusFilters = new Set();  // subset of STATUS_FILTER_VALUES
+let activeLevelFilters = new Set();   // exact membership_level strings
+let filterBarVisible = false;         // the filter line is toggled by the toolbar filter icon
+
 // Logging-notice banner: dismissible, remembered per-browser in localStorage
 
 function dismissLoggingNotice() {
@@ -1822,6 +1860,9 @@ function loadMembers(page) {
     params.set('sort', currentSort);
     params.set('order', currentOrder);
     if (currentQuery) params.set('query', currentQuery);
+    // Filters compose with the query (browse + search both filtered).
+    activeStatusFilters.forEach(s => params.append('status', s));
+    activeLevelFilters.forEach(l => params.append('level', l));
 
     // Show loading state on search button
     const searchBtn = document.getElementById('searchButton');
@@ -1958,6 +1999,176 @@ function buildStatusCell(rawStatus) {
     icon.setAttribute('aria-label', meta.label);
     td.appendChild(icon);
     return td;
+}
+
+// --- Member-list filters (status pills + level multi-select) --------------
+// Filters compose with the search query (both browse and search are filtered)
+// and ride the URL. Status pills are the 4 real states + an "Other/Unknown"
+// bucket (NULL/blank/inactive/non-standard) that mirrors the column's grey icon.
+// The status set is the server allowlist + the `other` sentinel — kept in lockstep
+// with DHService _MEMBERSHIP_STATUS_FILTER_VALUES.
+const STATUS_FILTER_VALUES = ['active', 'pending', 'suspended', 'banned', 'other'];
+
+// Icon/color/label for a filter key. `other` reuses the grey question-mark glyph
+// (STATUS_ICON_DEFAULT); the four canonical keys reuse STATUS_ICONS verbatim, so
+// pills and table icons can never drift.
+function statusFilterMeta(key) {
+    if (key === 'other') {
+        return { icon: STATUS_ICON_DEFAULT.icon, cls: STATUS_ICON_DEFAULT.cls, label: 'Other/Unknown' };
+    }
+    const m = STATUS_ICONS[key];
+    return { icon: m.icon, cls: m.cls, label: m.label };
+}
+
+// Build the status pill row once (XSS-safe: createElement/textContent, classes
+// from the allowlist only — never interpolate a raw status).
+function buildStatusPills() {
+    const host = document.getElementById('statusPills');
+    if (!host) return;
+    host.replaceChildren();
+    STATUS_FILTER_VALUES.forEach(key => {
+        const meta = statusFilterMeta(key);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'dh-status-pill';
+        btn.dataset.status = key;
+        btn.setAttribute('aria-pressed', 'false');
+        const icon = document.createElement('i');
+        icon.className = `fa-solid ${meta.icon} dh-status-icon ${meta.cls}`;
+        icon.setAttribute('aria-hidden', 'true');
+        btn.appendChild(icon);
+        const lbl = document.createElement('span');
+        lbl.textContent = meta.label;
+        btn.appendChild(lbl);
+        btn.addEventListener('click', () => toggleStatusFilter(key));
+        host.appendChild(btn);
+    });
+}
+
+function toggleStatusFilter(key) {
+    if (activeStatusFilters.has(key)) activeStatusFilters.delete(key);
+    else activeStatusFilters.add(key);
+    syncFilterBarUI();
+    loadMembers(1);  // reset to page 1 — the filtered set may not have the current page
+}
+
+// Level multi-select dropdown. membership_level is a member.status-gated field,
+// so the control is only built for admins who can see it (the server also drops
+// the level filter for callers lacking member.status). Populated once from
+// /api/member_levels with the distinct stored level values.
+let _levelFilterInited = false;
+function initLevelFilter() {
+    const wrap = document.getElementById('levelFilter');
+    if (!wrap || _levelFilterInited) return;
+    if (!(canViewTab('member.status') || canChangeTab('member.status'))) {
+        wrap.remove();
+        _levelFilterInited = true;
+        return;
+    }
+    _levelFilterInited = true;
+    wrap.style.display = '';
+    fetch('/api/member_levels')
+        .then(r => r.ok ? r.json() : Promise.reject(new Error('levels')))
+        .then(data => {
+            const levels = (data && data.levels) || [];
+            const menu = document.getElementById('levelFilterMenu');
+            if (!menu) return;
+            menu.replaceChildren();
+            menu.appendChild(buildMenuHeading('Membership level'));
+            if (!levels.length) {
+                const empty = document.createElement('div');
+                empty.className = 'small text-muted px-1';
+                empty.textContent = 'No levels available';
+                menu.appendChild(empty);
+                return;
+            }
+            levels.forEach((lvl, i) => {
+                const row = document.createElement('div');
+                row.className = 'form-check';
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.className = 'form-check-input';
+                input.id = 'levelchk-' + i;
+                input.value = lvl;
+                input.checked = activeLevelFilters.has(lvl);
+                input.addEventListener('change', () => toggleLevelFilter(lvl, input.checked));
+                const label = document.createElement('label');
+                label.className = 'form-check-label';
+                label.htmlFor = 'levelchk-' + i;
+                label.textContent = lvl;
+                row.appendChild(input);
+                row.appendChild(label);
+                menu.appendChild(row);
+            });
+            syncFilterBarUI();  // reflect any level filters restored from the URL
+        })
+        .catch(() => { /* leave the toggle with an empty menu; status pills still work */ });
+}
+
+function toggleLevelFilter(lvl, checked) {
+    if (checked) activeLevelFilters.add(lvl);
+    else activeLevelFilters.delete(lvl);
+    syncFilterBarUI();
+    loadMembers(1);
+}
+
+function clearAllFilters() {
+    if (!activeStatusFilters.size && !activeLevelFilters.size) return;  // nothing to clear
+    activeStatusFilters.clear();
+    activeLevelFilters.clear();
+    syncFilterBarUI();
+    loadMembers(1);
+}
+
+// Reflect active filters in pills, level checkboxes/label, and the Clear link.
+function syncFilterBarUI() {
+    document.querySelectorAll('#statusPills .dh-status-pill').forEach(btn => {
+        const on = activeStatusFilters.has(btn.dataset.status);
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('#levelFilterMenu input[type="checkbox"]').forEach(cb => {
+        cb.checked = activeLevelFilters.has(cb.value);
+    });
+    const lblEl = document.getElementById('levelFilterLabel');
+    if (lblEl) lblEl.textContent = activeLevelFilters.size ? `Level (${activeLevelFilters.size})` : 'Level';
+    const lvlBtn = document.getElementById('levelFilterBtn');
+    if (lvlBtn) lvlBtn.classList.toggle('active', activeLevelFilters.size > 0);
+}
+
+// Show/hide the whole filter line via the toolbar filter icon. Reflects state
+// onto the line (inline display, no !important to fight) and the toggle button.
+function applyFilterBarVisibility() {
+    const bar = document.getElementById('memberFilterBar');
+    if (bar) bar.style.display = filterBarVisible ? '' : 'none';
+    const btn = document.getElementById('filterToggleBtn');
+    if (btn) {
+        btn.classList.toggle('active', filterBarVisible);
+        btn.setAttribute('aria-expanded', filterBarVisible ? 'true' : 'false');
+    }
+}
+
+// Toggle the filter line. Hiding it RESETS any active filters (and refetches
+// only if something was actually set). Active filters force it open elsewhere
+// (restoreFromURL), so a refreshed/shared filtered view always shows its controls.
+function toggleFilterBar() {
+    if (filterBarVisible) {
+        filterBarVisible = false;
+        applyFilterBarVisibility();
+        const had = activeStatusFilters.size || activeLevelFilters.size;
+        activeStatusFilters.clear();
+        activeLevelFilters.clear();
+        syncFilterBarUI();
+        if (had) loadMembers(1);
+    } else {
+        filterBarVisible = true;
+        applyFilterBarVisibility();
+    }
+}
+
+function initMemberFilters() {
+    buildStatusPills();
+    initLevelFilter();
 }
 
 // --- Member avatars -------------------------------------------------------
@@ -2429,6 +2640,9 @@ function buildURL() {
     if (currentSort !== 'date_added' && !(currentQuery && currentSort === 'rank')) params.set('sort', currentSort);
     if (currentOrder !== 'desc') params.set('order', currentOrder);
     if (selectedMemberId) params.set('member', selectedMemberId);
+    // Capture the full search+filter state so a shared link reproduces it.
+    activeStatusFilters.forEach(s => params.append('status', s));
+    activeLevelFilters.forEach(l => params.append('level', l));
     return params.toString() ? `/?${params.toString()}` : '/';
 }
 
@@ -2453,6 +2667,19 @@ function restoreFromURL() {
     currentSort = params.get('sort') || (currentQuery ? 'rank' : 'id');
     currentOrder = params.get('order') || 'desc';
     const memberId = params.get('member');
+
+    // Rehydrate filters. Status is validated against the allowlist so a
+    // hand-edited URL can't inject a bogus pill; unknown levels simply match
+    // nothing server-side. syncFilterBarUI reflects them onto the controls
+    // (level checkboxes are re-synced when initLevelFilter's fetch resolves).
+    activeStatusFilters = new Set(
+        params.getAll('status').map(s => s.toLowerCase()).filter(s => STATUS_FILTER_VALUES.includes(s)));
+    activeLevelFilters = new Set(params.getAll('level'));
+    syncFilterBarUI();
+    // Active filters force the line open (refresh / shared link); otherwise it
+    // stays hidden behind the toolbar filter icon.
+    filterBarVisible = activeStatusFilters.size > 0 || activeLevelFilters.size > 0;
+    applyFilterBarVisibility();
 
     // A URL can carry a sort for a column the saved column prefs don't show
     // (e.g. a shared link, or columns were since hidden). Reconcile so we never
@@ -2480,6 +2707,11 @@ function restoreFromURL() {
         _restoringFromHistory = false;
     });
 }
+
+// Build the filter bar (status pills + level dropdown) BEFORE restoreFromURL so
+// the controls exist when restore rehydrates filter state from the URL. Listeners
+// fire in registration order.
+document.addEventListener('DOMContentLoaded', initMemberFilters);
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', restoreFromURL);

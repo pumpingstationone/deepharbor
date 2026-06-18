@@ -94,19 +94,20 @@
                     <li class="nav-item dropdown">
                         <a class="nav-link" href="#" id="themeDropdown" role="button"
                            data-bs-toggle="dropdown" aria-expanded="false" title="Switch theme">
-                            <i class="fa-solid fa-palette"></i>
+                            <i class="fa-solid fa-paintbrush"></i>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="themeDropdown">
-                            <li><a class="dropdown-item" href="#" onclick="setTheme('bubblegum'); return false;">
-                                <i class="fa-solid fa-candy-cane me-2"></i>Bubblegum</a></li>
-                            <li><a class="dropdown-item" href="#" onclick="setTheme('light'); return false;">
-                                <i class="fa-solid fa-sun me-2"></i>Light</a></li>
-                            <li><a class="dropdown-item" href="#" onclick="setTheme('dark'); return false;">
-                                <i class="fa-solid fa-moon me-2"></i>Dark</a></li>
-                            <li><a class="dropdown-item" href="#" onclick="setTheme('midnight'); return false;">
-                                <i class="fa-solid fa-star me-2"></i>Midnight</a></li>
-                            <li><a class="dropdown-item" href="#" onclick="setTheme('hacker'); return false;">
-                                <i class="fa-solid fa-terminal me-2"></i>Hacker</a></li>
+                            <li class="dh-theme-heading">Theme</li>
+                            <li><a class="dropdown-item dh-theme-item" href="#" data-theme-value="bubblegum" onclick="setTheme('bubblegum'); return false;">
+                                <i class="fa-solid fa-heart me-2"></i>Bubblegum<i class="fa-solid fa-check dh-theme-check"></i></a></li>
+                            <li><a class="dropdown-item dh-theme-item" href="#" data-theme-value="light" onclick="setTheme('light'); return false;">
+                                <i class="fa-solid fa-lightbulb me-2"></i>Lights On<i class="fa-solid fa-check dh-theme-check"></i></a></li>
+                            <li><a class="dropdown-item dh-theme-item" href="#" data-theme-value="dark" onclick="setTheme('dark'); return false;">
+                                <i class="fa-solid fa-fire me-2"></i>Kitchen 17<i class="fa-solid fa-check dh-theme-check"></i></a></li>
+                            <li><a class="dropdown-item dh-theme-item" href="#" data-theme-value="midnight" onclick="setTheme('midnight'); return false;">
+                                <i class="fa-solid fa-star me-2"></i>Locke's Dream<i class="fa-solid fa-check dh-theme-check"></i></a></li>
+                            <li><a class="dropdown-item dh-theme-item" href="#" data-theme-value="hacker" onclick="setTheme('hacker'); return false;">
+                                <i class="fa-solid fa-terminal me-2"></i>Hacker<i class="fa-solid fa-check dh-theme-check"></i></a></li>
                         </ul>
                     </li>
                 </ul>
@@ -148,11 +149,21 @@
 
     <!-- Theme switcher -->
     <script>
+    // Mark the dropdown item for the live theme (data-theme on <html>, set by the
+    // cookie-driven FOUC script) so it's clear which theme is active.
+    function markActiveTheme() {
+        var cur = document.documentElement.getAttribute('data-theme');
+        document.querySelectorAll('.dh-theme-item').forEach(function (el) {
+            el.classList.toggle('dh-theme-active', el.getAttribute('data-theme-value') === cur);
+        });
+    }
     function setTheme(theme) {
         if (theme !== 'bubblegum' && theme !== 'light' && theme !== 'dark' && theme !== 'midnight' && theme !== 'hacker') theme = 'bubblegum';
         document.documentElement.setAttribute('data-theme', theme);
         document.cookie = 'dh_admin_theme=' + theme + ';path=/;max-age=31536000;SameSite=Lax';
+        markActiveTheme();
     }
+    document.addEventListener('DOMContentLoaded', markActiveTheme);
     </script>
 
     <!-- Validation toast (shared across all forms) -->

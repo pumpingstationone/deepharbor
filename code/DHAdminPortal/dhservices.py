@@ -48,15 +48,30 @@ def search_members(access_token: str, query: str):
     response.raise_for_status()
     return response.json()
 
-# List members with pagination — supports optional search query
+# List members with pagination — supports optional search query and optional
+# status/level filters (both multi-valued; lists become repeated query params).
 def list_members(access_token: str, query: str = None, page: int = 1,
-                 per_page: int = 25, sort: str = "date_added", order: str = "desc"):
+                 per_page: int = 25, sort: str = "date_added", order: str = "desc",
+                 statuses=None, levels=None):
     url = f"{DH_API_BASE_URL}/v1/member/list/"
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {"page": page, "per_page": per_page, "sort": sort, "order": order}
     if query:
         params["query"] = query
+    # Filters compose with search, so forward them regardless of query.
+    if statuses:
+        params["status"] = statuses
+    if levels:
+        params["level"] = levels
     response = requests.get(url, headers=headers, params=params, timeout=10)
+    response.raise_for_status()
+    return response.json()
+
+# Distinct stored membership_level values — drives the member-list filter dropdown.
+def get_distinct_membership_levels(access_token: str):
+    url = f"{DH_API_BASE_URL}/v1/member/membership_levels/distinct/"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.get(url, headers=headers, timeout=10)
     response.raise_for_status()
     return response.json()
 

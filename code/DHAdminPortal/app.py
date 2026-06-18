@@ -732,14 +732,29 @@ def api_members():
     sort = request.args.get("sort", "date_added")
     order = request.args.get("order", "desc")
 
-    # Callers without member.status may neither receive nor SORT BY the gated
-    # status fields — a hand-crafted ?sort=member_since would order the roster by
-    # a field whose values we strip below, leaking its ordering. Bar those sort
-    # keys here (revert to the default sort) before the query runs.
+    # Status/level filters (both multi-valued), keyed by the member-row field
+    # each one targets. Keying by the backing field lets the gating below reuse
+    # _STATUS_GATED_LIST_FIELDS — the same registry that strips row fields and
+    # bars sort keys — instead of a per-filter special case. membership_status
+    # is NOT gated (it drives the member.identity-visible Status icon).
+    filters = {
+        "membership_status": request.args.getlist("status") or None,
+        "membership_level": request.args.getlist("level") or None,
+    }
+
+    # Callers without member.status may neither receive, SORT BY, nor FILTER BY
+    # the gated status fields — a hand-crafted ?sort=member_since would order the
+    # roster by a field whose values we strip below, and a ?level= filter would
+    # leak which members carry a (stripped) level. Bar those sort keys and drop
+    # those filters here, driven off the same registry so a future gated field
+    # can't forget to opt in.
     status_gated = not has_view_permission("member.status")
-    if status_gated and sort in _STATUS_GATED_SORT_KEYS:
-        sort = "date_added"
-        order = "desc"
+    if status_gated:
+        if sort in _STATUS_GATED_SORT_KEYS:
+            sort = "date_added"
+            order = "desc"
+        for field in _STATUS_GATED_LIST_FIELDS:
+            filters.pop(field, None)
 
     try:
         access_token = dhservices.get_access_token(
@@ -747,7 +762,9 @@ def api_members():
             dhservices.DH_CLIENT_SECRET
         )
 
-        result = dhservices.list_members(access_token, query, page, per_page, sort, order)
+        result = dhservices.list_members(access_token, query, page, per_page, sort, order,
+                                         statuses=filters.get("membership_status"),
+                                         levels=filters.get("membership_level"))
 
         # Attach a resolved avatar ({source, url} or None) to each member row.
         # The same row object feeds both the results list and the detail header.
@@ -791,6 +808,21 @@ def api_members():
         return result
     except Exception as e:
         logger.error(f"Error listing members: {e}")
+        return {"error": str(e)}, 500
+
+@app.route("/api/member_levels")
+@requires_view_permission("member.status")
+def api_member_levels():
+    """Distinct stored membership_level values for the member-list filter dropdown.
+    Gated behind member.status because membership_level is a status-gated field."""
+    try:
+        access_token = dhservices.get_access_token(
+            dhservices.DH_CLIENT_ID,
+            dhservices.DH_CLIENT_SECRET
+        )
+        return {"levels": dhservices.get_distinct_membership_levels(access_token)}
+    except Exception as e:
+        logger.error(f"Error fetching membership levels: {e}")
         return {"error": str(e)}, 500
 
 @app.route("/api/search")

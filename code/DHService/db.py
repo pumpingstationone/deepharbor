@@ -451,6 +451,55 @@ def _validate_sort(sort: str, order: str, allowlist: dict, default_sort: str) ->
     direction = "ASC NULLS LAST" if order.lower() == "asc" else "DESC NULLS LAST"
     return col, direction
 
+# Allowlist of real membership_status values that get an exact-match filter pill.
+# `inactive` is intentionally absent — it is not a real state; it falls into the
+# `other` bucket (below) along with blank/null/non-standard values. This frozenset
+# is the SQL-injection boundary for the status filter, mirroring the sort allowlists.
+_MEMBERSHIP_STATUS_FILTER_VALUES = frozenset({"active", "pending", "suspended", "banned"})
+
+# Sentinel (not a stored value) for the "Other/Unknown" status pill: matches NULL or
+# any normalized status not in the canonical set above.
+_MEMBERSHIP_STATUS_OTHER = "other"
+
+
+def _build_member_filter(statuses, levels, *, status_col: str, level_col: str) -> tuple[list[str], list]:
+    """Build parameterized WHERE fragments for the member-list status/level filters.
+
+    Returns (clauses, params): clauses join with AND, params extend the execute
+    tuple in order. `status_col`/`level_col` are caller-supplied SQL expressions
+    (e.g. "m.status ->> 'membership_status'" on the browse path, or the bare
+    "membership_status" CTE alias on the search path) — they are NOT user input.
+    User values only ever reach SQL as %s parameters, never interpolated.
+    """
+    clauses: list[str] = []
+    params: list = []
+
+    # --- Status (canonical values + `other` sentinel) ---
+    if statuses:
+        normalized = {(s or "").strip().lower() for s in statuses}
+        known = sorted(normalized & _MEMBERSHIP_STATUS_FILTER_VALUES)
+        want_other = _MEMBERSHIP_STATUS_OTHER in normalized
+        subs: list[str] = []
+        if known:
+            subs.append(f"lower(btrim({status_col})) = ANY(%s)")
+            params.append(known)
+        if want_other:
+            # blank / NULL / `inactive` / anything non-canonical → the column's grey bucket.
+            subs.append(f"({status_col} IS NULL OR lower(btrim({status_col})) <> ALL(%s))")
+            params.append(sorted(_MEMBERSHIP_STATUS_FILTER_VALUES))
+        if subs:
+            clauses.append("(" + " OR ".join(subs) + ")")
+
+    # --- Membership level (multi-select, exact match) ---
+    if levels:
+        cleaned = sorted({lvl for lvl in levels if lvl})
+        if cleaned:
+            clauses.append(f"{level_col} = ANY(%s)")
+            params.append(cleaned)
+
+    return clauses, params
+
+
 def _is_searchable_query(query: str) -> bool:
     """Reject pathological search queries (under 2 chars, or no word character).
 
@@ -477,10 +526,19 @@ def _paginated_response(members: list[dict], total: int, page: int, per_page: in
     }
 
 def list_members(page: int = 1, per_page: int = 25,
-                 sort: str = "date_added", order: str = "desc") -> dict:
-    logger.debug(f"Listing members page={page} per_page={per_page} sort={sort} order={order}")
+                 sort: str = "date_added", order: str = "desc",
+                 statuses=None, levels=None) -> dict:
+    logger.debug(f"Listing members page={page} per_page={per_page} sort={sort} order={order} "
+                 f"statuses={statuses} levels={levels}")
     sort_col, direction = _validate_sort(sort, order, _MEMBER_SORT_COLUMNS, "date_added")
     offset = (page - 1) * per_page
+
+    filter_clauses, filter_params = _build_member_filter(
+        statuses, levels,
+        status_col="m.status ->> 'membership_status'",
+        level_col="m.status ->> 'membership_level'",
+    )
+    where_sql = ("WHERE " + " AND ".join(filter_clauses)) if filter_clauses else ""
 
     members = []
     total = 0
@@ -501,6 +559,7 @@ def list_members(page: int = 1, per_page: int = 25,
                            m.status ->> 'stripe_product_id' AS stripe_product_id,
                            COUNT(*) OVER() AS total_count
                     FROM   member m
+                    {where_sql}
                     -- `, m.id ASC` is a deterministic tiebreaker: many sort
                     -- columns are low-cardinality (pronouns, membership_level)
                     -- and _blank_to_null collapses every blank into one NULL
@@ -511,7 +570,7 @@ def list_members(page: int = 1, per_page: int = 25,
                     ORDER BY {sort_col} {direction}, m.id ASC
                     LIMIT  %s OFFSET %s
                 """,
-                (per_page, offset),
+                (*filter_params, per_page, offset),
             )
             results = cur.fetchall()
 
@@ -534,23 +593,37 @@ def list_members(page: int = 1, per_page: int = 25,
 
             # A past-the-end page returns no rows, so the COUNT(*) OVER() total
             # never comes back — fetch it directly so the response still reports
-            # the real member count instead of 0.
+            # the real (filtered) member count instead of 0. Reuse the same
+            # WHERE/params so a filtered high page reports the filtered total.
             if not results:
-                cur.execute("SELECT COUNT(*) FROM member")
+                cur.execute(f"SELECT COUNT(*) FROM member m {where_sql}", filter_params)
                 total = cur.fetchone()[0]
 
     logger.debug(f"Listed {len(members)} members (total={total})")
     return _paginated_response(members, total, page, per_page)
 
 def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
-                             sort: str = "rank", order: str = "desc") -> dict:
-    logger.debug(f"Paginated search query_len={len(query or '')} page={page} per_page={per_page} sort={sort} order={order}")
+                             sort: str = "rank", order: str = "desc",
+                             statuses=None, levels=None) -> dict:
+    logger.debug(f"Paginated search query_len={len(query or '')} page={page} per_page={per_page} "
+                 f"sort={sort} order={order} statuses={statuses} levels={levels}")
     # Guard pathological queries (short/punctuation-only) so they return an empty
     # page instead of dumping the whole roster.
     if not _is_searchable_query(query):
         return _paginated_response([], 0, page, per_page)
     sort_col, direction = _validate_sort(sort, order, _SEARCH_SORT_COLUMNS, "rank")
     offset = (page - 1) * per_page
+
+    # Compose the status/level filter on top of the ranked search results. The
+    # predicate lands in a `filtered` CTE between `base` and `tot`/`page`, so the
+    # ranking SRF is untouched and totals/pagination stay filter-aware. Columns
+    # reference the bare `base` aliases (membership_status/membership_level).
+    filter_clauses, filter_params = _build_member_filter(
+        statuses, levels,
+        status_col="membership_status",
+        level_col="membership_level",
+    )
+    where_sql = ("WHERE " + " AND ".join(filter_clauses)) if filter_clauses else ""
 
     members = []
     total = 0
@@ -583,11 +656,15 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
                                rank
                         FROM   search_members_by_identity_and_access(%s)
                     ),
+                    filtered AS (
+                        SELECT * FROM base
+                        {where_sql}
+                    ),
                     tot AS (
-                        SELECT COUNT(*) AS total_count FROM base
+                        SELECT COUNT(*) AS total_count FROM filtered
                     ),
                     page AS (
-                        SELECT * FROM base
+                        SELECT * FROM filtered
                         ORDER BY {sort_col} {direction}, id ASC
                         LIMIT  %s OFFSET %s
                     )
@@ -605,7 +682,10 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
                     FROM   tot LEFT JOIN page ON true
                     ORDER BY {sort_col} {direction}, page.id ASC
                 """,
-                (query, per_page, offset, query),
+                # Param order tracks position in the SQL text: base(%s=query),
+                # then the `filtered` CTE's WHERE params, then page LIMIT/OFFSET,
+                # then the match-attribution subquery(%s=query).
+                (query, *filter_params, per_page, offset, query),
             )
             results = cur.fetchall()
 
@@ -636,6 +716,24 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
 
     logger.debug(f"Paginated search found {len(members)} members (total={total})")
     return _paginated_response(members, total, page, per_page)
+
+def get_distinct_membership_levels() -> list[str]:
+    """Return the distinct, non-blank membership_level values actually stored on
+    members, sorted. Drives the member-list level filter dropdown. Uses the real
+    stored values (not membership_types_lookup) so every option returns rows even
+    for legacy/typo levels not present in the lookup table.
+    """
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT DISTINCT status ->> 'membership_level' AS level
+                   FROM   member
+                   WHERE  NULLIF(btrim(status ->> 'membership_level'), '') IS NOT NULL
+                   ORDER  BY level"""
+            )
+            levels = [row[0] for row in cur.fetchall()]
+    logger.debug(f"Found {len(levels)} distinct membership levels")
+    return levels
 
 def add_update_identity(identity_dict, member_id=None):
     # When member_id is provided by the caller (standard update path), update
