@@ -543,6 +543,17 @@ def requires_change_permission(tab_name):
     return decorator
 
 
+def has_view_permission(tab_name):
+    """Inline equivalent of the requires_view_permission decorator's check
+    (view OR change OR 'all'). Used to gate individual response fields within an
+    endpoint that's already permitted at a coarser level."""
+    permissions = session.get("user_permissions", {})
+    view_perms = permissions.get("view", [])
+    change_perms = permissions.get("change", [])
+    return ("all" in view_perms or tab_name in view_perms
+            or "all" in change_perms or tab_name in change_perms)
+
+
 def requires_view_permission(tab_name):
     """Check that the logged-in user has 'view' or 'change' permission for the given tab."""
     def decorator(f):
@@ -727,6 +738,18 @@ def api_members():
         if isinstance(members, list):
             for member in members:
                 member["avatar"] = resolve_avatar(member)
+
+            # Member Level / Member Since / Stripe Sub ID come from the `status`
+            # JSONB and are gated behind member.status view. This list endpoint
+            # only requires member.identity, so strip those fields for callers
+            # who lack member.status — they must not receive billing/status
+            # detail. (membership_status drives the long-standing Status icon and
+            # stays under member.identity.) The frontend also hides these
+            # columns; this strip is the authoritative boundary.
+            if not has_view_permission("member.status"):
+                for member in members:
+                    for k in ("membership_level", "member_since", "stripe_subscription_id"):
+                        member.pop(k, None)
 
         # Log search activity only when an explicit search query is present
         if query:

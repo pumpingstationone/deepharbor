@@ -1469,7 +1469,10 @@ function activateFirstVisibleTab(permissions) {
 //   get(m)         text accessor for plain columns
 //   truncate       wrap the value in an ellipsizing span + title tooltip
 //   widthClass     CSS max-width class for the truncating span
-const MEMBER_COLUMNS = [
+//   perm           member.<tab> view permission the column's data requires
+//                  (omitted = rides this list's member.identity gate). Columns
+//                  the user can't view are filtered out below (MEMBER_COLUMNS).
+const ALL_MEMBER_COLUMNS = [
     { key: 'status',        label: 'Status',        defaultVisible: true,  locked: true,  sortable: true,  sortKey: 'membership_status',          buildTd: m => buildStatusCell(m.membership_status) },
     { key: 'avatar',        label: 'Avatar',        defaultVisible: true,  locked: false, sortable: false,                                        buildTd: m => buildAvatarCell(m) },
     { key: 'id',            label: 'ID',            defaultVisible: true,  locked: false, sortable: true,  sortKey: 'id',                          get: m => m.member_id },
@@ -1482,10 +1485,17 @@ const MEMBER_COLUMNS = [
     { key: 'pronouns',      label: 'Pronouns',      defaultVisible: true,  locked: false, sortable: true,  sortKey: 'pronouns',                    get: m => m.pronouns,   truncate: true, widthClass: 'dh-w-pronouns' },
     { key: 'ad_username',   label: 'AD Username',   defaultVisible: false, locked: false, sortable: true,  sortKey: 'active_directory_username',    get: m => m.active_directory_username, truncate: true, widthClass: 'dh-w-username' },
     { key: 'email',         label: 'Email',         defaultVisible: false, locked: false, sortable: true,  sortKey: 'primary_email_address',        get: m => m.primary_email_address,     truncate: true, widthClass: 'dh-w-email' },
-    { key: 'member_level',  label: 'Member Level',  defaultVisible: false, locked: false, sortable: true,  sortKey: 'membership_level',             get: m => m.membership_level,          truncate: true, widthClass: 'dh-w-level' },
-    { key: 'member_since',  label: 'Member Since',  defaultVisible: false, locked: false, sortable: true,  sortKey: 'member_since',                 get: m => memberSinceDisplay(m.member_since), truncate: true, widthClass: 'dh-w-date' },
-    { key: 'stripe_sub_id', label: 'Stripe Sub ID', defaultVisible: false, locked: false, sortable: true,  sortKey: 'stripe_subscription_id',       get: m => m.stripe_subscription_id,    truncate: true, widthClass: 'dh-w-subid' },
+    { key: 'member_level',  label: 'Member Level',  defaultVisible: false, locked: false, sortable: true,  sortKey: 'membership_level',             get: m => m.membership_level,          truncate: true, widthClass: 'dh-w-level',  perm: 'member.status' },
+    { key: 'member_since',  label: 'Member Since',  defaultVisible: false, locked: false, sortable: true,  sortKey: 'member_since',                 get: m => memberSinceDisplay(m.member_since), truncate: true, widthClass: 'dh-w-date', perm: 'member.status' },
+    { key: 'stripe_sub_id', label: 'Stripe Sub ID', defaultVisible: false, locked: false, sortable: true,  sortKey: 'stripe_subscription_id',       get: m => m.stripe_subscription_id,    truncate: true, widthClass: 'dh-w-subid', perm: 'member.status' },
 ];
+
+// The user's available columns: drop any column whose `perm` (the member.<tab>
+// view permission its data requires) the logged-in admin lacks. Columns without
+// a `perm` ride this list's own member.identity gate. The backend ALSO strips
+// the gated fields from the response — this filter is the UX half (no checkbox,
+// not default-visible, not sortable), the server strip is the real boundary.
+const MEMBER_COLUMNS = ALL_MEMBER_COLUMNS.filter(c => !c.perm || canViewTab(c.perm));
 
 const DEFAULT_VISIBLE_COLUMNS = MEMBER_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
 const COLUMN_PREFS_KEY = 'dh-visible-columns';
