@@ -732,24 +732,29 @@ def api_members():
     sort = request.args.get("sort", "date_added")
     order = request.args.get("order", "desc")
 
-    # Status/level filters (both multi-valued). membership_status drives the
-    # member.identity-visible Status icon, so its filter is always allowed.
-    statuses = request.args.getlist("status") or None
-    levels = request.args.getlist("level") or None
+    # Status/level filters (both multi-valued), keyed by the member-row field
+    # each one targets. Keying by the backing field lets the gating below reuse
+    # _STATUS_GATED_LIST_FIELDS — the same registry that strips row fields and
+    # bars sort keys — instead of a per-filter special case. membership_status
+    # is NOT gated (it drives the member.identity-visible Status icon).
+    filters = {
+        "membership_status": request.args.getlist("status") or None,
+        "membership_level": request.args.getlist("level") or None,
+    }
 
-    # Callers without member.status may neither receive nor SORT BY the gated
-    # status fields — a hand-crafted ?sort=member_since would order the roster by
-    # a field whose values we strip below, leaking its ordering. Bar those sort
-    # keys here (revert to the default sort) before the query runs.
+    # Callers without member.status may neither receive, SORT BY, nor FILTER BY
+    # the gated status fields — a hand-crafted ?sort=member_since would order the
+    # roster by a field whose values we strip below, and a ?level= filter would
+    # leak which members carry a (stripped) level. Bar those sort keys and drop
+    # those filters here, driven off the same registry so a future gated field
+    # can't forget to opt in.
     status_gated = not has_view_permission("member.status")
-    if status_gated and sort in _STATUS_GATED_SORT_KEYS:
-        sort = "date_added"
-        order = "desc"
-    # membership_level is one of the gated fields — drop the level filter for
-    # callers lacking member.status so a filtered query can't leak which members
-    # carry which (stripped) level.
     if status_gated:
-        levels = None
+        if sort in _STATUS_GATED_SORT_KEYS:
+            sort = "date_added"
+            order = "desc"
+        for field in _STATUS_GATED_LIST_FIELDS:
+            filters.pop(field, None)
 
     try:
         access_token = dhservices.get_access_token(
@@ -758,7 +763,8 @@ def api_members():
         )
 
         result = dhservices.list_members(access_token, query, page, per_page, sort, order,
-                                         statuses=statuses, levels=levels)
+                                         statuses=filters.get("membership_status"),
+                                         levels=filters.get("membership_level"))
 
         # Attach a resolved avatar ({source, url} or None) to each member row.
         # The same row object feeds both the results list and the detail header.
