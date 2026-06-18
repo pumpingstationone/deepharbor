@@ -458,6 +458,7 @@ def list_members(page: int = 1, per_page: int = 25,
                 f"""SELECT m.id,
                            m.identity ->> 'first_name' AS first_name,
                            m.identity ->> 'last_name' AS last_name,
+                           m.identity ->> 'nickname' AS nickname,
                            m.identity -> 'emails' -> 0 ->> 'email_address' AS primary_email_address,
                            m.status ->> 'membership_status' AS membership_status,
                            m.status ->> 'stripe_product_id' AS stripe_product_id,
@@ -471,14 +472,15 @@ def list_members(page: int = 1, per_page: int = 25,
             results = cur.fetchall()
 
             for result in results:
-                total = result[6]
+                total = result[7]
                 members.append({
                     "member_id": result[0],
                     "first_name": result[1],
                     "last_name": result[2],
-                    "primary_email_address": result[3],
-                    "membership_status": result[4],
-                    "stripe_product_id": result[5],
+                    "nickname": result[3],
+                    "primary_email_address": result[4],
+                    "membership_status": result[5],
+                    "stripe_product_id": result[6],
                 })
 
             # A past-the-end page returns no rows, so the COUNT(*) OVER() total
@@ -520,6 +522,7 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
                                access,
                                identity ->> 'first_name' AS first_name,
                                identity ->> 'last_name' AS last_name,
+                               identity ->> 'nickname' AS nickname,
                                identity -> 'emails' -> 0 ->> 'email_address' AS primary_email_address,
                                status ->> 'membership_status' AS membership_status,
                                status ->> 'stripe_product_id' AS stripe_product_id,
@@ -534,7 +537,7 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
                         ORDER BY {sort_col} {direction}, id ASC
                         LIMIT  %s OFFSET %s
                     )
-                    SELECT page.id, page.first_name, page.last_name,
+                    SELECT page.id, page.first_name, page.last_name, page.nickname,
                            page.primary_email_address, page.membership_status,
                            page.stripe_product_id, tot.total_count,
                            ( SELECT jsonb_agg(
@@ -550,7 +553,7 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
             results = cur.fetchall()
 
     for result in results:
-        total = result[6]
+        total = result[7]
         # Skip the empty-page sentinel (NULL id) emitted by the tot LEFT JOIN
         # when the requested page is past the end — its only job is to carry total.
         if result[0] is None:
@@ -559,13 +562,14 @@ def search_members_paginated(query: str, page: int = 1, per_page: int = 25,
             "member_id": result[0],
             "first_name": result[1],
             "last_name": result[2],
-            "primary_email_address": result[3],
-            "membership_status": result[4],
-            "stripe_product_id": result[5],
+            "nickname": result[3],
+            "primary_email_address": result[4],
+            "membership_status": result[5],
+            "stripe_product_id": result[6],
             # Per-field attribution for the admin "Matched on" column: list of
             # {field, value} ordered strongest-first, or None when nothing
             # attributable (e.g. an access-blob-only digit match).
-            "matches": result[7],
+            "matches": result[8],
         })
 
     logger.debug(f"Paginated search found {len(members)} members (total={total})")

@@ -1649,13 +1649,18 @@ function buildStatusCell(rawStatus) {
 // --- Member avatars -------------------------------------------------------
 // Avatar provider seam mirror of the backend resolve_avatar(): the server
 // attaches member.avatar = {source, url} (sizeless URL, d=404) or null. The
-// frontend appends `&s=` (2x density) and falls back to a theme-primary
-// initials square when there is no registered photo. XSS-safe throughout:
-// createElement + textContent only; the badge mark comes from an allowlist.
+// thumbnail appends `&s=` (2x density) and falls back to a theme-primary
+// initials square when there is no registered photo. Hovering a real photo
+// opens a themed Bootstrap popover with a larger image (list 256 / header 512),
+// the member's name, and the source. XSS-safe throughout: createElement +
+// textContent only; the source label comes from an allowlist.
 
-// Source -> human label allowlist. Badge text is derived from this, never from
-// the raw server value.
+// Source -> human label allowlist. The card label is derived from this, never
+// from the raw server value.
 const AVATAR_SOURCE_LABELS = { gravatar: 'Gravatar' };
+// Source -> largest size the provider serves, used for the header click-through
+// (opens the full-size image in a new tab). Gravatar caps at 2048; Discord 4096.
+const AVATAR_SOURCE_MAX = { gravatar: 2048 };
 
 // Up-to-2-char initials; falls back to the member ID, then "?".
 function avatarInitials(member) {
@@ -1671,7 +1676,7 @@ function avatarInitials(member) {
 }
 
 // Style an element (fresh span, or a wrapper being converted after img error)
-// as the rounded-square initials placeholder.
+// as the rounded-square initials placeholder. Drops any anchor/img children.
 function styleAsInitials(el, member, cssPx) {
     el.className = 'dh-avatar dh-avatar-initials';
     el.style.width = cssPx + 'px';
@@ -1686,8 +1691,118 @@ function buildAvatarInitials(member, cssPx) {
     return span;
 }
 
+// Dispose the hover-preview popover attached to an avatar wrap, if any. Bootstrap
+// keys instances by element in a strong Map, so undisposed instances leak when
+// their row/header is replaced.
+function disposeAvatarPopover(wrapEl) {
+    if (wrapEl && window.bootstrap && bootstrap.Popover) {
+        const inst = bootstrap.Popover.getInstance(wrapEl);
+        if (inst) inst.dispose();
+    }
+}
+
+// Dispose every avatar popover within a subtree (used before re-rendering rows).
+function disposeAvatarPopoversIn(rootEl) {
+    if (rootEl) rootEl.querySelectorAll('.dh-avatar-wrap').forEach(disposeAvatarPopover);
+}
+
+// Build the popover card content (detached DOM): enlarged image, name line(s),
+// optional Discord handle (future seam), source. The big image is created
+// WITHOUT a src — attachAvatarPreview sets it lazily on first hover.
+function buildAvatarPreviewContent(member, sourceLabel, previewPx) {
+    const root = document.createElement('div');
+    root.className = 'dh-avatar-preview';
+
+    const img = document.createElement('img');
+    img.className = 'dh-avatar-preview-img';
+    img.width = previewPx;
+    img.height = previewPx;
+    img.alt = '';  // decorative; the name is spelled out below
+    root.appendChild(img);
+
+    const nickname = ((member.nickname) || '').trim();
+    const first = ((member.first_name) || '').trim();
+    const last = ((member.last_name) || '').trim();
+    const fullName = `${first} ${last}`.trim();
+
+    // Single name line: *nickname* lastname when a nickname exists, else First
+    // Last. Never both — the nickname form replaces the plain name, not adds to it.
+    const nameLine = document.createElement('div');
+    nameLine.className = 'dh-avatar-preview-name';
+    if (nickname) {
+        const em = document.createElement('em');
+        em.textContent = nickname;
+        nameLine.appendChild(em);
+        if (last) nameLine.appendChild(document.createTextNode(' ' + last));
+    } else {
+        nameLine.textContent = fullName;
+    }
+    if (nameLine.childNodes.length) root.appendChild(nameLine);
+
+    // Discord handle — future seam: only rendered when present (absent today).
+    const discord = ((member.discord_handle) || '').trim();
+    if (discord) {
+        const dh = document.createElement('div');
+        dh.className = 'dh-avatar-preview-discord';
+        dh.textContent = discord;
+        root.appendChild(dh);
+    }
+
+    if (sourceLabel) {
+        const src = document.createElement('div');
+        src.className = 'dh-avatar-preview-source';
+        src.textContent = sourceLabel;
+        root.appendChild(src);
+    }
+    return root;
+}
+
+// Attach a hover-preview Bootstrap popover to a real-photo avatar wrap. Called
+// only after the thumbnail successfully loads (so 404->initials never previews)
+// and only on fine pointers. The full-size image is pre-warmed on hover intent
+// so its download overlaps the show-delay and the card appears already filled.
+function attachAvatarPreview(wrapEl, member, sourceLabel, previewPx) {
+    if (!window.bootstrap || !bootstrap.Popover) return;
+    if (bootstrap.Popover.getInstance(wrapEl)) return;  // already attached
+
+    const content = buildAvatarPreviewContent(member, sourceLabel, previewPx);
+    const bigImg = content.querySelector('img');
+    let requested = false;
+
+    new bootstrap.Popover(wrapEl, {
+        html: true,
+        trigger: 'hover focus',
+        placement: 'auto',
+        container: 'body',
+        customClass: 'dh-avatar-preview-popover',
+        delay: { show: 300, hide: 100 },
+        content: content,
+    });
+
+    // Pre-warm the larger image so its download overlaps the 300ms show-delay and
+    // the card is (almost always) already filled by the time it appears. Idempotent
+    // — the fetch fires at most once, then the browser caches it. Gated behind a
+    // short hover-intent timer so a fast sweep down the list doesn't fetch full-size
+    // images for rows the pointer only brushes past.
+    let warmTimer = null;
+    function warm() {
+        if (!requested && bigImg) {
+            requested = true;
+            bigImg.src = `${member.avatar.url}&s=${previewPx}`;
+        }
+    }
+    wrapEl.addEventListener('mouseenter', function() { warmTimer = setTimeout(warm, 150); });
+    wrapEl.addEventListener('mouseleave', function() { clearTimeout(warmTimer); });
+    wrapEl.addEventListener('focus', warm, true);      // keyboard path (catches the header link)
+    wrapEl.addEventListener('show.bs.popover', warm);  // backstop if show beats the timer
+}
+
 // Build a member avatar node sized to `cssPx`, reused by the list and header.
-function buildAvatar(member, cssPx) {
+// opts.previewPx  -> attach the hover-preview popover (fetched at that size)
+// opts.linkFullSize -> wrap the photo in an <a> to the largest remote size
+//                      (header click-through, opens in a new tab)
+function buildAvatar(member, cssPx, opts) {
+    opts = opts || {};
     const avatar = member && member.avatar;
     if (!avatar || !avatar.url) {
         return buildAvatarInitials(member, cssPx);
@@ -1707,27 +1822,39 @@ function buildAvatar(member, cssPx) {
     img.height = cssPx;
     img.loading = 'lazy';
     img.alt = fullName || 'Member avatar';
-    if (sourceLabel) img.title = `Avatar source: ${sourceLabel}`;
+
+    // d=404 (no registered avatar) or any network error -> initials fallback.
+    // Convert the wrapper in place (drops the anchor/img) so it works whether or
+    // not it's in the DOM yet (a cached 404 can fire onerror synchronously).
+    img.addEventListener('error', function() {
+        disposeAvatarPopover(wrap);
+        styleAsInitials(wrap, member, cssPx);
+    });
+    // Only a real, loaded photo earns a preview popover, and only on fine
+    // pointers (touch/mobile falls through with no hover affordance).
+    if (opts.previewPx && window.matchMedia('(pointer: fine)').matches) {
+        img.addEventListener('load', function() {
+            attachAvatarPreview(wrap, member, sourceLabel, opts.previewPx);
+        });
+    }
+
+    // Header click-through: wrap the photo in a link to the largest remote size.
+    let imgHost = wrap;
+    const maxPx = opts.linkFullSize ? AVATAR_SOURCE_MAX[avatar.source] : null;
+    if (maxPx) {
+        const link = document.createElement('a');
+        link.className = 'dh-avatar-link';
+        link.href = `${avatar.url}&s=${maxPx}`;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        wrap.appendChild(link);
+        imgHost = link;
+    }
+    imgHost.appendChild(img);
+
+    // Set src last so the load/error listeners catch a synchronous cached result.
     // Sizeless URL from the server; request 2x for a crisp rounded square.
     img.src = `${avatar.url}&s=${cssPx * 2}`;
-    // d=404 (no registered avatar) or any network error -> initials fallback.
-    // Convert the wrapper in place so it works whether or not it's in the DOM
-    // yet (a cached 404 can fire onerror synchronously) and drops the badge.
-    img.onerror = function() { styleAsInitials(wrap, member, cssPx); };
-    wrap.appendChild(img);
-
-    // Corner source badge — only meaningful once a real photo actually loads,
-    // and revealed on hover via CSS.
-    if (sourceLabel) {
-        const badge = document.createElement('span');
-        badge.className = 'dh-avatar-badge';
-        badge.textContent = sourceLabel.charAt(0);  // "G" for Gravatar
-        badge.title = `Avatar source: ${sourceLabel}`;
-        badge.setAttribute('aria-hidden', 'true');
-        badge.style.display = 'none';
-        img.addEventListener('load', function() { badge.style.display = ''; });
-        wrap.appendChild(badge);
-    }
     return wrap;
 }
 
@@ -1735,7 +1862,7 @@ function buildAvatar(member, cssPx) {
 function buildAvatarCell(member) {
     const td = document.createElement('td');
     td.className = 'dh-avatar-col';
-    td.appendChild(buildAvatar(member, 28));
+    td.appendChild(buildAvatar(member, 28, { previewPx: 256 }));
     return td;
 }
 
@@ -1816,6 +1943,9 @@ function displayResults(members) {
     const searching = !!currentQuery;
     matchHeader.style.display = searching ? 'table-cell' : 'none';
 
+    // Dispose avatar popovers on the outgoing rows before discarding them, so
+    // Bootstrap's element-keyed instances don't leak across re-renders.
+    disposeAvatarPopoversIn(tbody);
     tbody.innerHTML = '';
 
     if (members.length === 0) {
@@ -2675,7 +2805,7 @@ function updateMemberHeaderInfo(member) {
         nameEl.textContent = '';
         emailEl.textContent = '';
         memberIdEl.textContent = '';
-        if (avatarEl) avatarEl.replaceChildren();
+        if (avatarEl) { disposeAvatarPopoversIn(avatarEl); avatarEl.replaceChildren(); }
         if (badgeEl) badgeEl.style.display = 'none';
         return;
     }
@@ -2690,8 +2820,12 @@ function updateMemberHeaderInfo(member) {
     nameEl.textContent = fullName || 'Member';
     emailEl.textContent = email || 'No email on file';
     // Same member row object carries member.avatar ({source,url} or null), so
-    // no extra fetch is needed here. 48px header avatar.
-    if (avatarEl) avatarEl.replaceChildren(buildAvatar(member, 48));
+    // no extra fetch is needed here. 48px header avatar with a 512 hover preview;
+    // clicking the photo opens the full-size image in a new tab.
+    if (avatarEl) {
+        disposeAvatarPopoversIn(avatarEl);
+        avatarEl.replaceChildren(buildAvatar(member, 48, { previewPx: 512, linkFullSize: true }));
+    }
     header.style.display = '';
 
     // Members API doesn't include birthday; fetch identity to set the 21+ badge.
@@ -2770,15 +2904,18 @@ function refreshMemberProfile() {
         const hasStatus = status && !status.error;
         const firstName = hasIdentity ? (identity.first_name || '') : '';
         const lastName = hasIdentity ? (identity.last_name || '') : '';
+        const nickname = hasIdentity ? (identity.nickname || '') : '';
         const email = hasIdentity ? primaryEmailFromIdentity(identity) : '';
         const membershipStatus = hasStatus ? (status.membership_status || '') : '';
 
-        // Refresh the header (also re-fetches identity for the 21+ badge).
+        // Refresh the header (also re-fetches identity for the 21+ badge). The
+        // raw identity carries nickname, so the refreshed card keeps its name line.
         if (hasIdentity) {
             updateMemberHeaderInfo({
                 member_id: reqMemberId,
                 first_name: firstName,
                 last_name: lastName,
+                nickname: nickname,
                 primary_email_address: email,
                 avatar: selectedMemberAvatar,
                 membership_status: membershipStatus,
