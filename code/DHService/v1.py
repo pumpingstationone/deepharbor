@@ -8,7 +8,7 @@ from time import time
 from typing import Annotated
 
 import bcrypt
-from fastapi import Depends, HTTPException, Request, Header
+from fastapi import Depends, HTTPException, Request, Header, Query
 from pydantic import ValidationError
 
 from fastapiapp import app
@@ -74,13 +74,25 @@ async def search_members(current_user: AuthenticatedClient, query: str):
 @app.get("/v1/member/list/")
 async def list_members(current_user: AuthenticatedClient,
                        query: str = None, page: int = 1, per_page: int = 25,
-                       sort: str = "date_added", order: str = "desc"):
-    """List members with pagination. Optionally filter by search query."""
+                       sort: str = "date_added", order: str = "desc",
+                       status: list[str] | None = Query(default=None),
+                       level: list[str] | None = Query(default=None)):
+    """List members with pagination. Optionally filter by search query, and by
+    membership status / level (both multi-valued). Status/level filters compose
+    on top of the search query when one is present (browse + search both filtered).
+    """
     page = max(1, page)
     per_page = max(1, min(per_page, 100))
     if query:
-        return db.search_members_paginated(query, page, per_page, sort, order)
-    return db.list_members(page, per_page, sort, order)
+        return db.search_members_paginated(query, page, per_page, sort, order,
+                                           statuses=status, levels=level)
+    return db.list_members(page, per_page, sort, order,
+                           statuses=status, levels=level)
+
+@app.get("/v1/member/membership_levels/distinct/")
+async def get_distinct_membership_levels(current_user: AuthenticatedClient):
+    """Distinct stored membership_level values, for the member-list filter dropdown."""
+    return db.get_distinct_membership_levels()
 
 @app.get("/v1/member/username_check/")
 async def check_member_username(current_user: AuthenticatedClient, username: str):

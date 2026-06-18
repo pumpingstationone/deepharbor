@@ -32,6 +32,61 @@
 }
 th.dh-status-col { cursor: pointer; }
 
+/* --- Member-list filter bar (status pills + level multi-select) ---------- */
+/* All colors come from the per-theme DH palette custom props, so a single rule
+   set themes across all 5 themes (the .dh-status-* icon classes carry the per-
+   status hue). Inactive pills are dimmed; .active lifts them with a theme-accent
+   wash + border. */
+/* Flex here (not the d-flex utility) so the inline display toggle can hide it
+   without fighting Bootstrap's !important. width:fit-content + margin-inline:auto
+   centers the line while it fits; once content exceeds the row it caps at 100%,
+   the auto margins collapse to 0, and items wrap left-aligned. */
+#memberFilterBar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    row-gap: 0.35rem;
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
+}
+.dh-filter-label { color: var(--text-color); opacity: 0.7; }
+
+.dh-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.18rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-color);
+    font-size: 0.85rem;
+    line-height: 1.25;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
+}
+.dh-status-pill:hover,
+.dh-status-pill:focus-visible { opacity: 1; outline: none; }
+.dh-status-pill.active {
+    opacity: 1;
+    font-weight: 600;
+    border-color: var(--primary-color);
+    background: color-mix(in srgb, var(--primary-color) 14%, var(--card-bg));
+}
+.dh-status-pill .dh-status-icon { font-size: 0.95em; }
+/* The level toggle is a pill too; its glyph inherits the text color. */
+.dh-level-toggle .fa-person-arrow-up-from-line { font-size: 0.85em; opacity: 0.85; }
+
+.dh-clear-filters {
+    font-size: 0.8rem;
+    text-decoration: none;
+    color: var(--primary-color);
+}
+.dh-clear-filters:hover { text-decoration: underline; }
+
 /* --- Member avatars ----------------------------------------------------- */
 /* Narrow, centered avatar column in the results table (between status and ID) */
 .dh-avatar-col {
@@ -170,6 +225,9 @@ th.dh-status-col { cursor: pointer; }
 #columnPicker {
     display: flex;
     align-items: center;
+    /* The toolbar's gap-2 alone leaves this tighter than the info/filter buttons
+       (which add their own 0.35rem margin-right); match that spacing here. */
+    margin-left: 0.35rem;
 }
 
 .dh-columns-menu {
@@ -186,8 +244,51 @@ th.dh-status-col { cursor: pointer; }
     overflow-y: auto;
 }
 .dh-columns-menu .form-check { margin-bottom: 0.15rem; }
-.dh-columns-menu .form-check-label { cursor: pointer; }
+.dh-columns-menu .form-check-label { cursor: pointer; font-size: 0.85rem; }
 .dh-columns-menu .form-check-input:disabled { opacity: 0.6; }
+/* Section heading for the column/level dropdowns — matches the search-tips
+   popover header exactly: a full-bleed tinted bar (primary-accent wash), 1rem/600
+   primary text, divider under it. Negative margins break out of the menu's p-2 so
+   the bar spans edge-to-edge; top corners inherit the menu's radius. */
+.dh-menu-heading {
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--primary-color);
+    background: color-mix(in srgb, var(--primary-color) 12%, var(--card-bg));
+    margin: -0.5rem -0.5rem 0.4rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+}
+
+/* Theme-switcher toggle icon — slightly larger than the default nav-link size.
+   line-height:1 keeps its line box (and thus the navbar height) from growing with
+   the larger glyph; the icon still renders at 1.2rem. */
+#themeDropdown { font-size: 1.2rem; line-height: 1; }
+
+/* Active-theme marker in the theme menu: a trailing check + bold + faint tint so
+   it's clear which theme is selected. Off-items keep the check slot reserved (via
+   opacity, not display) so the row text doesn't shift between selections. */
+.dh-theme-item { display: flex; align-items: center; }
+.dh-theme-check { margin-left: auto; padding-left: 1.25rem; opacity: 0; color: var(--primary-color); }
+.dh-theme-item.dh-theme-active { font-weight: 600; }
+.dh-theme-item.dh-theme-active .dh-theme-check { opacity: 1; }
+.dh-theme-item.dh-theme-active { background-color: color-mix(in srgb, var(--primary-color) 12%, transparent); }
+
+/* Theme-switcher dropdown header — same tinted section-bar idiom as
+   .dh-menu-heading, but adapted for the default .dropdown-menu (no p-2, so no
+   horizontal break-out) and keeping the menu's existing font size. */
+.dh-theme-heading {
+    font-weight: 600;
+    color: var(--primary-color);
+    background: color-mix(in srgb, var(--primary-color) 12%, var(--card-bg));
+    margin: -0.5rem 0 0.4rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+}
 .dh-columns-reset {
     color: var(--primary-color);
     text-decoration: none;
@@ -748,7 +849,7 @@ body.sidebar-open .body-content {
     font-size: 1.4rem;
     cursor: pointer;
     opacity: 0.75;
-    transition: opacity 0.15s ease, filter 0.15s ease;
+    transition: opacity 0.15s ease;
     flex-shrink: 0;
     user-select: none;
     margin-left: 0.25rem;
@@ -756,10 +857,9 @@ body.sidebar-open .body-content {
 
 .dh-refresh-btn:hover {
     opacity: 1;
-    filter: drop-shadow(0 0 4px currentColor);
 }
 
-/* Theme-specific refresh button hover glow */
+/* Theme-specific refresh button color */
 [data-theme="bubblegum"] .dh-refresh-btn { color: #d63384; }
 [data-theme="light"] .dh-refresh-btn { color: var(--primary-color); }
 [data-theme="dark"] .dh-refresh-btn { color: var(--primary-color); }
@@ -780,8 +880,14 @@ body.sidebar-open .body-content {
     flex-shrink: 0;
     color: inherit;
 }
+/* Highlight on hover + keyboard focus only — a mouse click leaves :focus behind,
+   which would keep the icon lit after the action (e.g. the filter toggle staying
+   "on" after closing the bar). :focus-visible excludes mouse focus. */
 .dh-search-help-btn:hover,
-.dh-search-help-btn:focus { opacity: 1; outline: none; }
+.dh-search-help-btn:focus-visible { opacity: 1; }
+.dh-search-help-btn:focus { outline: none; }
+/* Filter toggle reads as "on" while the filter line is open. */
+.dh-search-help-btn.active { opacity: 1; }
 [data-theme="bubblegum"] .dh-search-help-btn { color: #d63384; }
 [data-theme="light"] .dh-search-help-btn { color: var(--primary-color); }
 [data-theme="dark"] .dh-search-help-btn { color: var(--primary-color); }

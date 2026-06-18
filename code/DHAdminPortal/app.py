@@ -732,6 +732,11 @@ def api_members():
     sort = request.args.get("sort", "date_added")
     order = request.args.get("order", "desc")
 
+    # Status/level filters (both multi-valued). membership_status drives the
+    # member.identity-visible Status icon, so its filter is always allowed.
+    statuses = request.args.getlist("status") or None
+    levels = request.args.getlist("level") or None
+
     # Callers without member.status may neither receive nor SORT BY the gated
     # status fields — a hand-crafted ?sort=member_since would order the roster by
     # a field whose values we strip below, leaking its ordering. Bar those sort
@@ -740,6 +745,11 @@ def api_members():
     if status_gated and sort in _STATUS_GATED_SORT_KEYS:
         sort = "date_added"
         order = "desc"
+    # membership_level is one of the gated fields — drop the level filter for
+    # callers lacking member.status so a filtered query can't leak which members
+    # carry which (stripped) level.
+    if status_gated:
+        levels = None
 
     try:
         access_token = dhservices.get_access_token(
@@ -747,7 +757,8 @@ def api_members():
             dhservices.DH_CLIENT_SECRET
         )
 
-        result = dhservices.list_members(access_token, query, page, per_page, sort, order)
+        result = dhservices.list_members(access_token, query, page, per_page, sort, order,
+                                         statuses=statuses, levels=levels)
 
         # Attach a resolved avatar ({source, url} or None) to each member row.
         # The same row object feeds both the results list and the detail header.
@@ -791,6 +802,21 @@ def api_members():
         return result
     except Exception as e:
         logger.error(f"Error listing members: {e}")
+        return {"error": str(e)}, 500
+
+@app.route("/api/member_levels")
+@requires_view_permission("member.status")
+def api_member_levels():
+    """Distinct stored membership_level values for the member-list filter dropdown.
+    Gated behind member.status because membership_level is a status-gated field."""
+    try:
+        access_token = dhservices.get_access_token(
+            dhservices.DH_CLIENT_ID,
+            dhservices.DH_CLIENT_SECRET
+        )
+        return {"levels": dhservices.get_distinct_membership_levels(access_token)}
+    except Exception as e:
+        logger.error(f"Error fetching membership levels: {e}")
         return {"error": str(e)}, 500
 
 @app.route("/api/search")
