@@ -1,5 +1,6 @@
 import re
 import uuid
+import hashlib
 import requests
 import json
 from functools import wraps
@@ -38,6 +39,33 @@ def handle_csrf_error(e):
         return {"error": "CSRF token missing or invalid"}, 400
     flash('Your session has expired or this form submission was invalid. Please try again.', 'error')
     return redirect(request.referrer or url_for('index'))
+
+###############################################################################
+# Member avatar resolution
+###############################################################################
+# Pluggable avatar seam. Returns {'source', 'url'} for a member, or None.
+# The URL is intentionally SIZELESS — the frontend appends `&s=` per context
+# (row vs header, with 2x density). `d=404` lives in the base URL so a missing
+# avatar 404s and the frontend falls back to an initials square.
+#
+# Provider precedence is Discord (future) -> Gravatar -> none. Discord avatars
+# will be added here and take precedence once real Discord OAuth linking lands;
+# the Discord data currently in the DB is unverified, so there is no Discord
+# branch yet — only the documented insertion point below.
+
+def resolve_avatar(member):
+    """Resolve a member's avatar to {'source': str, 'url': str}, or None."""
+    # FUTURE: if a verified Discord avatar exists for this member, return it here
+    # (takes precedence over Gravatar).
+    email = member.get("primary_email_address")
+    if email:
+        digest = hashlib.sha256(email.strip().lower().encode("utf-8")).hexdigest()
+        return {
+            "source": "gravatar",
+            "url": f"https://www.gravatar.com/avatar/{digest}?d=404",
+        }
+    return None
+
 
 ###############################################################################
 # Field validation rules for member update endpoints
@@ -692,6 +720,13 @@ def api_members():
         )
 
         result = dhservices.list_members(access_token, query, page, per_page, sort, order)
+
+        # Attach a resolved avatar ({source, url} or None) to each member row.
+        # The same row object feeds both the results list and the detail header.
+        members = result.get("members") if isinstance(result, dict) else None
+        if isinstance(members, list):
+            for member in members:
+                member["avatar"] = resolve_avatar(member)
 
         # Log search activity only when an explicit search query is present
         if query:
