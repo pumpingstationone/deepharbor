@@ -1483,7 +1483,7 @@ const MEMBER_COLUMNS = [
     { key: 'ad_username',   label: 'AD Username',   defaultVisible: false, locked: false, sortable: true,  sortKey: 'active_directory_username',    get: m => m.active_directory_username, truncate: true, widthClass: 'dh-w-username' },
     { key: 'email',         label: 'Email',         defaultVisible: false, locked: false, sortable: true,  sortKey: 'primary_email_address',        get: m => m.primary_email_address,     truncate: true, widthClass: 'dh-w-email' },
     { key: 'member_level',  label: 'Member Level',  defaultVisible: false, locked: false, sortable: true,  sortKey: 'membership_level',             get: m => m.membership_level,          truncate: true, widthClass: 'dh-w-level' },
-    { key: 'member_since',  label: 'Member Since',  defaultVisible: false, locked: false, sortable: true,  sortKey: 'member_since',                 get: m => birthdayToDateValue(m.member_since), truncate: true, widthClass: 'dh-w-date' },
+    { key: 'member_since',  label: 'Member Since',  defaultVisible: false, locked: false, sortable: true,  sortKey: 'member_since',                 get: m => memberSinceDisplay(m.member_since), truncate: true, widthClass: 'dh-w-date' },
     { key: 'stripe_sub_id', label: 'Stripe Sub ID', defaultVisible: false, locked: false, sortable: true,  sortKey: 'stripe_subscription_id',       get: m => m.stripe_subscription_id,    truncate: true, widthClass: 'dh-w-subid' },
 ];
 
@@ -1525,6 +1525,23 @@ function getVisibleColumns() { return MEMBER_COLUMNS.filter(c => isColumnVisible
 // rank in search mode, id desc in browse mode.
 function defaultSortForMode() {
     return currentQuery ? { sort: 'rank', order: 'desc' } : { sort: 'id', order: 'desc' };
+}
+
+// If the active sort targets a known sortable column that is NOT currently
+// visible, fall back to the mode's default sort so the table never renders
+// sorted by a hidden column (which would show no sort indicator). The mode
+// defaults ('rank'/'date_added'/'id') aren't column sortKeys, so they're left
+// alone. Returns true if currentSort/currentOrder changed (caller should
+// refetch). Shared by the picker toggle, reset, and URL-restore paths.
+function fallbackSortIfActiveColumnHidden() {
+    const activeCol = MEMBER_COLUMNS.find(c => c.sortable && c.sortKey === currentSort);
+    if (activeCol && !isColumnVisible(activeCol.key)) {
+        const d = defaultSortForMode();
+        currentSort = d.sort;
+        currentOrder = d.order;
+        return true;
+    }
+    return false;
 }
 
 // Populate the column-picker dropdown checklist + Reset action (once, on load).
@@ -1578,17 +1595,15 @@ function onColumnToggle(key, checked) {
         if (!visibleColumnKeys.includes(key)) visibleColumnKeys.push(key);
     } else {
         visibleColumnKeys = visibleColumnKeys.filter(k => k !== key);
-        if (col.sortable && col.sortKey === currentSort) {
-            const d = defaultSortForMode();
-            currentSort = d.sort;
-            currentOrder = d.order;
-            saveColumnPrefs();
-            loadMembers(currentPage);
-            return;
-        }
     }
     saveColumnPrefs();
-    displayResults(currentMembers);
+    // Hiding the active sort column reverts to the default sort and refetches;
+    // otherwise just re-render head + body from the cached rows (no refetch).
+    if (fallbackSortIfActiveColumnHidden()) {
+        loadMembers(currentPage);
+    } else {
+        displayResults(currentMembers);
+    }
 }
 
 function resetColumnsToDefault() {
@@ -1597,11 +1612,7 @@ function resetColumnsToDefault() {
     syncColumnCheckboxes();
     // If the active sort column is no longer visible, fall back to default sort
     // and refetch; otherwise just re-render from cached rows.
-    const activeCol = MEMBER_COLUMNS.find(c => c.sortable && c.sortKey === currentSort);
-    if (activeCol && !isColumnVisible(activeCol.key)) {
-        const d = defaultSortForMode();
-        currentSort = d.sort;
-        currentOrder = d.order;
+    if (fallbackSortIfActiveColumnHidden()) {
         loadMembers(currentPage);
     } else {
         displayResults(currentMembers);
@@ -2229,7 +2240,8 @@ function displayResults(members) {
     const searching = !!currentQuery;
 
     // Rebuild the header for the current visible-column set (also toggles the
-    // search-only "Matched on" th and refreshes the sort indicators).
+    // search-only "Matched on" th and refreshes the sort indicators — so no
+    // second updateSortIndicators() call is needed here).
     renderTableHead(searching);
     const columns = getVisibleColumns();
 
@@ -2242,17 +2254,19 @@ function displayResults(members) {
         const colspan = columns.length + (searching ? 1 : 0);
         tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center">No members found</td></tr>`;
     } else {
-        members.forEach(member => tbody.appendChild(buildMemberRow(member)));
+        // Reuse the already-computed visible-column list for every row.
+        members.forEach(member => tbody.appendChild(buildMemberRow(member, columns)));
     }
 
     resultsSection.style.display = 'block';
-    updateSortIndicators();
 }
 
 // Build one results <tr> for a member from the visible columns (+ the search-only
 // "Matched on" cell). Tagged with data-member-id so a single row can be re-synced
-// in place after an edit without relying on fixed cell indices.
-function buildMemberRow(member) {
+// in place after an edit without relying on fixed cell indices. `columns` may be
+// passed in to avoid recomputing getVisibleColumns() per row.
+function buildMemberRow(member, columns) {
+    const cols = columns || getVisibleColumns();
     const row = document.createElement('tr');
     row.style.cursor = 'pointer';
     row.dataset.memberId = member.member_id;
@@ -2261,7 +2275,7 @@ function buildMemberRow(member) {
     }
     // One <td> per visible column, in registry order. Each column's builder is
     // XSS-safe (createElement + textContent only).
-    getVisibleColumns().forEach(col => row.appendChild(buildCell(col, member)));
+    cols.forEach(col => row.appendChild(buildCell(col, member)));
     if (currentQuery) {
         row.appendChild(buildMatchCell(member.matches, currentQuery));
     }
@@ -2417,6 +2431,11 @@ function restoreFromURL() {
     currentSort = params.get('sort') || (currentQuery ? 'rank' : 'id');
     currentOrder = params.get('order') || 'desc';
     const memberId = params.get('member');
+
+    // A URL can carry a sort for a column the saved column prefs don't show
+    // (e.g. a shared link, or columns were since hidden). Reconcile so we never
+    // render sorted by a hidden column with no visible sort indicator.
+    fallbackSortIfActiveColumnHidden();
 
     // Sync search input
     document.getElementById('memberSearch').value = currentQuery;
@@ -2884,6 +2903,15 @@ function birthdayToDateValue(v) {
     return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : '';
 }
 
+// Display value for the Member Since column: a clean YYYY-MM-DD for ISO-prefixed
+// values (incl. legacy "YYYY-MM-DDT00:00:00"), but falls back to the RAW stored
+// string for non-ISO/legacy formats so the cell never blanks out a value that
+// actually exists (prod-only; dev seed is clean ISO). The truncation + title
+// tooltip still apply via the column's `truncate` flag.
+function memberSinceDisplay(v) {
+    return birthdayToDateValue(v) || (v == null ? '' : String(v));
+}
+
 // True iff birthdayStr is on or before today minus 21 years. Tolerates a
 // legacy datetime suffix by reading the leading date.
 function isOver21(birthdayStr) {
@@ -3201,12 +3229,23 @@ function refreshMemberProfile() {
         // fetched fields into the cached row and rebuild the whole <tr> from the
         // registry — column-visibility-agnostic. Only patch fields whose source
         // fetch succeeded, so a failed fetch never blanks a known value.
+        // Patch EVERY registry-backed display field whose source fetch succeeded
+        // — not just the original five — so editing any visible column (e.g. the
+        // default-visible Pronouns, or an opt-in Member Level) updates the row
+        // instead of leaving it stale until a full reload.
         const patch = {};
-        if (hasStatus) patch.membership_status = membershipStatus;
+        if (hasStatus) {
+            patch.membership_status = membershipStatus;
+            patch.membership_level = status.membership_level || '';
+            patch.member_since = status.member_since || '';
+            patch.stripe_subscription_id = status.stripe_subscription_id || '';
+        }
         if (hasIdentity) {
             patch.first_name = firstName;
             patch.last_name = lastName;
             patch.nickname = nickname;
+            patch.pronouns = identity.pronouns || '';
+            patch.active_directory_username = identity.active_directory_username || '';
             patch.primary_email_address = email;
             // Avatar hover-preview content is baked at row-build time; refreshing
             // the row rebuilds it from the cached avatar so the edited name shows.
