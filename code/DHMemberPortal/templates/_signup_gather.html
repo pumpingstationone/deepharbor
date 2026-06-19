@@ -1,0 +1,150 @@
+{# Signup "gathering materials" submit interstitial — shared markup + behavior.
+   Included from signup_form.html (revealed on a valid form submit) and from
+   signup_loading_preview.html (auto-plays as a standalone shareable demo).
+
+   Include with `gather_autoplay = true` to auto-reveal on load (demo mode);
+   omit it for the real form, where the overlay is revealed only by a valid
+   submit. Position:fixed, so its placement in the DOM doesn't matter — it's
+   included in the scripts block so the submit listener registers AFTER
+   base.html's dh-validate handler (needed for the e.defaultPrevented check).
+   Styling lives in the "SIGNUP SUBMIT INTERSTITIAL" block of portal.css. #}
+<div id="signup-gather-overlay" class="dh-gather-overlay" aria-hidden="true"{% if gather_autoplay %} data-autoplay{% endif %}>
+    <div class="dh-gather-card" role="status" aria-live="polite">
+        <p class="dh-gather-intro dh-gather-headline">We got your PS:1 sign-up info!</p>
+        <p class="dh-gather-intro">We&rsquo;ll start building up your member<br>portal, but we need some stuff first.</p>
+        <p class="dh-gather-intro">Checking Cragslist and Facebutt<br>Marketplace for free materials&hellip;</p>
+        <p class="dh-gather-label">Scored some free&hellip;</p>
+        <p id="signup-gather-term" class="dh-gather-term">plywood</p>
+        <i id="signup-gather-icon" class="fa-solid fa-layer-group dh-gather-icon" aria-hidden="true"></i>
+        <p class="dh-gather-warning">Please don&rsquo;t refresh!<br>We&rsquo;re handing you over<br>to our payment processor.</p>
+    </div>
+</div>
+<script>
+(function () {
+    var overlay = document.getElementById('signup-gather-overlay');
+    var term    = document.getElementById('signup-gather-term');
+    var icon    = document.getElementById('signup-gather-icon');
+    if (!overlay || !term || !icon) return;
+
+    // The form is present on the real signup page, absent in the demo.
+    var form      = document.querySelector('form.dh-validate');
+    var submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+    var autoplay  = overlay.hasAttribute('data-autoplay');
+
+    // Material -> Font Awesome icon. Static, hardcoded allowlist: the icon
+    // className is assembled only from these values, never interpolated from
+    // user/server data (keeps the XSS-safe posture).
+    var MATERIALS = [
+        { noun: 'plywood',           icon: 'fa-layer-group' },
+        { noun: 'acrylic sheets',    icon: 'fa-layer-group' },
+        { noun: 'scrap metal',       icon: 'fa-cubes' },
+        { noun: 'glass',             icon: 'fa-gem' },
+        { noun: 'fabric',            icon: 'fa-shirt' },
+        { noun: 'resin',             icon: 'fa-droplet' },
+        { noun: 'magnets',           icon: 'fa-magnet' },
+        { noun: 'hardware',          icon: 'fa-screwdriver-wrench' },
+        { noun: 'hand tools',        icon: 'fa-screwdriver-wrench' },
+        { noun: 'toolboxes',         icon: 'fa-toolbox' },
+        { noun: 'wrenches',          icon: 'fa-wrench' },
+        { noun: 'hammers',           icon: 'fa-hammer' },
+        { noun: 'screwdrivers',      icon: 'fa-screwdriver' },
+        { noun: 'measuring tools',   icon: 'fa-ruler-combined' },
+        { noun: '3D printers',       icon: 'fa-print' },
+        { noun: 'microscopes',       icon: 'fa-microscope' },
+        { noun: 'oil cans',          icon: 'fa-oil-can' },
+        { noun: 'chips',             icon: 'fa-microchip' },
+        { noun: 'wires',             icon: 'fa-network-wired' },
+        { noun: 'cables',            icon: 'fa-plug' },
+        { noun: 'batteries',         icon: 'fa-battery-half' },
+        { noun: 'LEDs',              icon: 'fa-lightbulb' },
+        { noun: 'fans',              icon: 'fa-fan' },
+        { noun: 'meters',            icon: 'fa-gauge-high' },
+        { noun: 'computers',         icon: 'fa-computer' },
+        { noun: 'monitors',          icon: 'fa-tv' },
+        { noun: 'keyboards',         icon: 'fa-keyboard' },
+        { noun: 'servers',           icon: 'fa-server' },
+        { noun: 'totes',             icon: 'fa-boxes-stacked' },
+        { noun: 'parts bins',        icon: 'fa-box-open' },
+        { noun: 'pallets',           icon: 'fa-pallet' },
+        { noun: 'hand trucks',       icon: 'fa-dolly' },
+        { noun: 'safety glasses',    icon: 'fa-glasses' },
+        { noun: 'hard hats',         icon: 'fa-helmet-safety' },
+        { noun: 'fire extinguishers', icon: 'fa-fire-extinguisher' }
+    ];
+
+    var reduceMotion = window.matchMedia
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    var idx = Math.floor(Math.random() * MATERIALS.length);
+    var rotateTimer = null;
+
+    // Track the current FA glyph class so we can swap just that token and
+    // leave dh-gather-icon / fa-solid / is-fading intact (a full className
+    // reassign would wipe is-fading mid-fade and pop the new icon in).
+    var currentIconClass = 'fa-layer-group'; // matches the markup default
+    function render(i) {
+        term.textContent = MATERIALS[i].noun;
+        if (currentIconClass) icon.classList.remove(currentIconClass);
+        currentIconClass = MATERIALS[i].icon; // from the hardcoded list only
+        icon.classList.add(currentIconClass);
+    }
+
+    function nextIndex() {
+        var n = idx;
+        while (n === idx && MATERIALS.length > 1) {
+            n = Math.floor(Math.random() * MATERIALS.length);
+        }
+        return n;
+    }
+
+    function startRotation() {
+        if (reduceMotion || rotateTimer) return; // static single material under reduced motion
+        rotateTimer = setInterval(function () {
+            term.classList.add('is-fading');
+            icon.classList.add('is-fading');
+            setTimeout(function () {
+                idx = nextIndex();
+                render(idx); // preserves is-fading, so the new pair fades in
+                term.classList.remove('is-fading');
+                icon.classList.remove('is-fading');
+            }, 400); // matches the .dh-gather-term/.dh-gather-icon opacity transition
+        }, 2000);
+    }
+
+    function showOverlay() {
+        overlay.classList.add('is-visible');
+        overlay.setAttribute('aria-hidden', 'false');
+        startRotation();
+    }
+
+    function hideOverlay() {
+        overlay.classList.remove('is-visible');
+        overlay.setAttribute('aria-hidden', 'true');
+        if (rotateTimer) { clearInterval(rotateTimer); rotateTimer = null; }
+        if (submitBtn) submitBtn.disabled = false;
+    }
+
+    render(idx);
+
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            // The shared dh-validate handler (base.html) runs first and calls
+            // preventDefault() on invalid input. Only reveal once it passed.
+            if (e.defaultPrevented) return;
+            showOverlay();
+            if (submitBtn) submitBtn.disabled = true; // guard double-click
+            // The native POST proceeds; the browser swaps pages when it returns.
+        });
+    }
+
+    // If this page is restored from the bfcache (Back button after reaching
+    // payment), make sure the overlay isn't stuck visible.
+    window.addEventListener('pageshow', function (evt) {
+        if (evt.persisted) hideOverlay();
+    });
+    window.addEventListener('popstate', hideOverlay);
+
+    // Standalone demo page: play immediately on load.
+    if (autoplay) showOverlay();
+})();
+</script>

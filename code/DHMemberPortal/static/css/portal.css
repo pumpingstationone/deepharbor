@@ -851,3 +851,107 @@ i.ic-x          { color: #000000 !important; } /* X brand */
         transition: none;
     }
 }
+
+/* ===================================================================
+   SIGNUP SUBMIT INTERSTITIAL (/signup form -> payment hand-off)
+   Full-screen overlay shown while the slow /signup/submit POST runs.
+   Themed via the portal CSS vars so it reads on every theme.
+   =================================================================== */
+
+/* Hidden until JS adds .is-visible. position:fixed covers the whole viewport
+ * (and the form beneath, blocking re-clicks during the in-flight POST). */
+.dh-gather-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1080; /* above Bootstrap's content; below toasts (1090) */
+    /* Frost the page that was underneath rather than hide it: a translucent
+     * wash plus a backdrop blur so the form shows through, blurred. */
+    background-color: rgba(255, 255, 255, 0.55);
+    background-color: color-mix(in srgb, var(--bg-color) 55%, transparent);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    /* center the card */
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1.5rem;
+}
+.dh-gather-overlay.is-visible {
+    display: flex;
+}
+.dh-gather-card {
+    max-width: 32rem;
+    color: var(--text-color);
+}
+.dh-gather-intro {
+    font-size: 1.1rem;
+    margin-bottom: 0.4rem;
+}
+/* First line gets a headline treatment so the message has a clear lead. */
+.dh-gather-headline {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 0.75rem;
+}
+.dh-gather-label {
+    margin-top: 1.25rem;
+    margin-bottom: 0.75rem;
+    color: var(--secondary-color);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.9rem;
+}
+/* The rotating material name, centered on its own line under "Scored some…".
+ * Cross-fades via the .is-fading opacity toggle (same idiom as
+ * .signup-ready-word). Capitalized for a tidy "Scored some… Plywood" look. */
+.dh-gather-term {
+    display: block;
+    margin: 0.5rem auto 0;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    text-transform: capitalize;
+    transition: opacity 0.4s ease;
+}
+.dh-gather-term.is-fading {
+    opacity: 0;
+}
+/* The throbbing icon — swapped together with the term, centered below it.
+ * Idle animation is scale + a slight rotate wiggle (transform only); opacity is
+ * left to the .is-fading transition so the icon can cross-fade with the term. */
+.dh-gather-icon {
+    display: block;
+    margin: 1rem auto 0;
+    font-size: 3rem;
+    color: var(--primary-color);
+    animation: dh-throb 1.3s ease-in-out infinite;
+    transition: opacity 0.4s ease;
+}
+.dh-gather-icon.is-fading {
+    opacity: 0;
+}
+.dh-gather-warning {
+    margin-top: 2.5rem;
+    font-weight: 700;
+    line-height: 1.5;
+    color: var(--error-color);
+}
+
+@keyframes dh-throb {
+    0%   { transform: scale(1)    rotate(-4deg); }
+    50%  { transform: scale(1.12) rotate(4deg); }
+    100% { transform: scale(1)    rotate(-4deg); }
+}
+
+/* Respect reduced motion: overlay still appears (the "don't refresh" warning
+ * must show), but nothing animates — one static material, no throb, no fade. */
+@media (prefers-reduced-motion: reduce) {
+    .dh-gather-icon {
+        animation: none;
+    }
+    .dh-gather-term {
+        transition: none;
+    }
+}

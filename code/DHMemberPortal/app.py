@@ -79,6 +79,27 @@ def index():
         return render_template('dev_login.html', preset_users=MEMBER_DEV_USERS)
     return render_template('landing.html')
 
+def _is_stranded_pre_payment(access_token, member_id):
+    """True if an existing member is `pending` with no Stripe payment on file —
+    i.e. they signed up but never completed checkout, so they should resume at
+    the payment page rather than be sent to login (#283 option B).
+
+    Fail SAFE: on any error fetching status, return False so we fall back to the
+    existing (login / "account exists") behavior rather than mis-routing a real
+    account to payment.
+    """
+    try:
+        status = dhservices.get_member_status(access_token, member_id) or {}
+    except Exception as e:
+        logger.warning(f"Stranded-member check failed for member {member_id}: {e}")
+        return False
+    # None-guard: status->>'membership_status' can be JSON null, and
+    # .get(key, default) returns None (not the default) for an explicit null.
+    membership_status = ((status or {}).get('membership_status') or '').lower()
+    has_stripe = bool((status or {}).get('stripe_product_id')
+                      or (status or {}).get('stripe_subscription_id'))
+    return membership_status == 'pending' and not has_stripe
+
 @app.route('/signup')
 def signup_start():
     """First step of signup - email entry"""
@@ -107,9 +128,17 @@ def signup_check_email():
             dhservices.DH_CLIENT_SECRET
         )
 
-        # If a member already exists for this email, send them to SSO login
+        # If a member already exists for this email, either resume their payment
+        # (if they're stranded pre-payment — signed up but never paid) or send
+        # them to SSO login (a real, paid/active account).
         member_data = dhservices.get_member_id(access_token, email)
         if member_data and member_data.get("member_id"):
+            if _is_stranded_pre_payment(access_token, member_data["member_id"]):
+                # signup_email is already set above; keep it explicit so the
+                # payment redirect's dependency on the session is obvious.
+                session['signup_email'] = email
+                flash('Looks like you already started — let’s finish your payment.', 'info')
+                return redirect(url_for('signup_payment'))
             flash('An account already exists for this email. Please sign in.', 'info')
             return redirect(url_for('login'))
 
@@ -144,10 +173,25 @@ def signup_check_email():
         # On error, show empty form
         return render_template('signup_form.html', email=email, contact_found=False)
 
+@app.route('/signup/loading-preview')
+def signup_loading_preview():
+    """Standalone, shareable preview of the signup loading interstitial.
+
+    Renders the same loader used on the real form (templates/_signup_gather.html)
+    but auto-playing and looping. No form, no submit, no DB writes — purely a
+    demo so the animation can be shared/reviewed via a single URL.
+    """
+    return render_template('signup_loading_preview.html')
+
 @app.route('/signup/payment')
 def signup_payment():
-    """Show payment step with Stripe pricing table"""
-    email = request.args.get('email') or session.get('signup_email')
+    """Show payment step with Stripe pricing table.
+
+    The email is read from the session only (set on every path that routes
+    here), never from a query param — so the plaintext address stays out of
+    the URL and a user-supplied ?email= can't drive the Stripe prefill (#294).
+    """
+    email = session.get('signup_email')
     return render_template('signup_payment.html', email=email)
 
 @app.route('/signup/submit', methods=['POST'])
@@ -254,6 +298,14 @@ def signup_submit():
         # created between the email step and submit) or a direct POST.
         existing_member_id = dhservices.get_member_id(access_token, email).get("member_id")
         if existing_member_id is not None:
+            # A stranded pre-payment member here is almost always a refresh /
+            # double-submit racing themselves: the first (still in-flight) POST
+            # created the row, this re-issued POST sees it. Send them on to
+            # payment instead of dead-ending at the "account exists" form (#283).
+            if _is_stranded_pre_payment(access_token, existing_member_id):
+                session['signup_email'] = email
+                flash('Sign up successful! Please complete payment.', 'success')
+                return redirect(url_for('signup_payment'))
             return _redisplay_form(account_exists=True)
 
         # Server-side username uniqueness gate. /api/check-username is only
@@ -337,8 +389,11 @@ def signup_submit():
                 f"Signup member {member_id}: {label} init failed (continuing): {str(e)}"
             )
 
+    # Carry the email server-side rather than in the URL — signup_payment reads
+    # session['signup_email'] to prefill the Stripe pricing table (A0 / #294).
+    session['signup_email'] = email
     flash('Sign up successful! Please complete payment.', 'success')
-    return redirect(url_for('signup_payment', email=email))
+    return redirect(url_for('signup_payment'))
 
 @app.route("/login")
 def login():
