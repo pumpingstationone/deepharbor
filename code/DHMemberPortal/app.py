@@ -80,9 +80,16 @@ def index():
     return render_template('landing.html')
 
 def _is_stranded_pre_payment(access_token, member_id):
-    """True if an existing member is `pending` with no Stripe payment on file —
-    i.e. they signed up but never completed checkout, so they should resume at
-    the payment page rather than be sent to login (#283 option B).
+    """True if an existing member signed up but never completed checkout, so they
+    should resume at the payment page rather than be sent to login (#283 option B).
+
+    "Stranded" = no Stripe payment on file AND a status of `pending` *or blank*.
+    The blank case matters: signup writes the `status` column as a best-effort
+    scaffolding step that's allowed to fail (see signup_submit), so a half-created
+    member can have a NULL/empty status. get_member_status then returns None and
+    membership_status resolves to '' — that member is the *most* stranded (created,
+    never paid, status write failed), so treat blank the same as `pending` rather
+    than dead-ending them at login.
 
     Fail SAFE: on any error fetching status, return False so we fall back to the
     existing (login / "account exists") behavior rather than mis-routing a real
@@ -98,7 +105,10 @@ def _is_stranded_pre_payment(access_token, member_id):
     membership_status = ((status or {}).get('membership_status') or '').lower()
     has_stripe = bool((status or {}).get('stripe_product_id')
                       or (status or {}).get('stripe_subscription_id'))
-    return membership_status == 'pending' and not has_stripe
+    # Blank status ('') = scaffolding write failed; still a stranded pre-payment
+    # member. A real/paid account always has both a status and Stripe data, so the
+    # `not has_stripe` guard keeps us from mis-routing those to payment.
+    return membership_status in ('pending', '') and not has_stripe
 
 @app.route('/signup')
 def signup_start():

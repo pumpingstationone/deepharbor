@@ -77,6 +77,7 @@
 
     var idx = Math.floor(Math.random() * MATERIALS.length);
     var rotateTimer = null;
+    var submitting = false; // one-shot: true once a valid submit is handed off
 
     // Track the current FA glyph class so we can swap just that token and
     // leave dh-gather-icon / fa-solid / is-fading intact (a full className
@@ -122,6 +123,7 @@
         overlay.setAttribute('aria-hidden', 'true');
         if (rotateTimer) { clearInterval(rotateTimer); rotateTimer = null; }
         if (submitBtn) submitBtn.disabled = false;
+        submitting = false; // allow re-submit after a Back/bfcache return
     }
 
     render(idx);
@@ -131,6 +133,11 @@
             // The shared dh-validate handler (base.html) runs first and calls
             // preventDefault() on invalid input. Only reveal once it passed.
             if (e.defaultPrevented) return;
+            // One-shot guard: a disabled submit button does NOT reliably block
+            // Enter-key implicit submission across browsers, so cancel any second
+            // submit event ourselves rather than dispatching a duplicate POST.
+            if (submitting) { e.preventDefault(); return; }
+            submitting = true;
             showOverlay();
             if (submitBtn) submitBtn.disabled = true; // guard double-click
             // The native POST proceeds; the browser swaps pages when it returns.
