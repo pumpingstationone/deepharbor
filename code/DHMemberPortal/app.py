@@ -83,13 +83,18 @@ def _is_stranded_pre_payment(access_token, member_id):
     """True if an existing member signed up but never completed checkout, so they
     should resume at the payment page rather than be sent to login (#283 option B).
 
-    "Stranded" = no Stripe payment on file AND a status of `pending` *or blank*.
+    "Stranded" = no Stripe payment on file AND a status of `pending`, OR a
+    genuinely empty status (no membership_status AND no membership_level).
     The blank case matters: signup writes the `status` column as a best-effort
     scaffolding step that's allowed to fail (see signup_submit), so a half-created
     member can have a NULL/empty status. get_member_status then returns None and
-    membership_status resolves to '' — that member is the *most* stranded (created,
-    never paid, status write failed), so treat blank the same as `pending` rather
-    than dead-ending them at login.
+    membership_status resolves to ''. But a blank membership_status is also what
+    the `v_member_info` view emits for ANY member whose status column was never
+    populated — including legacy/imported accounts — so we treat blank as stranded
+    ONLY when there is also no membership_level. An established account keeps a
+    level even when membership_status is null, so this won't route a real member
+    to re-payment; anything with a level (or a non-pending status) falls through
+    to the normal "account exists, sign in" path.
 
     Fail SAFE: on any error fetching status, return False so we fall back to the
     existing (login / "account exists") behavior rather than mis-routing a real
@@ -100,15 +105,21 @@ def _is_stranded_pre_payment(access_token, member_id):
     except Exception as e:
         logger.warning(f"Stranded-member check failed for member {member_id}: {e}")
         return False
-    # None-guard: status->>'membership_status' can be JSON null, and
-    # .get(key, default) returns None (not the default) for an explicit null.
+    # None-guard: status->>'membership_status' / ->>'membership_level' can be JSON
+    # null, and .get(key, default) returns None (not the default) for explicit null.
     membership_status = ((status or {}).get('membership_status') or '').lower()
+    membership_level = ((status or {}).get('membership_level') or '').strip()
     has_stripe = bool((status or {}).get('stripe_product_id')
                       or (status or {}).get('stripe_subscription_id'))
-    # Blank status ('') = scaffolding write failed; still a stranded pre-payment
-    # member. A real/paid account always has both a status and Stripe data, so the
-    # `not has_stripe` guard keeps us from mis-routing those to payment.
-    return membership_status in ('pending', '') and not has_stripe
+    if has_stripe:
+        return False  # already paid — never re-route an account to checkout
+    if membership_status == 'pending':
+        return True   # mid-signup, no payment yet
+    # Blank status = the best-effort `status` scaffolding write may have failed,
+    # leaving a genuinely empty column. Only treat that as stranded when there's
+    # also no membership level, so established/legacy accounts (which carry a
+    # level even with a null membership_status) aren't sent to re-payment.
+    return membership_status == '' and not membership_level
 
 @app.route('/signup')
 def signup_start():

@@ -16,7 +16,11 @@
     {# Decorative spark fountain behind the slip — something's being welded back
        there. Canvas-drawn, aria-hidden, never started under reduced motion. #}
     <canvas id="signup-gather-sparks" class="dh-gather-sparks" aria-hidden="true"></canvas>
-    <div class="dh-gather-slip" role="status" aria-live="polite">
+    {# Screen readers get ONE concise polite announcement (set on reveal). The
+       animated slip below is aria-hidden so the per-second BOM/tally churn
+       doesn't flood the SR queue and bury the "don't refresh" message. #}
+    <p id="signup-gather-sr" class="visually-hidden" role="status" aria-live="polite"></p>
+    <div class="dh-gather-slip" aria-hidden="true">
         <div class="dh-gather-head">
             <span class="dh-gather-head-mark">PS<span class="dh-gather-dot">:</span>ONE shop <span class="dh-gather-dot">&middot;</span> work order</span>
             <span class="dh-gather-head-job">JOB <span id="signup-gather-job">#0000</span></span>
@@ -43,7 +47,7 @@
                 </li>
             </ul>
 
-            <p class="dh-gather-status" aria-hidden="true">
+            <p class="dh-gather-status">
                 <span class="dh-gather-status-label">Shop log</span>
                 <span id="signup-gather-status" class="dh-gather-status-text">Negotiating with the raccoons</span><span class="dh-gather-cursor"></span>
             </p>
@@ -154,8 +158,12 @@
 
     var MAX_VISIBLE = 4; // acquired rows kept on screen; older ones drop off the top
 
-    var reduceMotion = window.matchMedia
-        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Re-read at call time rather than snapshotting once, so a mid-session OS
+    // toggle is respected on the next reveal; a change-listener below also stops
+    // any in-flight motion immediately.
+    var motionMq = window.matchMedia
+        ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    function prefersReducedMotion() { return !!(motionMq && motionMq.matches); }
 
     var idx = Math.floor(Math.random() * MATERIALS.length);
     var shownIdx = [];       // material indices currently on screen (acquired rows)
@@ -164,6 +172,7 @@
     var statusEl    = document.getElementById('signup-gather-status');
     var statusTimer = null;
     var statusIdx   = Math.floor(Math.random() * STATUSES.length);
+    var srEl        = document.getElementById('signup-gather-sr');
     var submitting = false;  // one-shot: true once a valid submit is handed off
 
     // Track the current FA glyph class so we can swap just that token and leave
@@ -214,35 +223,45 @@
     function recordAcquired(i) {
         list.insertBefore(buildAcquiredRow(MATERIALS[i]), current);
         shownIdx.push(i);
-        // Cap the visible history; drop the oldest acquired row(s) off the top.
-        var rows = list.querySelectorAll('.dh-gather-row.is-acquired');
-        for (var k = 0; k < rows.length - MAX_VISIBLE; k++) {
-            rows[k].remove();
-        }
-        while (shownIdx.length > MAX_VISIBLE) shownIdx.shift();
         count += 1;
         tally.textContent = String(count);
+        // Single cap: trim shownIdx and the DOM together. The oldest acquired
+        // row is the list's first child (the live row is always last).
+        while (shownIdx.length > MAX_VISIBLE) {
+            shownIdx.shift();
+            if (list.firstElementChild && list.firstElementChild !== current) {
+                list.removeChild(list.firstElementChild);
+            }
+        }
     }
 
     // Pick a material not currently on screen (live row + visible acquired rows),
-    // so the same part never appears twice at once. Falls back to "anything but
-    // the live row" if the list is somehow larger than the catalog.
+    // so the same part never appears twice at once. Bounded retry so a future
+    // shrink of MATERIALS below the visible window can't spin forever.
     function nextIndex() {
-        var n = Math.floor(Math.random() * MATERIALS.length);
-        if (MATERIALS.length <= MAX_VISIBLE + 1) {
-            while (n === idx && MATERIALS.length > 1) {
-                n = Math.floor(Math.random() * MATERIALS.length);
-            }
-            return n;
-        }
-        while (n === idx || shownIdx.indexOf(n) !== -1) {
+        var n = idx, tries = 0;
+        do {
             n = Math.floor(Math.random() * MATERIALS.length);
-        }
+        } while ((n === idx || shownIdx.indexOf(n) !== -1) && ++tries < 50);
         return n;
     }
 
+    // Reset to a fresh slip: clear acquired rows + counters, pick a new live
+    // part, and pre-shelve a couple so it isn't empty at reveal. Called on every
+    // showOverlay() so a re-reveal never resumes mid-history with a stale tally.
+    function seedBOM() {
+        var old = list.querySelectorAll('.dh-gather-row.is-acquired');
+        for (var k = 0; k < old.length; k++) old[k].remove();
+        shownIdx = [];
+        count = 0;
+        tally.textContent = '0';
+        idx = Math.floor(Math.random() * MATERIALS.length);
+        renderCurrent(idx);
+        for (var s = 0; s < 2; s++) recordAcquired(nextIndex());
+    }
+
     function startRotation() {
-        if (reduceMotion || rotateTimer) return; // static list under reduced motion
+        if (prefersReducedMotion() || rotateTimer) return; // static list under reduced motion
         rotateTimer = setInterval(function () {
             term.classList.add('is-fading');
             icon.classList.add('is-fading');
@@ -258,7 +277,7 @@
 
     // Rotating "shop log" ticker. Static single line under reduced motion.
     function startStatus() {
-        if (!statusEl || reduceMotion || statusTimer) return;
+        if (!statusEl || prefersReducedMotion() || statusTimer) return;
         statusTimer = setInterval(function () {
             statusEl.classList.add('is-fading');
             setTimeout(function () {
@@ -270,8 +289,11 @@
     }
 
     function showOverlay() {
+        if (overlay.classList.contains('is-visible')) return; // top-level re-entrancy guard
+        seedBOM();                                            // fresh slip on every reveal
         overlay.classList.add('is-visible');
         overlay.setAttribute('aria-hidden', 'false');
+        if (srEl) srEl.textContent = "Building your member portal. Please don't refresh. We're handing you to the payment processor.";
         startRotation();
         startStatus();
         startSparks();
@@ -283,6 +305,7 @@
         if (rotateTimer) { clearInterval(rotateTimer); rotateTimer = null; }
         if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
         stopSparks();
+        if (srEl) srEl.textContent = ''; // clear so the next reveal re-announces
         if (submitBtn) submitBtn.disabled = false;
         submitting = false; // allow re-submit after a Back/bfcache return
     }
@@ -291,12 +314,13 @@
        A welder/grinder going at it behind the slip: bursts of warm particles
        arc up from behind the top edge and rain back down. Canvas + rAF, capped
        and additive-blended. Never runs under reduced motion; torn down on hide
-       so it can't leak a rAF loop after the page swaps. */
+       (and paused while the tab is hidden) so it can't leak a perpetual loop. */
     var sparkCanvas = document.getElementById('signup-gather-sparks');
     var sparkCtx    = (sparkCanvas && sparkCanvas.getContext) ? sparkCanvas.getContext('2d') : null;
     var particles   = [];
     var sparkRaf    = null;
     var burstTimer  = null;
+    var resizeRaf   = null;
     var emitters    = [];
 
     function sizeSparkCanvas() {
@@ -304,9 +328,14 @@
         var w = sparkCanvas.clientWidth, h = sparkCanvas.clientHeight;
         if (!w || !h) return;
         var dpr = Math.min(window.devicePixelRatio || 1, 2);
-        sparkCanvas.width  = Math.round(w * dpr);
-        sparkCanvas.height = Math.round(h * dpr);
-        sparkCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        var pw = Math.round(w * dpr), ph = Math.round(h * dpr);
+        // Only reallocate the backing store when the pixel size actually changed —
+        // assigning canvas.width/height clears the canvas and resets ctx state.
+        if (sparkCanvas.width !== pw || sparkCanvas.height !== ph) {
+            sparkCanvas.width  = pw;
+            sparkCanvas.height = ph;
+            sparkCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
         // Anchor emitters to the slip silhouette so sparks fountain out from
         // behind it regardless of viewport size. Four origins: the top corners
         // throw tall fountains; the mid-side vents spray outward with a low lift.
@@ -324,6 +353,7 @@
     }
 
     function spawnBurst() {
+        if (!emitters.length) sizeSparkCanvas(); // retry if the first sizing read 0
         if (!emitters.length) return;
         var e = emitters[Math.floor(Math.random() * emitters.length)];
         var n = 8 + Math.floor(Math.random() * 9);
@@ -337,10 +367,14 @@
                 size: 0.8 + Math.random() * 1.5
             });
         }
+        // Kick the draw loop back on if it self-paused while idle.
+        if (!sparkRaf && !prefersReducedMotion()) {
+            sparkRaf = window.requestAnimationFrame(stepSparks);
+        }
     }
 
     function stepSparks() {
-        if (!sparkCtx) return;
+        if (!sparkCtx) { sparkRaf = null; return; }
         var w = sparkCanvas.clientWidth, h = sparkCanvas.clientHeight;
         sparkCtx.clearRect(0, 0, w, h);
         sparkCtx.globalCompositeOperation = 'lighter';
@@ -366,15 +400,16 @@
             sparkCtx.stroke();
         }
         sparkCtx.globalCompositeOperation = 'source-over';
-        sparkRaf = window.requestAnimationFrame(stepSparks);
+        // Self-pause when idle so we don't burn a frame budget drawing nothing
+        // (the autoplay preview page never hides). spawnBurst restarts the loop.
+        sparkRaf = particles.length ? window.requestAnimationFrame(stepSparks) : null;
     }
 
     function startSparks() {
-        if (reduceMotion || !sparkCtx || sparkRaf) return;
+        if (prefersReducedMotion() || !sparkCtx || burstTimer) return; // burstTimer = "already running"
         sizeSparkCanvas();
-        spawnBurst();
+        spawnBurst(); // also starts the rAF loop
         burstTimer = setInterval(spawnBurst, 1400 + Math.random() * 900);
-        sparkRaf = window.requestAnimationFrame(stepSparks);
     }
 
     function stopSparks() {
@@ -384,9 +419,33 @@
         if (sparkCtx) sparkCtx.clearRect(0, 0, sparkCanvas.clientWidth, sparkCanvas.clientHeight);
     }
 
-    // Keep emitters/resolution aligned to the slip when the viewport changes
-    // while the overlay is up.
-    window.addEventListener('resize', function () { if (sparkRaf) sizeSparkCanvas(); });
+    // Keep emitters/resolution aligned to the slip on viewport change, but only
+    // while sparks are active and coalesced to one recompute per frame (avoids a
+    // backing-store realloc storm during a drag-resize).
+    window.addEventListener('resize', function () {
+        if (!burstTimer || resizeRaf) return;
+        resizeRaf = window.requestAnimationFrame(function () {
+            resizeRaf = null;
+            sizeSparkCanvas();
+        });
+    });
+
+    // Pause the per-frame spark loop while the tab is backgrounded so the
+    // autoplay preview doesn't burn CPU/GPU in the background.
+    document.addEventListener('visibilitychange', function () {
+        if (!overlay.classList.contains('is-visible')) return;
+        if (document.hidden) stopSparks(); else startSparks();
+    });
+
+    // If the user flips on reduced-motion mid-session, stop in-flight motion now.
+    if (motionMq && motionMq.addEventListener) {
+        motionMq.addEventListener('change', function () {
+            if (!prefersReducedMotion()) return;
+            if (rotateTimer) { clearInterval(rotateTimer); rotateTimer = null; }
+            if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
+            stopSparks();
+        });
+    }
 
     // Flavor job number, e.g. "#3F9A". Cosmetic only.
     if (jobEl) {
@@ -394,13 +453,10 @@
         jobEl.textContent = '#' + ('0000' + hex).slice(-4);
     }
 
-    // Seed the list so it isn't empty at reveal: pre-shelve a couple of parts
-    // distinct from the live one (and each other).
+    // Initial (still-hidden) state; showOverlay() reseeds a fresh slip on every
+    // reveal, so no acquired rows are built until the overlay is actually shown.
     renderCurrent(idx);
     if (statusEl) statusEl.textContent = STATUSES[statusIdx];
-    for (var s = 0; s < 2; s++) {
-        recordAcquired(nextIndex()); // each pick avoids the live row + already-seeded
-    }
 
     if (form) {
         form.addEventListener('submit', function (e) {

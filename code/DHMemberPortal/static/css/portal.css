@@ -984,9 +984,9 @@ i.ic-x          { color: #000000 !important; } /* X brand */
     gap: 0.55rem;
     padding: 0.12rem 0;
 }
-/* Acquired rows slide+fade in as they're checked off. */
+/* Acquired rows slide+fade in as they're checked off. (Over-cap rows are
+ * removed synchronously by JS, so there is no exit animation.) */
 .dh-gather-row.is-acquired { animation: dh-row-in 0.32s ease both; }
-.dh-gather-row.is-leaving { animation: dh-row-out 0.32s ease both; }
 .dh-gather-check { color: var(--shop-green); width: 1rem; text-align: center; flex: none; }
 .dh-gather-noun { text-transform: capitalize; }
 /* Dotted leader filling to the trailing part icon — the parts-list tell. */
@@ -1091,12 +1091,10 @@ i.ic-x          { color: #000000 !important; } /* X brand */
     width: 0.5rem;
     height: 0.95rem;
     background-color: var(--shop-cyan);
-    animation: dh-blink 1.05s steps(2, start) infinite;
+    /* Reuse the shared cursor-blink keyframe (defined for .tagline-cursor). */
+    animation: blink-cursor 1.05s steps(2, start) infinite;
 }
 
-@keyframes dh-blink {
-    50% { opacity: 0; }
-}
 @keyframes dh-throb {
     0%   { transform: scale(1)    rotate(-4deg); }
     50%  { transform: scale(1.12) rotate(4deg); }
@@ -1105,10 +1103,6 @@ i.ic-x          { color: #000000 !important; } /* X brand */
 @keyframes dh-row-in {
     from { opacity: 0; transform: translateX(-8px); }
     to   { opacity: 1; transform: translateX(0); }
-}
-@keyframes dh-row-out {
-    from { opacity: 1; transform: translateX(0); }
-    to   { opacity: 0; transform: translateX(8px); }
 }
 
 /* Respect reduced motion: the slip + filled BOM + hazard placard still show
@@ -1119,6 +1113,5 @@ i.ic-x          { color: #000000 !important; } /* X brand */
     .dh-gather-term,
     .dh-gather-icon,
     .dh-gather-status-text { transition: none; }
-    .dh-gather-row.is-acquired,
-    .dh-gather-row.is-leaving { animation: none; }
+    .dh-gather-row.is-acquired { animation: none; }
 }
