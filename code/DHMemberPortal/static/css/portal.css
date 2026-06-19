@@ -853,105 +853,272 @@ i.ic-x          { color: #000000 !important; } /* X brand */
 }
 
 /* ===================================================================
-   SIGNUP SUBMIT INTERSTITIAL (/signup form -> payment hand-off)
+   SIGNUP SUBMIT INTERSTITIAL — "SHOP WORK ORDER" (/signup -> payment)
    Full-screen overlay shown while the slow /signup/submit POST runs.
-   Themed via the portal CSS vars so it reads on every theme.
-   =================================================================== */
 
-/* Hidden until JS adds .is-visible. position:fixed covers the whole viewport
- * (and the form beneath, blocking re-clicks during the in-flight POST). */
+   Concept: PS:One builds things out of scrounged parts, so the wait is
+   staged as a fabrication work-order slip on a blueprint workbench. The
+   rotating material becomes an accumulating Bill of Materials — each
+   scavenged part checks off (CNC-green tick) and stacks into the list, so
+   the member watches parts pile up while the POST is in flight. The
+   "don't refresh" line is stamped as a shop hazard placard.
+
+   Palette is intentionally a physical-object palette (manila slip / stencil
+   ink / shop cyan / hazard), NOT the portal theme vars — the slip should
+   look like the same workshop artifact regardless of surrounding chrome.
+   =================================================================== */
 .dh-gather-overlay {
+    /* Local design tokens for the slip (scoped to the overlay). */
+    --shop-manila: #fbf7ee;
+    --shop-ink: #1a1a17;
+    --shop-cyan: #009fc2;
+    --shop-green: #1b9e5a;
+    --shop-hazard: #e5341e;
+    --shop-caution: #f4c20d;
+    --shop-rule: #ddd2bb;     /* hairline on manila */
+    --shop-faint: #8a8275;    /* muted stencil ink */
+    --shop-mono: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", "Courier New", monospace;
+
     display: none;
     position: fixed;
     inset: 0;
     z-index: 1080; /* above Bootstrap's content; below toasts (1090) */
-    /* Frost the page that was underneath rather than hide it: a translucent
-     * wash plus a backdrop blur so the form shows through, blurred. */
-    background-color: rgba(255, 255, 255, 0.55);
-    background-color: color-mix(in srgb, var(--bg-color) 55%, transparent);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    /* center the card */
+    /* Frost the page underneath, then lay a faint blueprint grid over it so
+     * the backdrop reads as a workbench rather than a generic blur. */
+    background-color: rgba(15, 23, 42, 0.45);
+    background-image:
+        linear-gradient(color-mix(in srgb, var(--shop-cyan) 9%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in srgb, var(--shop-cyan) 9%, transparent) 1px, transparent 1px);
+    background-size: 26px 26px, 26px 26px;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
     align-items: center;
     justify-content: center;
-    text-align: center;
     padding: 1.5rem;
 }
 .dh-gather-overlay.is-visible {
     display: flex;
 }
-.dh-gather-card {
-    max-width: 32rem;
-    color: var(--text-color);
-}
-.dh-gather-intro {
-    font-size: 1.1rem;
-    margin-bottom: 0.4rem;
-}
-/* First line gets a headline treatment so the message has a clear lead. */
-.dh-gather-headline {
-    font-size: 1.45rem;
-    font-weight: 700;
-    color: var(--primary-color);
-    margin-bottom: 0.75rem;
-}
-.dh-gather-label {
-    margin-top: 1.25rem;
-    margin-bottom: 0.75rem;
-    color: var(--secondary-color);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 0.9rem;
-}
-/* The rotating material name, centered on its own line under "Scored some…".
- * Cross-fades via the .is-fading opacity toggle (same idiom as
- * .signup-ready-word). Capitalized for a tidy "Scored some… Plywood" look. */
-.dh-gather-term {
-    display: block;
-    margin: 0.5rem auto 0;
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: var(--primary-color);
-    text-transform: capitalize;
-    transition: opacity 0.4s ease;
-}
-.dh-gather-term.is-fading {
-    opacity: 0;
-}
-/* The throbbing icon — swapped together with the term, centered below it.
- * Idle animation is scale + a slight rotate wiggle (transform only); opacity is
- * left to the .is-fading transition so the icon can cross-fade with the term. */
-.dh-gather-icon {
-    display: block;
-    margin: 1rem auto 0;
-    font-size: 3rem;
-    color: var(--primary-color);
-    animation: dh-throb 1.3s ease-in-out infinite;
-    transition: opacity 0.4s ease;
-}
-.dh-gather-icon.is-fading {
-    opacity: 0;
-}
-.dh-gather-warning {
-    margin-top: 2.5rem;
-    font-weight: 700;
-    line-height: 1.5;
-    color: var(--error-color);
+
+/* Decorative spark fountain canvas: fills the overlay, sits behind the slip. */
+.dh-gather-sparks {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
 }
 
+/* ---- The work-order slip ------------------------------------------------ */
+.dh-gather-slip {
+    position: relative; /* lift above the spark canvas */
+    z-index: 1;
+    width: 100%;
+    max-width: 30rem;
+    background-color: var(--shop-manila);
+    color: var(--shop-ink);
+    border: 1px solid var(--shop-rule);
+    border-top: 5px solid var(--shop-cyan); /* a strip of shop tape */
+    border-radius: 2px;
+    box-shadow: 0 18px 40px -12px rgba(15, 23, 42, 0.55);
+    text-align: left;
+    overflow: hidden;
+}
+
+/* Stencil header: shop name + live job number, justified like a form. */
+.dh-gather-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.65rem 1.15rem;
+    border-bottom: 1px dashed var(--shop-rule);
+    font-family: var(--shop-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+.dh-gather-head-mark { font-weight: 700; }
+.dh-gather-head-mark .dh-gather-dot { color: var(--shop-cyan); }
+.dh-gather-head-job { color: var(--shop-faint); white-space: nowrap; }
+
+.dh-gather-body { padding: 1.15rem 1.15rem 1.25rem; }
+
+/* The one human-voice line — system sans, deliberately contrasting the mono
+ * machine readout below it. */
+.dh-gather-lede {
+    margin: 0 0 1.1rem;
+    font-size: 1.02rem;
+    line-height: 1.45;
+}
+.dh-gather-lede strong { color: var(--shop-cyan); }
+
+/* BOM section heading row: label on the left, running tally on the right. */
+.dh-gather-bom-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-family: var(--shop-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--shop-faint);
+}
+.dh-gather-tally { color: var(--shop-green); font-weight: 700; }
+
+/* The accumulating parts list. Fixed min-height so the slip doesn't jump as
+ * rows come and go. */
+.dh-gather-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    min-height: 7.2rem;
+    font-family: var(--shop-mono);
+    font-size: 0.9rem;
+}
+.dh-gather-row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.12rem 0;
+}
+/* Acquired rows slide+fade in as they're checked off. */
+.dh-gather-row.is-acquired { animation: dh-row-in 0.32s ease both; }
+.dh-gather-row.is-leaving { animation: dh-row-out 0.32s ease both; }
+.dh-gather-check { color: var(--shop-green); width: 1rem; text-align: center; flex: none; }
+.dh-gather-noun { text-transform: capitalize; }
+/* Dotted leader filling to the trailing part icon — the parts-list tell. */
+.dh-gather-leader {
+    flex: 1 1 auto;
+    border-bottom: 1px dotted var(--shop-rule);
+    transform: translateY(-0.18em);
+}
+/* Absurd shop quantity stamped before the part icon. */
+.dh-gather-qty {
+    flex: none;
+    margin-left: 0.4rem;
+    font-size: 0.72rem;
+    color: var(--shop-faint);
+    white-space: nowrap;
+}
+.dh-gather-chip { color: var(--shop-faint); width: 1.1rem; text-align: center; flex: none; }
+
+/* The live "now acquiring" row, set apart with a cyan tab and bolder ink. */
+.dh-gather-row.dh-gather-current {
+    margin-top: 0.35rem;
+    padding: 0.4rem 0.55rem;
+    background-color: color-mix(in srgb, var(--shop-cyan) 8%, transparent);
+    border-left: 3px solid var(--shop-cyan);
+    border-radius: 0 2px 2px 0;
+    font-weight: 700;
+}
+.dh-gather-current .dh-gather-label {
+    color: var(--shop-cyan);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    flex: none;
+}
+.dh-gather-term {
+    text-transform: capitalize;
+    transition: opacity 0.35s ease;
+}
+.dh-gather-term.is-fading { opacity: 0; }
+/* The throbbing part icon for the current row. */
+.dh-gather-icon {
+    color: var(--shop-cyan);
+    flex: none;
+    animation: dh-throb 1.3s ease-in-out infinite;
+    transition: opacity 0.35s ease;
+}
+.dh-gather-icon.is-fading { opacity: 0; }
+
+/* Hazard placard: stamped caution strip for the "don't refresh" warning. */
+.dh-gather-placard {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-top: 1.15rem;
+    padding: 0.7rem 0.9rem;
+    background-color: var(--shop-caution);
+    color: #2a1d00;
+    border: 2px solid var(--shop-ink);
+    border-radius: 2px;
+    /* caution-tape hatching down the leading edge */
+    box-shadow: inset 6px 0 0 0 var(--shop-ink), inset 12px 0 0 0 var(--shop-caution);
+}
+.dh-gather-placard-icon {
+    font-size: 1.4rem;
+    color: var(--shop-hazard);
+    flex: none;
+}
+.dh-gather-placard-text {
+    font-family: var(--shop-mono);
+    font-size: 0.74rem;
+    line-height: 1.4;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.dh-gather-placard-text strong { font-weight: 700; }
+
+/* Rotating "shop log" ticker — a faux terminal line with a blinking cursor. */
+.dh-gather-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 1rem 0 0;
+    font-family: var(--shop-mono);
+    font-size: 0.74rem;
+    color: var(--shop-faint);
+}
+.dh-gather-status-label {
+    flex: none;
+    padding: 0.05rem 0.35rem;
+    border: 1px solid var(--shop-rule);
+    border-radius: 2px;
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--shop-cyan);
+}
+.dh-gather-status-text { transition: opacity 0.3s ease; }
+.dh-gather-status-text.is-fading { opacity: 0; }
+.dh-gather-status-text::after { content: '\2026'; } /* trailing ellipsis */
+.dh-gather-cursor {
+    flex: none;
+    width: 0.5rem;
+    height: 0.95rem;
+    background-color: var(--shop-cyan);
+    animation: dh-blink 1.05s steps(2, start) infinite;
+}
+
+@keyframes dh-blink {
+    50% { opacity: 0; }
+}
 @keyframes dh-throb {
     0%   { transform: scale(1)    rotate(-4deg); }
     50%  { transform: scale(1.12) rotate(4deg); }
     100% { transform: scale(1)    rotate(-4deg); }
 }
+@keyframes dh-row-in {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes dh-row-out {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(8px); }
+}
 
-/* Respect reduced motion: overlay still appears (the "don't refresh" warning
- * must show), but nothing animates — one static material, no throb, no fade. */
+/* Respect reduced motion: the slip + filled BOM + hazard placard still show
+ * (the "don't refresh" warning must always read), but nothing animates. */
 @media (prefers-reduced-motion: reduce) {
-    .dh-gather-icon {
-        animation: none;
-    }
-    .dh-gather-term {
-        transition: none;
-    }
+    .dh-gather-icon { animation: none; }
+    .dh-gather-cursor { animation: none; }
+    .dh-gather-term,
+    .dh-gather-icon,
+    .dh-gather-status-text { transition: none; }
+    .dh-gather-row.is-acquired,
+    .dh-gather-row.is-leaving { animation: none; }
 }
