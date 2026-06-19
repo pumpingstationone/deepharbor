@@ -235,4 +235,8 @@
             try { input.showPicker(); } catch (_) { /* already open or blocked */ }
         });
     </script>
+
+    {# Submit interstitial (revealed on a valid submit). Shared with the
+       standalone preview page; see _signup_gather.html. #}
+    {% include '_signup_gather.html' %}
 {% endblock %}

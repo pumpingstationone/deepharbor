@@ -1,0 +1,23 @@
+{# Standalone, shareable preview of the signup "gathering materials" loading
+   interstitial. Reuses the exact same markup/behavior/styles as the real form
+   (via _signup_gather.html) but auto-plays on load. No form, no submit, no DB
+   writes — purely a demo of the loader. #}
+{% extends "base.html" %}
+{% block title %}Loading Preview - Pumping Station: One{% endblock %}
+{% block page_title %}Signup Loading Preview{% endblock %}
+{% block content %}
+            <div class="col-md-10 col-lg-8">
+                <div class="card">
+                    <div class="card-body">
+                        <p class="text-muted mb-0">
+                            This is a standalone preview of the signup loading screen.
+                            It plays automatically and loops.
+                        </p>
+                    </div>
+                </div>
+            </div>
+{% endblock %}
+{% block scripts %}
+    {% set gather_autoplay = true %}
+    {% include '_signup_gather.html' %}
+{% endblock %}

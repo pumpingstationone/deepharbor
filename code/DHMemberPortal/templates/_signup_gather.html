@@ -1,0 +1,487 @@
+{# Signup submit interstitial — "Shop Work Order" (shared markup + behavior).
+   Included from signup_form.html (revealed on a valid form submit) and from
+   signup_loading_preview.html (auto-plays as a standalone shareable demo).
+
+   Concept: PS:One builds out of scrounged parts, so the wait is staged as a
+   fabrication work-order slip. The rotating material is an accumulating Bill
+   of Materials — each scavenged part checks off and stacks into the list.
+
+   Include with `gather_autoplay = true` to auto-reveal on load (demo mode);
+   omit it for the real form, where the overlay is revealed only by a valid
+   submit. Position:fixed, so its placement in the DOM doesn't matter — it's
+   included in the scripts block so the submit listener registers AFTER
+   base.html's dh-validate handler (needed for the e.defaultPrevented check).
+   Styling lives in the "SHOP WORK ORDER" block of portal.css. #}
+<div id="signup-gather-overlay" class="dh-gather-overlay" aria-hidden="true"{% if gather_autoplay %} data-autoplay{% endif %}>
+    {# Decorative spark fountain behind the slip — something's being welded back
+       there. Canvas-drawn, aria-hidden, never started under reduced motion. #}
+    <canvas id="signup-gather-sparks" class="dh-gather-sparks" aria-hidden="true"></canvas>
+    {# Screen readers get ONE concise polite announcement (set on reveal). The
+       animated slip below is aria-hidden so the per-second BOM/tally churn
+       doesn't flood the SR queue and bury the "don't refresh" message. #}
+    <p id="signup-gather-sr" class="visually-hidden" role="status" aria-live="polite"></p>
+    <div class="dh-gather-slip" aria-hidden="true">
+        <div class="dh-gather-head">
+            <span class="dh-gather-head-mark">PS<span class="dh-gather-dot">:</span>ONE shop <span class="dh-gather-dot">&middot;</span> work order</span>
+            <span class="dh-gather-head-job">JOB <span id="signup-gather-job">#0000</span></span>
+        </div>
+        <div class="dh-gather-body">
+            <p class="dh-gather-lede">
+                Got it! We&rsquo;re building your <strong>member portal</strong> out
+                of whatever we can scrounge. Checking Cragslist and Facebutt
+                Marketplace for free materials&hellip;
+            </p>
+
+            <div class="dh-gather-bom-head">
+                <span>Bill of Materials</span>
+                <span><span id="signup-gather-tally" class="dh-gather-tally">0</span> scavenged</span>
+            </div>
+
+            <ul id="signup-gather-list" class="dh-gather-list">
+                {# Acquired rows are inserted here by JS; the live row is last. #}
+                <li class="dh-gather-row dh-gather-current">
+                    <span class="dh-gather-label">Acquiring</span>
+                    <span id="signup-gather-term" class="dh-gather-term">plywood</span>
+                    <span class="dh-gather-leader" aria-hidden="true"></span>
+                    <i id="signup-gather-icon" class="fa-solid fa-layer-group dh-gather-icon" aria-hidden="true"></i>
+                </li>
+            </ul>
+
+            <p class="dh-gather-status">
+                <span class="dh-gather-status-label">Shop log</span>
+                <span id="signup-gather-status" class="dh-gather-status-text">Negotiating with the raccoons</span><span class="dh-gather-cursor"></span>
+            </p>
+
+            <div class="dh-gather-placard">
+                <i class="fa-solid fa-triangle-exclamation dh-gather-placard-icon" aria-hidden="true"></i>
+                <span class="dh-gather-placard-text">
+                    <strong>Do not refresh.</strong> We&rsquo;re handing you to our payment processor.
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    var overlay = document.getElementById('signup-gather-overlay');
+    var list    = document.getElementById('signup-gather-list');
+    var current = list ? list.querySelector('.dh-gather-current') : null;
+    var term    = document.getElementById('signup-gather-term');
+    var icon    = document.getElementById('signup-gather-icon');
+    var tally   = document.getElementById('signup-gather-tally');
+    var jobEl   = document.getElementById('signup-gather-job');
+    if (!overlay || !list || !current || !term || !icon || !tally) return;
+
+    // The form is present on the real signup page, absent in the demo.
+    var form      = document.querySelector('form.dh-validate');
+    var submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+    var autoplay  = overlay.hasAttribute('data-autoplay');
+
+    // Material -> Font Awesome icon. Static, hardcoded allowlist: every icon
+    // className is assembled only from these values, never interpolated from
+    // user/server data (keeps the XSS-safe posture).
+    var MATERIALS = [
+        { noun: 'plywood',           icon: 'fa-layer-group' },
+        { noun: 'acrylic sheets',    icon: 'fa-layer-group' },
+        { noun: 'scrap metal',       icon: 'fa-cubes' },
+        { noun: 'glass',             icon: 'fa-gem' },
+        { noun: 'fabric',            icon: 'fa-shirt' },
+        { noun: 'resin',             icon: 'fa-droplet' },
+        { noun: 'magnets',           icon: 'fa-magnet' },
+        { noun: 'hardware',          icon: 'fa-screwdriver-wrench' },
+        { noun: 'hand tools',        icon: 'fa-screwdriver-wrench' },
+        { noun: 'toolboxes',         icon: 'fa-toolbox' },
+        { noun: 'wrenches',          icon: 'fa-wrench' },
+        { noun: 'hammers',           icon: 'fa-hammer' },
+        { noun: 'screwdrivers',      icon: 'fa-screwdriver' },
+        { noun: 'measuring tools',   icon: 'fa-ruler-combined' },
+        { noun: '3D printers',       icon: 'fa-print' },
+        { noun: 'microscopes',       icon: 'fa-microscope' },
+        { noun: 'oil cans',          icon: 'fa-oil-can' },
+        { noun: 'chips',             icon: 'fa-microchip' },
+        { noun: 'wires',             icon: 'fa-network-wired' },
+        { noun: 'cables',            icon: 'fa-plug' },
+        { noun: 'batteries',         icon: 'fa-battery-half' },
+        { noun: 'LEDs',              icon: 'fa-lightbulb' },
+        { noun: 'fans',              icon: 'fa-fan' },
+        { noun: 'meters',            icon: 'fa-gauge-high' },
+        { noun: 'computers',         icon: 'fa-computer' },
+        { noun: 'monitors',          icon: 'fa-tv' },
+        { noun: 'keyboards',         icon: 'fa-keyboard' },
+        { noun: 'servers',           icon: 'fa-server' },
+        { noun: 'totes',             icon: 'fa-boxes-stacked' },
+        { noun: 'parts bins',        icon: 'fa-box-open' },
+        { noun: 'pallets',           icon: 'fa-pallet' },
+        { noun: 'hand trucks',       icon: 'fa-dolly' },
+        { noun: 'safety glasses',    icon: 'fa-glasses' },
+        { noun: 'hard hats',         icon: 'fa-helmet-safety' },
+        { noun: 'fire extinguishers', icon: 'fa-fire-extinguisher' },
+        // ...and the stuff PS:One will "definitely" scrounge up for free.
+        { noun: 'flux capacitors',        icon: 'fa-bolt' },
+        { noun: 'a jar of magic smoke',   icon: 'fa-smog' },
+        { noun: 'unobtanium',             icon: 'fa-atom' },
+        { noun: 'blinker fluid',          icon: 'fa-droplet' },
+        { noun: 'skyhooks',               icon: 'fa-anchor' },
+        { noun: 'a board stretcher',      icon: 'fa-ruler-horizontal' },
+        { noun: 'tartan paint',           icon: 'fa-fill-drip' },
+        { noun: 'a roll of grid squares', icon: 'fa-table-cells' },
+        { noun: 'muffler bearings',       icon: 'fa-gear' },
+        { noun: 'left-handed screwdrivers', icon: 'fa-screwdriver' },
+        { noun: 'compressed air (uncompressed)', icon: 'fa-wind' },
+        { noun: 'the lost 10mm socket',   icon: 'fa-circle-notch' },
+        { noun: 'infinite PLA',           icon: 'fa-infinity' },
+        { noun: 'pixel dust',             icon: 'fa-wand-magic-sparkles' },
+        { noun: 'a USB cable (orientation unknown)', icon: 'fa-plug' },
+        { noun: 'elbow grease',           icon: 'fa-jar' },
+        { noun: 'a haunted oscilloscope', icon: 'fa-ghost' }
+    ];
+
+    // Absurd shop quantities, stamped onto each scavenged part. Plain strings,
+    // rendered via textContent only.
+    var QUANTITIES = [
+        '1 smidge', '3 gross', "a baker's dozen", '∞', '0.5 raccoons',
+        '2 metric tons', 'a fistful', 'a heap', '12 furlongs', 'some',
+        'a wheelbarrow', '404', 'a pinch', '1.21 GW', 'a truckload',
+        'qty: yes', 'a metric butt-ton', '6.02e23'
+    ];
+
+    // Rotating "shop log" status lines. Plain strings, textContent only.
+    var STATUSES = [
+        'Negotiating with the raccoons', 'Bribing the laser cutter',
+        'Waking up the 3D printer', 'Untangling the extension cords',
+        'Looking for the 10mm socket', 'Charging the flux capacitor',
+        'Sweeping up the sparks', 'Dusting off the oscilloscope',
+        'Feeding the shop cat', 'Rerouting the magic smoke',
+        'Calibrating the vibe', 'Consulting the wiki',
+        'Applying percussive maintenance', 'Greasing the elbows'
+    ];
+
+    var MAX_VISIBLE = 4; // acquired rows kept on screen; older ones drop off the top
+
+    // Re-read at call time rather than snapshotting once, so a mid-session OS
+    // toggle is respected on the next reveal; a change-listener below also stops
+    // any in-flight motion immediately.
+    var motionMq = window.matchMedia
+        ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    function prefersReducedMotion() { return !!(motionMq && motionMq.matches); }
+
+    var idx = Math.floor(Math.random() * MATERIALS.length);
+    var shownIdx = [];       // material indices currently on screen (acquired rows)
+    var count = 0;           // running "scavenged" tally
+    var rotateTimer = null;
+    var statusEl    = document.getElementById('signup-gather-status');
+    var statusTimer = null;
+    var statusIdx   = Math.floor(Math.random() * STATUSES.length);
+    var srEl        = document.getElementById('signup-gather-sr');
+    var submitting = false;  // one-shot: true once a valid submit is handed off
+
+    // Track the current FA glyph class so we can swap just that token and leave
+    // dh-gather-icon / fa-solid / is-fading intact (a full className reassign
+    // would wipe is-fading mid-fade and pop the new icon in).
+    var currentIconClass = 'fa-layer-group'; // matches the markup default
+    function renderCurrent(i) {
+        term.textContent = MATERIALS[i].noun;
+        if (currentIconClass) icon.classList.remove(currentIconClass);
+        currentIconClass = MATERIALS[i].icon; // from the hardcoded list only
+        icon.classList.add(currentIconClass);
+    }
+
+    // Build one checked-off "acquired" row. XSS-safe: text via textContent,
+    // icon className only from the hardcoded MATERIALS allowlist.
+    function buildAcquiredRow(material) {
+        var li = document.createElement('li');
+        li.className = 'dh-gather-row is-acquired';
+
+        var check = document.createElement('i');
+        check.className = 'fa-solid fa-check dh-gather-check';
+        check.setAttribute('aria-hidden', 'true');
+
+        var noun = document.createElement('span');
+        noun.className = 'dh-gather-noun';
+        noun.textContent = material.noun;
+
+        var leader = document.createElement('span');
+        leader.className = 'dh-gather-leader';
+        leader.setAttribute('aria-hidden', 'true');
+
+        var qty = document.createElement('span');
+        qty.className = 'dh-gather-qty';
+        qty.textContent = QUANTITIES[Math.floor(Math.random() * QUANTITIES.length)];
+
+        var chip = document.createElement('i');
+        chip.className = 'fa-solid ' + material.icon + ' dh-gather-chip';
+        chip.setAttribute('aria-hidden', 'true');
+
+        li.appendChild(check);
+        li.appendChild(noun);
+        li.appendChild(leader);
+        li.appendChild(qty);
+        li.appendChild(chip);
+        return li;
+    }
+
+    function recordAcquired(i) {
+        list.insertBefore(buildAcquiredRow(MATERIALS[i]), current);
+        shownIdx.push(i);
+        count += 1;
+        tally.textContent = String(count);
+        // Single cap: trim shownIdx and the DOM together. The oldest acquired
+        // row is the list's first child (the live row is always last).
+        while (shownIdx.length > MAX_VISIBLE) {
+            shownIdx.shift();
+            if (list.firstElementChild && list.firstElementChild !== current) {
+                list.removeChild(list.firstElementChild);
+            }
+        }
+    }
+
+    // Pick a material not currently on screen (live row + visible acquired rows),
+    // so the same part never appears twice at once. Bounded retry so a future
+    // shrink of MATERIALS below the visible window can't spin forever.
+    function nextIndex() {
+        var n = idx, tries = 0;
+        do {
+            n = Math.floor(Math.random() * MATERIALS.length);
+        } while ((n === idx || shownIdx.indexOf(n) !== -1) && ++tries < 50);
+        return n;
+    }
+
+    // Reset to a fresh slip: clear acquired rows + counters, pick a new live
+    // part, and pre-shelve a couple so it isn't empty at reveal. Called on every
+    // showOverlay() so a re-reveal never resumes mid-history with a stale tally.
+    function seedBOM() {
+        var old = list.querySelectorAll('.dh-gather-row.is-acquired');
+        for (var k = 0; k < old.length; k++) old[k].remove();
+        shownIdx = [];
+        count = 0;
+        tally.textContent = '0';
+        idx = Math.floor(Math.random() * MATERIALS.length);
+        renderCurrent(idx);
+        for (var s = 0; s < 2; s++) recordAcquired(nextIndex());
+    }
+
+    function startRotation() {
+        if (prefersReducedMotion() || rotateTimer) return; // static list under reduced motion
+        rotateTimer = setInterval(function () {
+            term.classList.add('is-fading');
+            icon.classList.add('is-fading');
+            setTimeout(function () {
+                recordAcquired(idx); // the live part is now scavenged
+                idx = nextIndex();
+                renderCurrent(idx); // preserves is-fading, so the new pair fades in
+                term.classList.remove('is-fading');
+                icon.classList.remove('is-fading');
+            }, 350); // matches the .dh-gather-term/.dh-gather-icon opacity transition
+        }, 1800);
+    }
+
+    // Rotating "shop log" ticker. Static single line under reduced motion.
+    function startStatus() {
+        if (!statusEl || prefersReducedMotion() || statusTimer) return;
+        statusTimer = setInterval(function () {
+            statusEl.classList.add('is-fading');
+            setTimeout(function () {
+                statusIdx = (statusIdx + 1 + Math.floor(Math.random() * (STATUSES.length - 1))) % STATUSES.length;
+                statusEl.textContent = STATUSES[statusIdx];
+                statusEl.classList.remove('is-fading');
+            }, 300);
+        }, 2600);
+    }
+
+    function showOverlay() {
+        if (overlay.classList.contains('is-visible')) return; // top-level re-entrancy guard
+        seedBOM();                                            // fresh slip on every reveal
+        overlay.classList.add('is-visible');
+        overlay.setAttribute('aria-hidden', 'false');
+        if (srEl) srEl.textContent = "Building your member portal. Please don't refresh. We're handing you to the payment processor.";
+        startRotation();
+        startStatus();
+        startSparks();
+    }
+
+    function hideOverlay() {
+        overlay.classList.remove('is-visible');
+        overlay.setAttribute('aria-hidden', 'true');
+        if (rotateTimer) { clearInterval(rotateTimer); rotateTimer = null; }
+        if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
+        stopSparks();
+        if (srEl) srEl.textContent = ''; // clear so the next reveal re-announces
+        if (submitBtn) submitBtn.disabled = false;
+        submitting = false; // allow re-submit after a Back/bfcache return
+    }
+
+    /* ---- Background spark fountain (decorative) -------------------------------
+       A welder/grinder going at it behind the slip: bursts of warm particles
+       arc up from behind the top edge and rain back down. Canvas + rAF, capped
+       and additive-blended. Never runs under reduced motion; torn down on hide
+       (and paused while the tab is hidden) so it can't leak a perpetual loop. */
+    var sparkCanvas = document.getElementById('signup-gather-sparks');
+    var sparkCtx    = (sparkCanvas && sparkCanvas.getContext) ? sparkCanvas.getContext('2d') : null;
+    var particles   = [];
+    var sparkRaf    = null;
+    var burstTimer  = null;
+    var resizeRaf   = null;
+    var emitters    = [];
+
+    function sizeSparkCanvas() {
+        if (!sparkCtx) return;
+        var w = sparkCanvas.clientWidth, h = sparkCanvas.clientHeight;
+        if (!w || !h) return;
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var pw = Math.round(w * dpr), ph = Math.round(h * dpr);
+        // Only reallocate the backing store when the pixel size actually changed —
+        // assigning canvas.width/height clears the canvas and resets ctx state.
+        if (sparkCanvas.width !== pw || sparkCanvas.height !== ph) {
+            sparkCanvas.width  = pw;
+            sparkCanvas.height = ph;
+            sparkCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        // Anchor emitters to the slip silhouette so sparks fountain out from
+        // behind it regardless of viewport size. Four origins: the top corners
+        // throw tall fountains; the mid-side vents spray outward with a low lift.
+        // `dir` = horizontal sign, `up` = how much of the kick goes upward.
+        var slip = overlay.querySelector('.dh-gather-slip');
+        var r = slip ? slip.getBoundingClientRect()
+                     : { left: w * 0.32, right: w * 0.68, top: h * 0.32,
+                         bottom: h * 0.68, width: w * 0.36, height: h * 0.36 };
+        emitters = [
+            { x: r.left  + r.width * 0.18, y: r.top + 4,             dir: -1, up: 1.0 },
+            { x: r.right - r.width * 0.18, y: r.top + 4,             dir:  1, up: 1.0 },
+            { x: r.left  + 4,              y: r.top + r.height * 0.55, dir: -1, up: 0.4 },
+            { x: r.right - 4,              y: r.top + r.height * 0.55, dir:  1, up: 0.4 }
+        ];
+    }
+
+    function spawnBurst() {
+        if (!emitters.length) sizeSparkCanvas(); // retry if the first sizing read 0
+        if (!emitters.length) return;
+        var e = emitters[Math.floor(Math.random() * emitters.length)];
+        var n = 8 + Math.floor(Math.random() * 9);
+        for (var i = 0; i < n; i++) {
+            var speed = 3 + Math.random() * 6;
+            particles.push({
+                x: e.x, y: e.y, px: e.x, py: e.y,
+                vx: (e.dir * (0.4 + Math.random() * 0.6)) * speed,
+                vy: -(0.2 + e.up * (0.45 + Math.random() * 0.65)) * speed,
+                life: 0, maxLife: 42 + Math.random() * 46,
+                size: 0.8 + Math.random() * 1.5
+            });
+        }
+        // Kick the draw loop back on if it self-paused while idle.
+        if (!sparkRaf && !prefersReducedMotion()) {
+            sparkRaf = window.requestAnimationFrame(stepSparks);
+        }
+    }
+
+    function stepSparks() {
+        if (!sparkCtx) { sparkRaf = null; return; }
+        var w = sparkCanvas.clientWidth, h = sparkCanvas.clientHeight;
+        sparkCtx.clearRect(0, 0, w, h);
+        sparkCtx.globalCompositeOperation = 'lighter';
+        sparkCtx.lineCap = 'round';
+        for (var i = particles.length - 1; i >= 0; i--) {
+            var p = particles[i];
+            p.px = p.x; p.py = p.y;
+            p.vy += 0.16;   // gravity
+            p.vx *= 0.99;   // air drag
+            p.vy *= 0.99;
+            p.x += p.vx; p.y += p.vy;
+            p.life++;
+            var t = p.life / p.maxLife;
+            if (t >= 1 || p.y > h + 24) { particles.splice(i, 1); continue; }
+            // White-hot, cooling to orange-red as it ages.
+            var hue   = 48 - t * 33;
+            var light = 78 - t * 40;
+            sparkCtx.strokeStyle = 'hsla(' + hue + ', 100%, ' + light + '%, ' + (1 - t) + ')';
+            sparkCtx.lineWidth = p.size;
+            sparkCtx.beginPath();
+            sparkCtx.moveTo(p.px, p.py);
+            sparkCtx.lineTo(p.x, p.y);
+            sparkCtx.stroke();
+        }
+        sparkCtx.globalCompositeOperation = 'source-over';
+        // Self-pause when idle so we don't burn a frame budget drawing nothing
+        // (the autoplay preview page never hides). spawnBurst restarts the loop.
+        sparkRaf = particles.length ? window.requestAnimationFrame(stepSparks) : null;
+    }
+
+    function startSparks() {
+        if (prefersReducedMotion() || !sparkCtx || burstTimer) return; // burstTimer = "already running"
+        sizeSparkCanvas();
+        spawnBurst(); // also starts the rAF loop
+        burstTimer = setInterval(spawnBurst, 1400 + Math.random() * 900);
+    }
+
+    function stopSparks() {
+        if (sparkRaf)   { window.cancelAnimationFrame(sparkRaf); sparkRaf = null; }
+        if (burstTimer) { clearInterval(burstTimer); burstTimer = null; }
+        particles.length = 0;
+        if (sparkCtx) sparkCtx.clearRect(0, 0, sparkCanvas.clientWidth, sparkCanvas.clientHeight);
+    }
+
+    // Keep emitters/resolution aligned to the slip on viewport change, but only
+    // while sparks are active and coalesced to one recompute per frame (avoids a
+    // backing-store realloc storm during a drag-resize).
+    window.addEventListener('resize', function () {
+        if (!burstTimer || resizeRaf) return;
+        resizeRaf = window.requestAnimationFrame(function () {
+            resizeRaf = null;
+            sizeSparkCanvas();
+        });
+    });
+
+    // Pause the per-frame spark loop while the tab is backgrounded so the
+    // autoplay preview doesn't burn CPU/GPU in the background.
+    document.addEventListener('visibilitychange', function () {
+        if (!overlay.classList.contains('is-visible')) return;
+        if (document.hidden) stopSparks(); else startSparks();
+    });
+
+    // If the user flips on reduced-motion mid-session, stop in-flight motion now.
+    if (motionMq && motionMq.addEventListener) {
+        motionMq.addEventListener('change', function () {
+            if (!prefersReducedMotion()) return;
+            if (rotateTimer) { clearInterval(rotateTimer); rotateTimer = null; }
+            if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
+            stopSparks();
+        });
+    }
+
+    // Flavor job number, e.g. "#3F9A". Cosmetic only.
+    if (jobEl) {
+        var hex = Math.floor(Math.random() * 0x10000).toString(16).toUpperCase();
+        jobEl.textContent = '#' + ('0000' + hex).slice(-4);
+    }
+
+    // Initial (still-hidden) state; showOverlay() reseeds a fresh slip on every
+    // reveal, so no acquired rows are built until the overlay is actually shown.
+    renderCurrent(idx);
+    if (statusEl) statusEl.textContent = STATUSES[statusIdx];
+
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            // The shared dh-validate handler (base.html) runs first and calls
+            // preventDefault() on invalid input. Only reveal once it passed.
+            if (e.defaultPrevented) return;
+            // One-shot guard: a disabled submit button does NOT reliably block
+            // Enter-key implicit submission across browsers, so cancel any second
+            // submit event ourselves rather than dispatching a duplicate POST.
+            if (submitting) { e.preventDefault(); return; }
+            submitting = true;
+            showOverlay();
+            if (submitBtn) submitBtn.disabled = true; // guard double-click
+            // The native POST proceeds; the browser swaps pages when it returns.
+        });
+    }
+
+    // If this page is restored from the bfcache (Back button after reaching
+    // payment), make sure the overlay isn't stuck visible.
+    window.addEventListener('pageshow', function (evt) {
+        if (evt.persisted) hideOverlay();
+    });
+    window.addEventListener('popstate', hideOverlay);
+
+    // Standalone demo page: play immediately on load.
+    if (autoplay) showOverlay();
+})();
+</script>
