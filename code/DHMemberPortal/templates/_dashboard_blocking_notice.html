@@ -1,0 +1,88 @@
+{# Non-dismissible activation work-order overlay, shown ONLY on /dashboard home
+   for pending members. `gate` is 'payment' or 'idcheck' (decided server-side in
+   member_dashboard via _dashboard_blocking_gate); `member_id` stamps the job no.
+
+   Intentionally NOT dismissible: no close button, no backdrop-click handler, no
+   Escape handler. Clearing the blocker (complete payment / get age-verified) or
+   logging out is the only way past it. The overlay is position:fixed and eats
+   all clicks beneath, so the member can't reach the tiles/menu underneath.
+   Styling: the "BLOCKING ACTIVATION NOTICE" block in portal.css (reuses the
+   shop work-order language from the signup loader). #}
+<div class="dh-wo-overlay" role="dialog" aria-modal="true"
+     aria-labelledby="dhWoStamp" aria-describedby="dhWoInstr">
+  <div class="dh-wo-slip">
+    <div class="dh-wo-head">
+      <span class="dh-wo-head-mark">PS<span class="dot">:</span>1 <span class="dot">&middot;</span> New Member</span>
+      <span class="dh-wo-head-job">JOB <span>#{{ member_id }}</span></span>
+    </div>
+    <div class="dh-wo-body">
+
+      <div class="dh-wo-jobhead">
+        <span>Membership activation</span>
+        <span class="stamp">On hold</span>
+      </div>
+
+      <ul class="dh-wo-list" aria-hidden="true">
+        <li class="dh-wo-row done">
+          <span class="dh-wo-mark"><i class="fa-solid fa-check"></i></span>
+          <span class="noun">Account created</span>
+          <span class="dh-wo-leader"></span>
+          <span class="dh-wo-tag">done</span>
+        </li>
+        {% if gate == 'payment' %}
+        <li class="dh-wo-row current">
+          <span class="dh-wo-mark"><i class="fa-solid fa-wrench"></i></span>
+          <span class="noun">Payment received</span>
+          <span class="dh-wo-leader"></span>
+          <span class="dh-wo-tag">waiting</span>
+        </li>
+        <li class="dh-wo-row pending">
+          <span class="dh-wo-mark"><i class="fa-regular fa-circle"></i></span>
+          <span class="noun">Age check</span>
+          <span class="dh-wo-leader"></span>
+          <span class="dh-wo-tag">queued</span>
+        </li>
+        {% else %}
+        <li class="dh-wo-row done">
+          <span class="dh-wo-mark"><i class="fa-solid fa-check"></i></span>
+          <span class="noun">Payment received</span>
+          <span class="dh-wo-leader"></span>
+          <span class="dh-wo-tag">done</span>
+        </li>
+        <li class="dh-wo-row current">
+          <span class="dh-wo-mark"><i class="fa-solid fa-wrench"></i></span>
+          <span class="noun">Age check</span>
+          <span class="dh-wo-leader"></span>
+          <span class="dh-wo-tag">inspect</span>
+        </li>
+        {% endif %}
+        <li class="dh-wo-row pending">
+          <span class="dh-wo-mark"><i class="fa-regular fa-circle"></i></span>
+          <span class="noun">Membership activated</span>
+          <span class="dh-wo-leader"></span>
+          <span class="dh-wo-tag">queued</span>
+        </li>
+      </ul>
+
+      <div class="dh-wo-placard">
+        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+        <span class="dh-wo-placard-text" id="dhWoStamp">{{ 'Payment due' if gate == 'payment' else 'Pending age check' }}</span>
+      </div>
+
+      <p class="dh-wo-instr" id="dhWoInstr">
+        {% if gate == 'payment' %}Please complete your payment before continuing. If you have already paid, ask a volunteer for help.{% else %}Your account isn't active yet, please see a volunteer to have your age verified before continuing.{% endif %}
+      </p>
+
+      <div class="dh-wo-actions">
+        {% if gate == 'payment' %}
+        <a class="dh-wo-btn" href="{{ url_for('signup_payment') }}"><i class="fa-solid fa-credit-card"></i> Complete payment</a>
+        {% endif %}
+        <a class="dh-wo-link" href="mailto:info@pumpingstationone.org"><i class="fa-solid fa-envelope"></i>Email for help</a>
+      </div>
+
+      <div class="dh-wo-foot">
+        <a href="{{ url_for('logout') }}"><i class="fa-solid fa-arrow-right-from-bracket"></i> Log out</a>
+      </div>
+    </div>
+  </div>
+</div>

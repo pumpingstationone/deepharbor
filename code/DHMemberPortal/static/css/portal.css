@@ -1115,3 +1115,219 @@ i.ic-x          { color: #000000 !important; } /* X brand */
     .dh-gather-status-text { transition: none; }
     .dh-gather-row.is-acquired { animation: none; }
 }
+
+/* ===================================================================
+   BLOCKING ACTIVATION NOTICE  (/dashboard home, pending members)
+   A non-dismissible "work order on hold" slip — same shop language as
+   the signup loader, but static and clean (no manila/animation). Two
+   variants ('payment' / 'idcheck') chosen server-side; see
+   _dashboard_blocking_notice.html.
+   =================================================================== */
+.dh-wo-overlay {
+    /* Work-order tokens — manila/cream dropped for a clean white slip; only the
+       caution yellow (placard), hazard red, cyan tape, and green checks stay. */
+    --shop-paper: #ffffff;
+    --shop-ink: #1e293b;
+    --shop-cyan: #009fc2;
+    --shop-green: #1b9e5a;
+    --shop-hazard: #e5341e;
+    --shop-caution: #f4c20d;
+    --shop-rule: #e2e8f0;
+    --shop-faint: #64748b;
+    --shop-mono: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", "Courier New", monospace;
+
+    position: fixed;
+    inset: 0;
+    z-index: 1085; /* above Bootstrap offcanvas (1045) & gather (1080), below toasts (1090) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    /* Frost the dashboard underneath, then lay a faint blueprint grid over it. */
+    background-color: rgba(15, 23, 42, 0.5);
+    background-image:
+        linear-gradient(color-mix(in srgb, var(--shop-cyan) 9%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in srgb, var(--shop-cyan) 9%, transparent) 1px, transparent 1px);
+    background-size: 26px 26px, 26px 26px;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    pointer-events: auto; /* eat every click beneath — nothing under the slip is reachable */
+    overflow-y: auto;
+}
+
+/* ---- the work-order slip ---- */
+.dh-wo-slip {
+    position: relative;
+    width: 100%;
+    max-width: 31rem;
+    margin: auto;
+    background-color: var(--shop-paper);
+    color: var(--shop-ink);
+    border: 1px solid var(--shop-rule);
+    border-top: 5px solid var(--shop-cyan); /* a strip of shop tape */
+    border-radius: 2px;
+    box-shadow: 0 18px 40px -12px rgba(15, 23, 42, 0.55);
+    text-align: left;
+    overflow: hidden;
+}
+
+/* Stencil header: shop mark + job number. */
+.dh-wo-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.65rem 1.15rem;
+    border-bottom: 1px dashed var(--shop-rule);
+    font-family: var(--shop-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+.dh-wo-head-mark { font-weight: 700; }
+.dh-wo-head-mark .dot { color: var(--shop-cyan); }
+.dh-wo-head-job { color: var(--shop-faint); white-space: nowrap; }
+
+.dh-wo-body { padding: 1.15rem 1.25rem 1.3rem; }
+
+/* Job checklist — the parts-list visual language from the BOM. */
+.dh-wo-jobhead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 0.55rem;
+    font-family: var(--shop-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--shop-faint);
+}
+.dh-wo-jobhead .stamp { color: var(--shop-hazard); font-weight: 700; }
+
+.dh-wo-list {
+    list-style: none;
+    margin: 0 0 1.1rem;
+    padding: 0;
+    font-family: var(--shop-mono);
+    font-size: 0.9rem;
+}
+.dh-wo-row { display: flex; align-items: center; gap: 0.55rem; padding: 0.14rem 0; }
+/* Scoped class (NOT Bootstrap's .mark text-highlight utility). */
+.dh-wo-row .dh-wo-mark { width: 1rem; text-align: center; flex: none; }
+.dh-wo-row.done .dh-wo-mark { color: var(--shop-green); }
+.dh-wo-row.done .noun { color: var(--shop-ink); }
+.dh-wo-row.pending { color: var(--shop-faint); }
+.dh-wo-row.pending .dh-wo-mark { color: var(--shop-faint); }
+.dh-wo-leader {
+    flex: 1 1 auto;
+    border-bottom: 1px dotted var(--shop-rule);
+    transform: translateY(-0.18em);
+}
+.dh-wo-tag {
+    flex: none;
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--shop-faint);
+}
+/* The blocked step gets the cyan "current" tab from the loader. */
+.dh-wo-row.current {
+    margin: 0.3rem 0;
+    padding: 0.4rem 0.55rem;
+    background-color: color-mix(in srgb, var(--shop-cyan) 8%, transparent);
+    border-left: 3px solid var(--shop-cyan);
+    border-radius: 0 2px 2px 0;
+    font-weight: 700;
+}
+.dh-wo-row.current .dh-wo-mark { color: var(--shop-cyan); }
+.dh-wo-row.current .dh-wo-tag { color: var(--shop-cyan); }
+
+/* Hazard placard — the stamped hold reason (the only yellow left). */
+.dh-wo-placard {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin: 0 0 1.1rem;
+    padding: 0.7rem 0.9rem;
+    background-color: var(--shop-caution);
+    color: #2a1d00;
+    border: 2px solid var(--shop-ink);
+    border-radius: 2px;
+    /* caution-tape hatching down the leading edge */
+    box-shadow: inset 6px 0 0 0 var(--shop-ink), inset 12px 0 0 0 var(--shop-caution);
+}
+.dh-wo-placard i { font-size: 1.4rem; color: var(--shop-hazard); flex: none; }
+.dh-wo-placard-text {
+    font-family: var(--shop-mono);
+    font-size: 0.74rem;
+    line-height: 1.4;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+/* Human-voice instruction — sans, contrasts the mono machine readout. */
+.dh-wo-instr { margin: 0 0 1.2rem; font-size: 1.02rem; line-height: 1.5; }
+
+/* Actions — centered button + email link. */
+.dh-wo-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    align-items: center;
+    text-align: center;
+}
+.dh-wo-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--shop-mono);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-decoration: none;
+    padding: 0.6rem 1.1rem;
+    border-radius: 2px;
+    border: 2px solid var(--shop-ink);
+    background-color: var(--shop-cyan);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 2px 2px 0 0 var(--shop-ink);
+    transition: transform 0.05s ease, box-shadow 0.05s ease;
+}
+.dh-wo-btn:hover {
+    color: #fff;
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0 0 var(--shop-ink);
+}
+.dh-wo-link {
+    font-family: var(--shop-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--shop-ink);
+    text-decoration: none;
+    font-weight: 700;
+    border-bottom: 1px dotted var(--shop-faint);
+}
+.dh-wo-link i { margin-right: 0.4rem; color: var(--shop-cyan); }
+.dh-wo-link:hover { color: var(--shop-cyan); }
+
+.dh-wo-foot {
+    margin-top: 1.2rem;
+    padding-top: 0.85rem;
+    border-top: 1px dashed var(--shop-rule);
+    font-family: var(--shop-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.dh-wo-foot a { color: var(--shop-faint); text-decoration: none; }
+.dh-wo-foot a:hover { color: var(--shop-ink); }
+.dh-wo-foot i { margin-right: 0.35rem; }
+
+/* Disable the button's press-shift under reduced motion (it's the only motion). */
+@media (prefers-reduced-motion: reduce) {
+    .dh-wo-btn { transition: none; }
+}

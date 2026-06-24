@@ -1,0 +1,23 @@
+{# Dev-only standalone preview of the /dashboard activation blocking notice.
+   Renders the real partial (_dashboard_blocking_notice.html) over a stub page,
+   toggled via ?case=payment|idcheck. No auth, no DB — visual review only. #}
+{% extends "base.html" %}
+{% block title %}Activation Notice Preview - Pumping Station: One{% endblock %}
+{% block page_title %}Activation Notice Preview{% endblock %}
+{% block content %}
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <p class="mb-0">
+                            Dev-only preview of the dashboard activation notice. Switch case:
+                            <a href="?case=payment">payment</a> &middot;
+                            <a href="?case=idcheck">idcheck</a>
+                            &mdash; currently showing <strong>{{ case }}</strong>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% with gate = case, member_id = '1024' %}
+                {% include '_dashboard_blocking_notice.html' %}
+            {% endwith %}
+{% endblock %}
