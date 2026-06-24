@@ -2,11 +2,11 @@ import re
 import uuid
 import requests
 import json
-from flask import Flask, render_template, session, request, redirect, url_for, make_response, flash
+from flask import Flask, render_template, session, request, redirect, url_for, make_response, flash, abort
 from flask_session import Session
 from flask_wtf.csrf import CSRFProtect, CSRFError
 import msal
-from datetime import datetime
+from datetime import datetime, date
 
 # Our stuff
 import dhservices
@@ -121,6 +121,78 @@ def _is_stranded_pre_payment(access_token, member_id):
     # level even with a null membership_status) aren't sent to re-payment.
     return membership_status == '' and not membership_level
 
+def _dashboard_blocking_gate(access_token, member_id, member_info):
+    """Decide whether /dashboard home should show the non-dismissible activation
+    work-order overlay, and which variant.
+
+    Returns:
+        'payment' — pending member with no Stripe payment on file yet.
+        'idcheck' — pending member who HAS paid but hasn't had an in-person
+                    age/ID check (neither the legacy `id_check_1` nor the new
+                    `id_check_date` is set).
+        None      — no overlay (not pending, already checked, or any error).
+
+    Only pending members are ever gated. Fails SAFE to None on any error
+    fetching status, so an API blip can't trap a member behind a modal that
+    cannot be dismissed.
+    """
+    ms = ((member_info.get('status') or {}).get('membership_status') or '').lower()
+    if ms != 'pending':
+        return None
+    # stripe_product_id / stripe_subscription_id live in the raw `status` JSONB,
+    # which v_member_info (get_full_member_info) does not expose — fetch raw.
+    try:
+        status = dhservices.get_member_status(access_token, member_id) or {}
+    except Exception as e:
+        logger.warning(f"Blocking-gate status fetch failed for member {member_id}: {e}")
+        return None
+    has_stripe = bool(status.get('stripe_product_id')
+                      or status.get('stripe_subscription_id'))
+    if not has_stripe:
+        return 'payment'
+    forms = member_info.get('forms') or {}
+    id_checked = bool((forms.get('id_check_1') or '').strip() or forms.get('id_check_date'))
+    if not id_checked:
+        return 'idcheck'
+    return None
+
+# A new member sits in "active but no key yet" only briefly, so the welcome
+# banner is recomputed on every load and dismissal isn't persisted.
+#
+# NOTE: this window is measured from `member_since` (the signup/join date), NOT
+# from when the member was activated, because no activation timestamp is stored
+# today. A member who stays pending longer than this window before an admin
+# activates them will therefore never see the welcome banner. The real
+# self-expiry is "got a key" (the rfid_tags check below); the window only stops
+# the banner showing forever to an established member who never registered a
+# key. Window kept generous so realistic (including slow) onboarding is covered.
+# A precise fix would key off a stored activated-at date (follow-up ticket).
+_WELCOME_MAX_AGE_DAYS = 30
+
+def _dashboard_welcome_active_no_key(member_info):
+    """True when /dashboard home should show the dismissible welcome banner:
+    an active member who joined within _WELCOME_MAX_AGE_DAYS and hasn't had a
+    key activated yet. Self-expiring (stops once they get a key or age past the
+    window). See the note on _WELCOME_MAX_AGE_DAYS re: join-date vs activation.
+
+    Fails closed to False on a missing/unparseable member_since."""
+    status = member_info.get('status') or {}
+    if (status.get('membership_status') or '').lower() != 'active':
+        return False
+    access = member_info.get('access') or {}
+    if access.get('rfid_tags'):  # any key on file → already past this step
+        return False
+    member_since = status.get('member_since')
+    if not member_since:
+        return False
+    try:
+        # v_member_info emits member_since via safe_to_date (ISO date); tolerate
+        # a datetime suffix by taking the leading YYYY-MM-DD.
+        joined = date.fromisoformat(str(member_since)[:10])
+    except ValueError:
+        return False
+    return (date.today() - joined).days < _WELCOME_MAX_AGE_DAYS
+
 @app.route('/signup')
 def signup_start():
     """First step of signup - email entry"""
@@ -203,6 +275,21 @@ def signup_loading_preview():
     demo so the animation can be shared/reviewed via a single URL.
     """
     return render_template('signup_loading_preview.html')
+
+@app.route('/dashboard/notice-preview')
+def dashboard_notice_preview():
+    """Dev-only standalone preview of the /dashboard activation blocking notice.
+
+    Renders the real partials over a stub page, toggled via
+    ?case=payment|idcheck|welcome. No auth, no DB writes — a visual review
+    tool so the notices can be shared/reviewed via a single URL. Hidden outside
+    dev so it can't be reached in production."""
+    if AUTH_MODE != 'dev':
+        abort(404)
+    case = request.args.get('case', 'payment')
+    if case not in ('payment', 'idcheck', 'welcome'):
+        case = 'payment'
+    return render_template('dashboard_notice_preview.html', case=case)
 
 @app.route('/signup/payment')
 def signup_payment():
@@ -593,8 +680,23 @@ def member_dashboard():
     if error:
         return error
 
+    info = member_info if isinstance(member_info, dict) else {}
+    gate = _dashboard_blocking_gate(session['access_token'], session['member_id'], info)
+    if gate == 'payment':
+        # signup_payment reads the email from the session ONLY (#294); set it
+        # here so the overlay's "Complete payment" button can route there
+        # without the address ever appearing in the URL.
+        session['signup_email'] = (info.get('identity') or {}).get('primary_email')
+
+    # Welcome banner only matters for active members, so it can't co-occur with
+    # the pending-only blocking gate; compute it only when not gated.
+    welcome = (not gate) and _dashboard_welcome_active_no_key(info)
+
     return render_template('member_dashboard.html',
-                         status=member_info.get('status', {}) if isinstance(member_info, dict) else {},
+                         status=info.get('status', {}),
+                         gate=gate,
+                         welcome=welcome,
+                         member_id=session['member_id'],
                          user=session.get('user'))
 
 @app.route('/dashboard/profile')

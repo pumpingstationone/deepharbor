@@ -1,0 +1,74 @@
+{# Shared work-order markup for the dashboard activation alerts (the two pending
+   work-order overlays + the active "almost there" welcome banner). One
+   definition each so the step labels, slip header, and job-head can't drift
+   between alerts.
+
+   Macros:
+     activation_steps(current) - the progress checklist (see below)
+     wo_head(member_id)        - the stencil slip header (shop mark + JOB no.)
+     wo_jobhead(stamp)         - the "Membership activation / <stamp>" sub-head
+
+   `current` is the step the member is stuck on:
+     'payment'     -> Payment received  (pending, unpaid)
+     'agecheck'    -> Age check          (pending, paid, no ID check)
+     'activatekey' -> Activate key       (active, no key yet)
+   Earlier steps render done; later steps render queued. 'account' and
+   'complete' are never passed as `current` (entry / terminal states). #}
+{% macro activation_steps(current) %}
+{% set order = ['account', 'payment', 'agecheck', 'activatekey', 'complete'] %}
+{% set labels = {
+  'account': 'Account created',
+  'payment': 'Payment received',
+  'agecheck': 'Age check',
+  'activatekey': 'Activate key',
+  'complete': 'Onboarding complete'
+} %}
+{% set current_tag = {'payment': 'waiting', 'agecheck': 'inspect', 'activatekey': 'last step'} %}
+{% set current_icon = {'payment': 'fa-solid fa-wrench', 'agecheck': 'fa-solid fa-wrench', 'activatekey': 'fa-solid fa-key'} %}
+{% set ci = order.index(current) %}
+<ul class="dh-wo-list" aria-hidden="true">
+  {% for key in order %}
+  {% set i = loop.index0 %}
+  {% if i < ci %}
+  <li class="dh-wo-row done">
+    <span class="dh-wo-mark"><i class="fa-solid fa-check"></i></span>
+    <span class="noun">{{ labels[key] }}</span>
+    <span class="dh-wo-leader"></span>
+    <span class="dh-wo-tag">done</span>
+  </li>
+  {% elif i == ci %}
+  <li class="dh-wo-row current">
+    <span class="dh-wo-mark"><i class="{{ current_icon[key] }}"></i></span>
+    <span class="noun">{{ labels[key] }}</span>
+    <span class="dh-wo-leader"></span>
+    <span class="dh-wo-tag">{{ current_tag[key] }}</span>
+  </li>
+  {% else %}
+  <li class="dh-wo-row pending">
+    <span class="dh-wo-mark"><i class="fa-regular fa-circle"></i></span>
+    <span class="noun">{{ labels[key] }}</span>
+    <span class="dh-wo-leader"></span>
+    <span class="dh-wo-tag">queued</span>
+  </li>
+  {% endif %}
+  {% endfor %}
+</ul>
+{% endmacro %}
+
+{# Stencil slip header: shop mark + job number (member id). #}
+{% macro wo_head(member_id) %}
+<div class="dh-wo-head">
+  <span class="dh-wo-head-mark">PS<span class="dot">:</span>1 <span class="dot">&middot;</span> New Member</span>
+  <span class="dh-wo-head-job">JOB <span>#{{ member_id }}</span></span>
+</div>
+{% endmacro %}
+
+{# "Membership activation / <stamp>" sub-head. `stamp` is the right-side label
+   ("On hold", "Almost there"); its color is driven by the surrounding theme via
+   CSS (.dh-wo-jobhead .stamp / .dh-welcome .dh-wo-jobhead .stamp). #}
+{% macro wo_jobhead(stamp) %}
+<div class="dh-wo-jobhead">
+  <span>Membership activation</span>
+  <span class="stamp">{{ stamp }}</span>
+</div>
+{% endmacro %}

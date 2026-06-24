@@ -72,7 +72,10 @@
             {% endif %}
             {% endwith %}
 
-            {% if status %}{% include '_dashboard_status_banner.html' %}{% endif %}
+            {# `gate` (the blocking activation overlay) is set only on /dashboard
+               home; when it's up, suppress the softer pending banner so they
+               don't stack. `gate` is undefined (falsy) on every other page. #}
+            {% if status and not gate %}{% include '_dashboard_status_banner.html' %}{% endif %}
 
             {% block dashboard_content %}{% endblock %}
         </main>

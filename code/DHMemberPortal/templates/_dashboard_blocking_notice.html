@@ -1,0 +1,43 @@
+{# Non-dismissible activation work-order overlay, shown ONLY on /dashboard home
+   for pending members. `gate` is 'payment' or 'idcheck' (decided server-side in
+   member_dashboard via _dashboard_blocking_gate); `member_id` stamps the job no.
+
+   Intentionally NOT dismissible: no close button, no backdrop-click handler, no
+   Escape handler. Clearing the blocker (complete payment / get age-verified) or
+   logging out is the only way past it. The overlay is position:fixed and eats
+   all clicks beneath, so the member can't reach the tiles/menu underneath.
+   Styling: the "BLOCKING ACTIVATION NOTICE" block in portal.css (reuses the
+   shop work-order language from the signup loader). #}
+{% from '_activation_steps.html' import activation_steps, wo_head, wo_jobhead %}
+<div class="dh-wo-overlay" role="dialog" aria-modal="true"
+     aria-labelledby="dhWoStamp" aria-describedby="dhWoInstr">
+  <div class="dh-wo-slip">
+    {{ wo_head(member_id) }}
+    <div class="dh-wo-body">
+
+      {{ wo_jobhead('On hold') }}
+
+      {{ activation_steps('payment' if gate == 'payment' else 'agecheck') }}
+
+      <div class="dh-wo-placard">
+        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+        <span class="dh-wo-placard-text" id="dhWoStamp">{{ 'Payment due' if gate == 'payment' else 'Pending age check' }}</span>
+      </div>
+
+      <p class="dh-wo-instr" id="dhWoInstr">
+        {% if gate == 'payment' %}Please complete your payment before continuing. If you have already paid, ask a volunteer for help.{% else %}Your account isn't active yet, please see a volunteer to have your age verified before continuing.{% endif %}
+      </p>
+
+      <div class="dh-wo-actions">
+        {% if gate == 'payment' %}
+        <a class="dh-wo-btn" href="{{ url_for('signup_payment') }}"><i class="fa-solid fa-credit-card"></i> Complete payment</a>
+        {% endif %}
+        <a class="dh-wo-link" href="mailto:info@pumpingstationone.org"><i class="fa-solid fa-envelope"></i>Email for help</a>
+      </div>
+
+      <div class="dh-wo-foot">
+        <a href="{{ url_for('logout') }}"><i class="fa-solid fa-arrow-right-from-bracket"></i> Log out</a>
+      </div>
+    </div>
+  </div>
+</div>

@@ -3,6 +3,9 @@
 {% block page_title %}<i class="fa-solid fa-house ic-dashboard"></i> Member Dashboard{% endblock %}
 {% block dashboard_content %}
 
+            {% if gate %}{% include '_dashboard_blocking_notice.html' %}{% endif %}
+            {% if welcome %}{% include '_dashboard_welcome_notice.html' %}{% endif %}
+
             <!-- Membership -->
             <div class="menu-section">
                 <h2>Your Membership</h2>
