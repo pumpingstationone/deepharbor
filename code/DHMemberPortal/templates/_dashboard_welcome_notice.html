@@ -1,0 +1,55 @@
+{# Welcome banner, shown ONLY on /dashboard home for a brand-new active member
+   who hasn't had a key activated yet (see _dashboard_welcome_active_no_key).
+   Inline (NOT an overlay) so the member can scroll the dashboard underneath;
+   "Continue" smooth-scrolls the page just past this banner (it does NOT
+   dismiss it). The banner re-renders every load until they get a key or age
+   out of the window. Styled as a green "build complete" variant of the work-
+   order slip. NOTE: no em-dashes in copy (project style). #}
+{% from '_activation_steps.html' import activation_steps %}
+<div class="dh-welcome" id="dhWelcome" role="region" aria-label="Welcome to your member portal">
+  <div class="dh-wo-slip dh-wo-slip--ok">
+    <div class="dh-wo-head">
+      <span class="dh-wo-head-mark">PS<span class="dot">:</span>1 <span class="dot">&middot;</span> New Member</span>
+      <span class="dh-wo-head-job">JOB <span>#{{ member_id }}</span></span>
+    </div>
+    <div class="dh-wo-body">
+
+      <div class="dh-wo-jobhead">
+        <span>Membership activation</span>
+        <span class="stamp">Almost there</span>
+      </div>
+
+      <p class="dh-welcome-lede">
+        Welcome to your PS:1 member portal! Bookmark this page now. It has the
+        resources you&rsquo;ll need to get the most out of the space and
+        community. Scroll down for links on getting authorized on equipment,
+        learning how to be an excellent member, connecting with the community on
+        Discord, and other useful tools.
+      </p>
+
+      {{ activation_steps('activatekey') }}
+
+      <div class="dh-wo-placard dh-wo-placard--ok">
+        <i class="fa-solid fa-key" aria-hidden="true"></i>
+        <span class="dh-wo-placard-text">You&rsquo;re not done onboarding just yet. Your last step is to talk with a volunteer to activate a key.</span>
+      </div>
+
+      <div class="dh-wo-actions">
+        <button type="button" class="dh-wo-btn dh-wo-btn--ok" id="dhWelcomeContinue">Continue</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var btn = document.getElementById('dhWelcomeContinue');
+    var banner = document.getElementById('dhWelcome');
+    if (!btn || !banner) return;
+    // Continue scrolls the page just past the banner (does NOT dismiss it).
+    btn.addEventListener('click', function () {
+      var top = banner.getBoundingClientRect().bottom + window.scrollY;
+      var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: top, behavior: reduce ? 'auto' : 'smooth' });
+    });
+  })();
+</script>

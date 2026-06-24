@@ -9,15 +9,22 @@
                 <div class="card">
                     <div class="card-body">
                         <p class="mb-0">
-                            Dev-only preview of the dashboard activation notice. Switch case:
+                            Dev-only preview of the dashboard activation notices. Switch case:
                             <a href="?case=payment">payment</a> &middot;
-                            <a href="?case=idcheck">idcheck</a>
+                            <a href="?case=idcheck">idcheck</a> &middot;
+                            <a href="?case=welcome">welcome</a>
                             &mdash; currently showing <strong>{{ case }}</strong>.
                         </p>
                     </div>
                 </div>
             </div>
-            {% with gate = case, member_id = '1024' %}
-                {% include '_dashboard_blocking_notice.html' %}
-            {% endwith %}
+            {% if case == 'welcome' %}
+                {% with welcome = true, member_id = '1024' %}
+                    {% include '_dashboard_welcome_notice.html' %}
+                {% endwith %}
+            {% else %}
+                {% with gate = case, member_id = '1024' %}
+                    {% include '_dashboard_blocking_notice.html' %}
+                {% endwith %}
+            {% endif %}
 {% endblock %}

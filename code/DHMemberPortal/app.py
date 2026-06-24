@@ -6,7 +6,7 @@ from flask import Flask, render_template, session, request, redirect, url_for, m
 from flask_session import Session
 from flask_wtf.csrf import CSRFProtect, CSRFError
 import msal
-from datetime import datetime
+from datetime import datetime, date
 
 # Our stuff
 import dhservices
@@ -156,6 +156,33 @@ def _dashboard_blocking_gate(access_token, member_id, member_info):
         return 'idcheck'
     return None
 
+# A new member sits in "active but no key yet" for only a short window, so the
+# welcome banner is recomputed on every load and dismissal isn't persisted.
+_WELCOME_MAX_AGE_DAYS = 14
+
+def _dashboard_welcome_active_no_key(member_info):
+    """True when /dashboard home should show the dismissible welcome banner:
+    an active member, less than two weeks old, who hasn't had a key activated
+    yet. Self-expiring (stops once they get a key or age past the window).
+
+    Fails closed to False on a missing/unparseable member_since."""
+    status = member_info.get('status') or {}
+    if (status.get('membership_status') or '').lower() != 'active':
+        return False
+    access = member_info.get('access') or {}
+    if access.get('rfid_tags'):  # any key on file → already past this step
+        return False
+    member_since = status.get('member_since')
+    if not member_since:
+        return False
+    try:
+        # v_member_info emits member_since via safe_to_date (ISO date); tolerate
+        # a datetime suffix by taking the leading YYYY-MM-DD.
+        joined = date.fromisoformat(str(member_since)[:10])
+    except ValueError:
+        return False
+    return (date.today() - joined).days < _WELCOME_MAX_AGE_DAYS
+
 @app.route('/signup')
 def signup_start():
     """First step of signup - email entry"""
@@ -250,7 +277,7 @@ def dashboard_notice_preview():
     if AUTH_MODE != 'dev':
         abort(404)
     case = request.args.get('case', 'payment')
-    if case not in ('payment', 'idcheck'):
+    if case not in ('payment', 'idcheck', 'welcome'):
         case = 'payment'
     return render_template('dashboard_notice_preview.html', case=case)
 
@@ -651,9 +678,14 @@ def member_dashboard():
         # without the address ever appearing in the URL.
         session['signup_email'] = (info.get('identity') or {}).get('primary_email')
 
+    # Welcome banner only matters for active members, so it can't co-occur with
+    # the pending-only blocking gate; compute it only when not gated.
+    welcome = (not gate) and _dashboard_welcome_active_no_key(info)
+
     return render_template('member_dashboard.html',
                          status=info.get('status', {}),
                          gate=gate,
+                         welcome=welcome,
                          member_id=session['member_id'],
                          user=session.get('user'))
 

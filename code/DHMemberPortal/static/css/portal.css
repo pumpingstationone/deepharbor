@@ -1123,9 +1123,11 @@ i.ic-x          { color: #000000 !important; } /* X brand */
    variants ('payment' / 'idcheck') chosen server-side; see
    _dashboard_blocking_notice.html.
    =================================================================== */
-.dh-wo-overlay {
+.dh-wo-overlay,
+.dh-welcome {
     /* Work-order tokens — manila/cream dropped for a clean white slip; only the
-       caution yellow (placard), hazard red, cyan tape, and green checks stay. */
+       caution yellow (placard), hazard red, cyan tape, and green checks stay.
+       Shared by the blocking overlay and the inline welcome banner. */
     --shop-paper: #ffffff;
     --shop-ink: #1e293b;
     --shop-cyan: #009fc2;
@@ -1135,7 +1137,9 @@ i.ic-x          { color: #000000 !important; } /* X brand */
     --shop-rule: #e2e8f0;
     --shop-faint: #64748b;
     --shop-mono: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", "Courier New", monospace;
+}
 
+.dh-wo-overlay {
     position: fixed;
     inset: 0;
     z-index: 1085; /* above Bootstrap offcanvas (1045) & gather (1080), below toasts (1090) */
@@ -1331,3 +1335,34 @@ i.ic-x          { color: #000000 !important; } /* X brand */
 @media (prefers-reduced-motion: reduce) {
     .dh-wo-btn { transition: none; }
 }
+
+/* ---- Welcome banner: inline "build complete" (green) variant -----------
+   Same slip styling, but rendered inline in the dashboard content (no overlay,
+   no backdrop) and dismissible. Green tape + a positive green placard. */
+.dh-welcome { margin-bottom: 1.5rem; }
+.dh-welcome .dh-wo-slip { max-width: none; margin: 0; } /* full content width */
+.dh-wo-slip--ok { border-top-color: var(--shop-green); } /* green tape, not cyan */
+.dh-welcome .dh-wo-jobhead .stamp { color: var(--shop-green); } /* "Almost there" */
+.dh-welcome-lede { margin: 0 0 1.1rem; font-size: 1.02rem; line-height: 1.5; }
+
+/* Positive placard — green, sentence case, readable (not an uppercase stamp). */
+.dh-wo-placard--ok {
+    background-color: color-mix(in srgb, var(--shop-green) 12%, #fff);
+    color: var(--shop-ink);
+    border-color: var(--shop-green);
+    box-shadow: inset 6px 0 0 0 var(--shop-green),
+                inset 12px 0 0 0 color-mix(in srgb, var(--shop-green) 12%, #fff);
+}
+.dh-wo-placard--ok i { color: var(--shop-green); }
+.dh-wo-placard--ok .dh-wo-placard-text {
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-transform: none;
+    line-height: 1.45;
+}
+
+/* Green Continue button, a touch larger than the cyan action button. */
+.dh-wo-btn--ok { background-color: var(--shop-green); }
+.dh-welcome .dh-wo-btn { font-size: 0.9rem; padding: 0.7rem 1.8rem; }
