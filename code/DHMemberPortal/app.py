@@ -156,14 +156,24 @@ def _dashboard_blocking_gate(access_token, member_id, member_info):
         return 'idcheck'
     return None
 
-# A new member sits in "active but no key yet" for only a short window, so the
-# welcome banner is recomputed on every load and dismissal isn't persisted.
-_WELCOME_MAX_AGE_DAYS = 14
+# A new member sits in "active but no key yet" only briefly, so the welcome
+# banner is recomputed on every load and dismissal isn't persisted.
+#
+# NOTE: this window is measured from `member_since` (the signup/join date), NOT
+# from when the member was activated, because no activation timestamp is stored
+# today. A member who stays pending longer than this window before an admin
+# activates them will therefore never see the welcome banner. The real
+# self-expiry is "got a key" (the rfid_tags check below); the window only stops
+# the banner showing forever to an established member who never registered a
+# key. Window kept generous so realistic (including slow) onboarding is covered.
+# A precise fix would key off a stored activated-at date (follow-up ticket).
+_WELCOME_MAX_AGE_DAYS = 30
 
 def _dashboard_welcome_active_no_key(member_info):
     """True when /dashboard home should show the dismissible welcome banner:
-    an active member, less than two weeks old, who hasn't had a key activated
-    yet. Self-expiring (stops once they get a key or age past the window).
+    an active member who joined within _WELCOME_MAX_AGE_DAYS and hasn't had a
+    key activated yet. Self-expiring (stops once they get a key or age past the
+    window). See the note on _WELCOME_MAX_AGE_DAYS re: join-date vs activation.
 
     Fails closed to False on a missing/unparseable member_since."""
     status = member_info.get('status') or {}
@@ -270,9 +280,9 @@ def signup_loading_preview():
 def dashboard_notice_preview():
     """Dev-only standalone preview of the /dashboard activation blocking notice.
 
-    Renders the real partial (_dashboard_blocking_notice.html) over a stub page,
-    toggled via ?case=payment|idcheck. No auth, no DB writes — a visual review
-    tool so the overlay can be shared/reviewed via a single URL. Hidden outside
+    Renders the real partials over a stub page, toggled via
+    ?case=payment|idcheck|welcome. No auth, no DB writes — a visual review
+    tool so the notices can be shared/reviewed via a single URL. Hidden outside
     dev so it can't be reached in production."""
     if AUTH_MODE != 'dev':
         abort(404)

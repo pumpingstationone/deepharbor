@@ -8,20 +8,14 @@
    all clicks beneath, so the member can't reach the tiles/menu underneath.
    Styling: the "BLOCKING ACTIVATION NOTICE" block in portal.css (reuses the
    shop work-order language from the signup loader). #}
-{% from '_activation_steps.html' import activation_steps %}
+{% from '_activation_steps.html' import activation_steps, wo_head, wo_jobhead %}
 <div class="dh-wo-overlay" role="dialog" aria-modal="true"
      aria-labelledby="dhWoStamp" aria-describedby="dhWoInstr">
   <div class="dh-wo-slip">
-    <div class="dh-wo-head">
-      <span class="dh-wo-head-mark">PS<span class="dot">:</span>1 <span class="dot">&middot;</span> New Member</span>
-      <span class="dh-wo-head-job">JOB <span>#{{ member_id }}</span></span>
-    </div>
+    {{ wo_head(member_id) }}
     <div class="dh-wo-body">
 
-      <div class="dh-wo-jobhead">
-        <span>Membership activation</span>
-        <span class="stamp">On hold</span>
-      </div>
+      {{ wo_jobhead('On hold') }}
 
       {{ activation_steps('payment' if gate == 'payment' else 'agecheck') }}
 

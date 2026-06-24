@@ -1,6 +1,6 @@
-{# Dev-only standalone preview of the /dashboard activation blocking notice.
-   Renders the real partial (_dashboard_blocking_notice.html) over a stub page,
-   toggled via ?case=payment|idcheck. No auth, no DB — visual review only. #}
+{# Dev-only standalone preview of the /dashboard activation notices. Renders the
+   real partials (_dashboard_blocking_notice.html / _dashboard_welcome_notice.html)
+   over a stub page, toggled via ?case=payment|idcheck|welcome. No auth, no DB. #}
 {% extends "base.html" %}
 {% block title %}Activation Notice Preview - Pumping Station: One{% endblock %}
 {% block page_title %}Activation Notice Preview{% endblock %}
