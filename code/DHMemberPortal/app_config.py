@@ -80,3 +80,6 @@ else:
 
 SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_HTTPONLY = True
+# Secure flag: on everywhere except dev (which serves plaintext http://localhost).
+# AUTH_MODE is "dev" only in the docker-compose.dev.yml overlay; unset in prod.
+SESSION_COOKIE_SECURE = AUTH_MODE != "dev"

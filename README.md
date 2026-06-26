@@ -12,6 +12,8 @@ python -c "import secrets; print(secrets.token_hex(32))"
 ```
 In the dev environment this is handled automatically — you don't need to do anything.
 
+In production the portals set the session cookie with the `Secure` flag automatically (it is enabled whenever `AUTH_MODE` is not `dev`, which is the case in any non-dev deployment). This means the portals **must be served over HTTPS**: terminate TLS at a reverse proxy in front of them. If a portal is reached over plain HTTP in a non-dev configuration, browsers drop the session cookie and login will not complete.
+
 Also note that Pumping Station One uses [Azure B2C](https://learn.microsoft.com/en-us/azure/active-directory-b2c/overview) for identity management; if you are not using Azure B2C, you will need to modify the authentication and authorization code in both the DHAdminPortal and DHMemberPortal components to reflect your identity management system.
 
 > **Looking to set up a dev environment?** See [DEV_SETUP.md](DEV_SETUP.md) — it handles config files, seed data, and auth bypass automatically. The guide below is for production deployments.
