@@ -1164,22 +1164,24 @@ def api_member_access():
         return {"error": str(e)}, 500
 
 @app.route("/api/authorizations/available")
+@requires_view_permission("member.authorizations")
 def api_available_authorizations():
     if not session.get("user"):
         return {"error": "Not authenticated"}, 401
-    
+
     try:
         access_token = dhservices.get_access_token(
-            dhservices.DH_CLIENT_ID, 
+            dhservices.DH_CLIENT_ID,
             dhservices.DH_CLIENT_SECRET
         )
         available_auths = dhservices.get_available_authorizations(access_token)
         return available_auths
     except Exception as e:
-        print(f"Error getting available authorizations: {e}")
+        logger.error(f"Error getting available authorizations: {e}")
         return {"error": str(e)}, 500
 
 @app.route("/api/membership_levels/available")
+@requires_view_permission("member.status")
 def api_available_membership_levels():
     if not session.get("user"):
         return {"error": "Not authenticated"}, 401
@@ -1192,7 +1194,7 @@ def api_available_membership_levels():
         levels = dhservices.get_available_membership_levels(access_token)
         return levels
     except Exception as e:
-        print(f"Error getting available membership levels: {e}")
+        logger.error(f"Error getting available membership levels: {e}")
         return {"error": str(e)}, 500
 
 # POST endpoints for updating member data
