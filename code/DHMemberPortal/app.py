@@ -664,6 +664,12 @@ def _gate_banned_members():
 
 @app.after_request
 def set_cache_headers(response):
+    # CSP-001 / INFRA-004: clickjacking + MIME-sniffing protection on EVERY response
+    # (incl. unauthenticated login/signup). frame-ancestors in the <meta> CSP is ignored
+    # by browsers; X-Frame-Options is the header that actually blocks framing.
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     # CACHE-001: prevent caching of authenticated pages / API responses so member
     # data can't be re-served from cache after logout. Static assets stay cacheable.
     if session.get("user") and request.endpoint != "static":
