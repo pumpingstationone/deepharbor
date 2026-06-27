@@ -18,6 +18,15 @@
         return currentWord === words[0] ? words[1] : words[0];
     }
 
+    /* Build a single <span> node with optional color and a single char.
+       XSS-safe: textContent only, no markup strings. */
+    function colorSpan(ch, color) {
+        var span = document.createElement("span");
+        if (color) span.style.color = color;
+        span.textContent = ch;
+        return span;
+    }
+
     function randomInterval() {
         return 20000 + Math.random() * 40000; // 20-60s
     }
@@ -135,11 +144,12 @@
         var current = el.textContent;
         var maxLen = Math.max(current.length, target.length);
 
-        var html = "";
+        el.textContent = "";
         for (var i = 0; i < maxLen; i++) {
-            html += '<span class="flip-char">' + (i < current.length ? current[i] : "") + '</span>';
+            var span = colorSpan(i < current.length ? current[i] : "", null);
+            span.className = "flip-char";
+            el.appendChild(span);
         }
-        el.innerHTML = html;
         var chars = el.querySelectorAll(".flip-char");
 
         chars.forEach(function (charEl, idx) {
@@ -210,29 +220,27 @@
         var interval = setInterval(function () {
             iterations++;
             colorOffset++;
-            var html = "";
+            el.textContent = "";
             for (var i = 0; i < len; i++) {
                 var color = colors[(i + colorOffset) % colors.length];
                 if (settled[i]) {
                     var ch = i < target.length ? target[i] : " ";
-                    html += '<span style="color:var(--secondary-color)">' + ch + '</span>';
+                    el.appendChild(colorSpan(ch, "var(--secondary-color)"));
                 } else if (iterations > maxIterations - (len - i)) {
                     settled[i] = true;
                     var ch = i < target.length ? target[i] : " ";
-                    html += '<span style="color:' + color + '">' + ch + '</span>';
+                    el.appendChild(colorSpan(ch, color));
                 } else {
                     var ch = scrambleChars[Math.floor(Math.random() * scrambleChars.length)];
-                    html += '<span style="color:' + color + '">' + ch + '</span>';
+                    el.appendChild(colorSpan(ch, color));
                 }
             }
-            el.innerHTML = html;
             if (iterations >= maxIterations) {
                 clearInterval(interval);
-                var finalHtml = "";
+                el.textContent = "";
                 for (var i = 0; i < target.length; i++) {
-                    finalHtml += '<span style="color:' + colors[i % colors.length] + '">' + target[i] + '</span>';
+                    el.appendChild(colorSpan(target[i], colors[i % colors.length]));
                 }
-                el.innerHTML = finalHtml;
                 setTimeout(function () {
                     el.textContent = target;
                     if (callback) callback();
