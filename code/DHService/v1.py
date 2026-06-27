@@ -34,12 +34,6 @@ def _create_member_getter(field_name: str, db_func, wrap_key: str = None):
         return {wrap_key: result} if wrap_key else result
     return getter
 
-async def _get_member_id_and_json(request: Request) -> tuple[str, dict]:
-    """Extract member ID from header and parse JSON body."""
-    member_id = request.headers.get("X-Member-ID")
-    data = await request.json()
-    return member_id, data
-
 ###############################################################################
 # Member GET endpoints
 ###############################################################################
