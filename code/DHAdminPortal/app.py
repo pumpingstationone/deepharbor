@@ -519,6 +519,17 @@ def inject_theme():
     return {"admin_theme": theme}
 
 
+@app.after_request
+def set_cache_headers(response):
+    # CACHE-001: prevent caching of authenticated pages / API responses so member
+    # data can't be re-served from cache after logout. Static assets stay cacheable.
+    if session.get("user") and request.endpoint != "static":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 ###############################################################################
 # Permission checking decorator for admin API endpoints
 ###############################################################################
