@@ -74,7 +74,8 @@ services:
       retries: 3
     environment:
       TZ: "America/Chicago"
-      DH_SECRET_KEY: "${DH_SECRET_KEY}"
+      DH_SECRET_KEY: "${DH_SECRET_KEY:-}"
+      DH_TRUSTED_HOSTS: "${DH_TRUSTED_HOSTS:-}"
     ports:
       - "5002:5002"
     depends_on:
@@ -103,7 +104,8 @@ services:
     container_name: dh_admin_portal
     environment:
       TZ: "America/Chicago"
-      DH_SECRET_KEY: "${DH_SECRET_KEY}"
+      DH_SECRET_KEY: "${DH_SECRET_KEY:-}"
+      DH_TRUSTED_HOSTS: "${DH_TRUSTED_HOSTS:-}"
     
 
   #########################################################

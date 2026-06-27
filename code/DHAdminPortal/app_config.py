@@ -83,3 +83,32 @@ SESSION_COOKIE_HTTPONLY = True
 # Secure flag: on everywhere except dev (which serves plaintext http://localhost).
 # AUTH_MODE is "dev" only in the docker-compose.dev.yml overlay; unset in prod.
 SESSION_COOKIE_SECURE = AUTH_MODE != "dev"
+
+###############################################################################
+# Trusted Hosts (HOSTFIX-001: Host-header / open-redirect hardening)
+###############################################################################
+# Flask validates the inbound Host (and the X-Forwarded-Host that waitress /
+# ProxyFix promote) against this allowlist and returns 400 on a mismatch, so a
+# spoofed Host cannot poison url_for(_external=True) (the OAuth redirect_uri and
+# post_logout_redirect_uri). Werkzeug strips the port before matching, so bare
+# hostnames cover any port.
+#
+# Dev disables filtering entirely (None) so the multi-host dev setup (localhost
+# plus the reverse-proxied edge) never dead-ends, mirroring SESSION_COOKIE_SECURE
+# being off in dev. In prod the hosts come from DH_TRUSTED_HOSTS (root .env,
+# comma-separated, multiple allowed); "localhost"/127.0.0.1 are unioned in
+# automatically for the Docker /health curl. An unset DH_TRUSTED_HOSTS leaves
+# validation off (current behavior) so a missing config never dead-ends the portal.
+if AUTH_MODE == "dev":
+    TRUSTED_HOSTS = None
+else:
+    _trusted_hosts_raw = os.environ.get("DH_TRUSTED_HOSTS", "")
+    _trusted_hosts = [h.strip() for h in _trusted_hosts_raw.split(",") if h.strip()]
+    TRUSTED_HOSTS = (["localhost", "127.0.0.1"] + _trusted_hosts) if _trusted_hosts else None
+    if TRUSTED_HOSTS is None:
+        from dhs_logging import logger
+        logger.warning(
+            "DH_TRUSTED_HOSTS is not set: Host-header validation is DISABLED "
+            "(HOSTFIX-001). Set DH_TRUSTED_HOSTS to the portal's public "
+            "hostname(s) in production."
+        )
