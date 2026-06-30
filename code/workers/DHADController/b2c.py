@@ -63,7 +63,7 @@ def get_b2c_user_id_by_ad_object_id(access_token, ad_object_id):
         'Authorization': f'Bearer {access_token}'
     }
     
-    response = requests.get(graph_endpoint, headers=headers)
+    response = requests.get(graph_endpoint, headers=headers, timeout=30)
     
     if response.status_code == 200:
         users = response.json().get('value', [])
@@ -90,7 +90,7 @@ def get_b2c_user_id_by_email(access_token, email_address):
         'Authorization': f'Bearer {access_token}'
     }
     
-    response = requests.get(graph_endpoint, headers=headers)
+    response = requests.get(graph_endpoint, headers=headers, timeout=30)
     
     if response.status_code == 200:
         users = response.json().get('value', [])
@@ -163,7 +163,7 @@ def create_user_in_b2c(access_token,
         'Content-Type': 'application/json'
     }
 
-    response = requests.post(graph_endpoint, json=user_data, headers=headers)
+    response = requests.post(graph_endpoint, json=user_data, headers=headers, timeout=30)
 
     if response.status_code == 201:
         b2c_user = response.json()
@@ -225,7 +225,7 @@ def update_user_in_b2c(first_name=None, last_name=None, email_address=None):
             }
         ]
     """    
-    response = requests.patch(graph_endpoint, json=user_data, headers=headers)
+    response = requests.patch(graph_endpoint, json=user_data, headers=headers, timeout=30)
     
     if response.status_code == 204:
         logger.info(f"User updated successfully in Azure B2C")
@@ -251,7 +251,7 @@ def set_user_enabled(access_token, b2c_user_id, enabled=True):
         'accountEnabled': enabled
     }
     
-    response = requests.patch(graph_endpoint, json=user_data, headers=headers)
+    response = requests.patch(graph_endpoint, json=user_data, headers=headers, timeout=30)
     
     if response.status_code == 204:
         logger.info(f"User {'enabled' if enabled else 'disabled'} successfully in Azure B2C")
@@ -271,7 +271,7 @@ def get_user_enabled_status(access_token, b2c_user_id):
         'Authorization': f'Bearer {access_token}'
     }
     
-    response = requests.get(graph_endpoint, headers=headers)
+    response = requests.get(graph_endpoint, headers=headers, timeout=30)
     
     if response.status_code == 200:
         user_data = response.json()

@@ -464,6 +464,7 @@ def graphcall():
     graph_data = requests.get(  # Use token to call downstream service
         app_config.ENDPOINT,
         headers={"Authorization": "Bearer " + token["access_token"]},
+        timeout=30,
     ).json()
     return render_template("graph.html", result=graph_data)
 
