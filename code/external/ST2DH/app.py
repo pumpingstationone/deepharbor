@@ -90,6 +90,19 @@ def update_membership(member):
             # set them to suspended just because they subscribed to a product in Stripe again.
             current_status["membership_status"] = "active"
             logger.debug(f"Member ID: {member.id} is currently Active and subscribing to a product in Stripe, keeping membership status as Active")
+            # Oh, but maybe, somehow, their information isn't in the record, so let's check
+            # if it's there and if it isn't, let's add it.
+            # Check if the stripe IDs are present and have a length of greater than 0, if not, add them.
+            forced_update = False
+            if not current_status.get("stripe_subscription_id") or len(current_status["stripe_subscription_id"]) == 0:
+                current_status["stripe_subscription_id"] = member.stripe_subscription_id
+                forced_update = True
+            if not current_status.get("stripe_product_id") or len(current_status["stripe_product_id"]) == 0:
+                current_status["stripe_product_id"] = member.stripe_product_id
+                forced_update = True
+            if forced_update:
+                update_information = True
+                logger.debug(f"Member ID: {member.id} had missing Stripe information, forcing update of membership info")
         elif membership_status == "pending" and member.membership_status == MembershipStatus.ACTIVE:
             update_information = True
             # Pending stays pending until someone manually approves them in the DH admin 
