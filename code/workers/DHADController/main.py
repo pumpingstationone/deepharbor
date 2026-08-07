@@ -327,6 +327,34 @@ def remove_user_from_group(username, group_name):
             "error": str(e)
         }
         
+ 
+def update_user_ssh_keys(username, ssh_keys):
+    logger.debug(f"Updating user {username}'s SSH keys")
+    ad_session = ad.create_ad_session()    
+    try:
+        success = ad.update_user(ad_session, username,
+                                 {"altSecurityIdentities", ssh_keys})
+        if not success:
+            logger.error(f"Failed to update SSH keys for user: {username}")
+            return {
+                "status": "failure",
+                "error": f"Failed to update SSH keys for user: {username}",
+            }
+        logger.info(f"Updated SSH keys for user {username}")
+        return {
+            "status": "success",
+            "data": {
+                "operation": "update_user_ssh_keys",
+                "username": username,
+                "ssh_keys": ssh_keys
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error updating user {username}'s ssh keys: {e}")
+        return {
+            "status": "failure",
+            "error": str(e)
+        }
 def sync_account_info(request):
     logger.debug(f"Syncing account information with request: {request}")
     # Okay, first let's see if there's already an AD user in Active Directory 
@@ -371,8 +399,7 @@ def sync_account_info(request):
             "status": "failure",
             "error": str(e)
         }
-    
-    
+   
 ###############################################################################
 # Message Queue Interaction Functions
 ###############################################################################
@@ -435,6 +462,9 @@ def handle_message(msg_id, payload):
         return sync_account_info(payload)
     elif operation == "get_is_user_enabled":
         return get_is_user_enabled(username=payload.get("username"))
+    elif operation == "update_user_ssh_keys":
+        return update_user_ssh_keys(username=payload.get("username"),
+                                    ssh_keys=payload.get("ssh_keys"))
     else:
         result_data = {
             "original_id": msg_id,
