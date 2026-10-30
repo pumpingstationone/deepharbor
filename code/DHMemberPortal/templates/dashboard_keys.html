@@ -36,6 +36,15 @@
                     <input type="hidden" name="last_name" value="{{ identity.last_name or '' }}">
                     <input type="hidden" name="nickname" value="{{ identity.nickname or '' }}">
 
+                    {% set nfc_tags_list = [] %}
+                    {% if access and access.nfc_tags is string %}
+                        {% set nfc_tags_list = access.nfc_tags.split(',') if access.nfc_tags else [] %}
+                    {% elif access and access.nfc_tags is iterable %}
+                        {% set nfc_tags_list = access.nfc_tags %}
+                    {% elif access and access.nfc_tags %}
+                        {% set nfc_tags_list = [access.nfc_tags] %}
+                    {% endif %}
+
                     {% set rfid_tags_list = [] %}
                     {% if access and access.rfid_tags is string %}
                         {% set rfid_tags_list = access.rfid_tags.split(',') if access.rfid_tags else [] %}
@@ -45,15 +54,49 @@
                         {% set rfid_tags_list = [access.rfid_tags] %}
                     {% endif %}
 
-                    <div class="img-card img-card-horizontal mb-3">
+                    <!--<div class="img-card img-card-horizontal mb-3">
                         <img src="{{ url_for('static', filename='images/rfidkeynumber.png') }}" alt="Key card number location" class="img-card-image">
                         <div class="img-card-body">
                             <p>Enter the first 10 digits on your key card or key fob. Do not give your keys away.</p>
                         </div>
+                    </div>-->
+
+                    <div class="info-group">
+                        <label>NFC Fobs</label>
+                        <div class="info-value">
+                            <div id="keysValidationError" class="alert alert-danger" style="display: none;"></div>
+                            <div class="table-responsive">
+                                <table class="table table-bordered" id="rfidTagsTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 85%;">Card or Fob Number</th>
+                                            <th style="width: 15%; text-align: center;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="rfidTagsTableBody">
+                                        {% if nfc_tags_list|length > 0 %}
+                                            {% for tag in nfc_tags_list %}
+                                            <tr>
+                                                <p>{{ tag.strip() }}</p>
+                                                <td class="text-center align-middle"><button type="button" class="btn btn-danger btn-sm delete-rfid-btn">Delete</button></td>
+                                            </tr>
+                                            {% endfor %}
+                                        {% else %}
+                                            <tr>
+                                                <p>{{ tag.strip() }}</p>
+                                                <td class="text-center align-middle"><button type="button" class="btn btn-danger btn-sm delete-rfid-btn">Delete</button></td>
+                                            </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="addRfidTagBtn" title="Enroll card or fob"><i class="fa-solid fa-plus"></i></button>
+                            <input type="hidden" name="rfid_tags" id="rfidTagsHidden">
+                        </div>
                     </div>
 
                     <div class="info-group">
-                        <label>Key cards & fobs</label>
+                        <label>Legacy RFID Fobs</label>
                         <div class="info-value">
                             <div id="keysValidationError" class="alert alert-danger" style="display: none;"></div>
                             <div class="table-responsive">
@@ -81,7 +124,8 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <button type="button" class="btn btn-outline-primary btn-sm" id="addRfidTagBtn" title="Add card or fob"><i class="fa-solid fa-plus"></i></button>
+                            <p>RFID tags are being deprecated. To add a new tag, enroll an NFC tag.</p>
+                            <!--<button type="button" class="btn btn-outline-primary btn-sm" id="addRfidTagBtn" title="Add card or fob"><i class="fa-solid fa-plus"></i></button>-->
                             <input type="hidden" name="rfid_tags" id="rfidTagsHidden">
                         </div>
                     </div>

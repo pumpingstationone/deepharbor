@@ -24,7 +24,7 @@ Session(app)
 
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=1)
 
 ### Fields updatable from dashboard forms, grouped by JSONB column.
 ### Only fields present in the form submission are updated — partial
@@ -437,6 +437,30 @@ def member_keys():
                          identity=member_info.get('identity', {}) if isinstance(member_info, dict) else {},
                          status=member_info.get('status', {}) if isinstance(member_info, dict) else {},
                          user=session.get('user'))
+
+# request.remote_addr
+@app.route('/dashboard/keys/enroll')
+def member_keys_enroll():
+    """Begin enrollment process for a new keyfob"""
+    member_info, error = _get_authenticated_member_info()
+    if error:
+        return error
+
+    # Step 1: check if user is physically at PS1
+    #TODO: what does this actually return??
+    print(request.remote_addr)
+
+    # Step 1.5: Check if user has unifi account ID associated with them
+    # Step 1.6: Create unifi account if they don't have one
+
+    # Step 2: check if there is already an existing session
+    #TODO: how tf do I do this
+
+    # Step 3: begin enrollment
+    #TODO: see above
+
+    # Step 4: associate token with user's account
+    #TODO: see above
 
 @app.route('/dashboard/auths')
 def member_auths():

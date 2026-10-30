@@ -1,0 +1,14 @@
+[unifi_api]
+API_TOKEN=abc123abc123
+# MUST include trailing slash
+HOSTNAME=https://1.2.3.4:12445/
+
+# Both reader IDs
+ENROLLMENT_READER_ID=abc123
+BACKUP_READER_ID=def456
+
+# What group do we want to use to give a member access
+ACCESS_GROUP_ID=abc123
+
+[shared]
+SHARED_VOLUME_PATH=/app/shared
